@@ -1,0 +1,162 @@
+@import "tailwindcss";
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+/* ═══════════════════════════════════════════
+   TalepSat Design System — CSS Custom Properties
+   ═══════════════════════════════════════════ */
+
+@theme {
+  /* Primary */
+  --color-primary: #1B2B4B;
+  --color-primary-light: #2D4A7A;
+  --color-primary-lighter: #E8EDF4;
+  --color-primary-50: #F0F3F8;
+  --color-primary-600: #2D4A7A;
+  --color-primary-700: #1B2B4B;
+
+  /* Accent */
+  --color-accent: #E8683A;
+  --color-accent-light: #FCEEE8;
+  --color-accent-lighter: #FEF7F4;
+  --color-accent-600: #D4521F;
+  --color-accent-700: #A93F18;
+
+  /* Success */
+  --color-success: #1A8754;
+  --color-success-light: #E6F5ED;
+  --color-success-dark: #126B42;
+
+  /* Warning */
+  --color-warning: #D4940A;
+  --color-warning-light: #FDF4E0;
+  --color-warning-dark: #A87608;
+
+  /* Error */
+  --color-error: #C93B3B;
+  --color-error-light: #FCEAEA;
+  --color-error-dark: #A12F2F;
+
+  /* Neutral (warm grays) */
+  --color-neutral-0: #FFFFFF;
+  --color-neutral-50: #FAFAF8;
+  --color-neutral-100: #F3F2EF;
+  --color-neutral-200: #E5E3DE;
+  --color-neutral-300: #C8C5BD;
+  --color-neutral-400: #A8A59C;
+  --color-neutral-500: #7A7668;
+  --color-neutral-600: #5C584C;
+  --color-neutral-700: #3D3A33;
+  --color-neutral-800: #28261F;
+  --color-neutral-900: #1A1815;
+
+  /* Dark mode surfaces — increased contrast between layers */
+  --color-dark-bg: #121212;
+  --color-dark-surface: #1E1E1C;
+  --color-dark-surfaceRaised: #2A2A28;
+  --color-dark-border: #3A3A37;
+  --color-dark-textPrimary: #F0EFEB;
+  --color-dark-textSecondary: #9A9790;
+
+  /* Shadows */
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.05);
+  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.08);
+  --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.12);
+  --shadow-xl: 0 16px 48px rgba(0, 0, 0, 0.16);
+
+  /* Border Radius */
+  --radius-sm: 0.375rem;
+  --radius-md: 0.5rem;
+  --radius-lg: 0.75rem;
+  --radius-xl: 1rem;
+  --radius-2xl: 1.5rem;
+  --radius-full: 9999px;
+
+  /* Transitions */
+  --duration-fast: 150ms;
+  --duration-normal: 250ms;
+  --duration-moderate: 350ms;
+
+  /* Font Family */
+  --font-sans: "Plus Jakarta Sans", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+
+  /* Font Sizes */
+  --text-display: 3rem;
+  --text-h1: 2.25rem;
+  --text-h2: 1.75rem;
+  --text-h3: 1.375rem;
+  --text-h4: 1.125rem;
+  --text-body-lg: 1rem;
+  --text-body-md: 0.875rem;
+  --text-body-sm: 0.75rem;
+}
+
+/* ═══════ Base Styles ═══════ */
+
+body {
+  font-family: var(--font-sans);
+  color: var(--color-neutral-900);
+  background-color: var(--color-neutral-50);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Dark mode (class-based) */
+.dark body,
+body.dark {
+  color: var(--color-dark-textPrimary);
+  background-color: var(--color-dark-bg);
+}
+
+.dark ::-webkit-scrollbar-thumb {
+  background-color: var(--color-neutral-600);
+}
+
+.dark ::selection {
+  background-color: var(--color-accent-700);
+  color: var(--color-accent-light);
+}
+
+/* Reduced motion */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* Selection */
+::selection {
+  background-color: var(--color-accent-light);
+  color: var(--color-accent-700);
+}
+
+/* Focus visible */
+:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 2px;
+  border-radius: var(--radius-sm);
+}
+
+/* Scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background-color: var(--color-neutral-300);
+  border-radius: var(--radius-full);
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background-color: var(--color-neutral-400);
+}
