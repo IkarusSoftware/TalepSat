@@ -5,8 +5,12 @@ import { PrismaAdapter } from '@auth/prisma-adapter';
 import bcrypt from 'bcryptjs';
 import { prisma } from './prisma';
 
+// Only use PrismaAdapter when Google OAuth is configured
+// Adapter + Credentials + JWT can conflict — adapter tries to create sessions
+const useAdapter = !!(process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET);
+
 export const { handlers, signIn, signOut, auth } = NextAuth({
-  adapter: PrismaAdapter(prisma),
+  ...(useAdapter ? { adapter: PrismaAdapter(prisma) } : {}),
   session: { strategy: 'jwt' },
   pages: {
     signIn: '/login',
