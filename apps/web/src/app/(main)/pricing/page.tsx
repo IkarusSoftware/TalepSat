@@ -7,7 +7,8 @@ import {
   Check, X, Zap, Crown, Star, ArrowRight, Shield,
   BarChart3, Clock, MessageSquare, BadgeCheck,
 } from 'lucide-react';
-import { subscriptionPlans, currentSubscription } from '@/lib/mock-data';
+import { useSession } from 'next-auth/react';
+import { subscriptionPlans } from '@/lib/mock-data';
 
 const badgeConfig: Record<string, { icon: typeof Star; color: string; bg: string }> = {
   free: { icon: Star, color: 'text-neutral-400', bg: 'bg-neutral-100 dark:bg-neutral-500/10' },
@@ -21,7 +22,9 @@ function formatPrice(price: number) {
 }
 
 export default function PricingPage() {
+  const { data: session } = useSession();
   const [billingCycle, setBillingCycle] = useState<'monthly' | 'yearly'>('yearly');
+  const currentBadge = (session?.user as Record<string, string> | undefined)?.badge || 'free';
 
   return (
     <div className="max-w-7xl mx-auto px-6 py-8">
@@ -84,7 +87,7 @@ export default function PricingPage() {
           const config = badgeConfig[plan.slug];
           const Icon = config.icon;
           const price = billingCycle === 'monthly' ? plan.monthlyPrice : plan.yearlyPrice;
-          const isCurrentPlan = currentSubscription.planSlug === plan.slug;
+          const isCurrentPlan = currentBadge === plan.slug;
 
           return (
             <motion.div

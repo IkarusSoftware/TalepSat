@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useRef, useEffect, useCallback, useMemo } from 'react';
+import { useState, useRef, useEffect, useCallback, useMemo, Suspense } from 'react';
 import Link from 'next/link';
 import { useSession } from 'next-auth/react';
 import { useSearchParams, useRouter } from 'next/navigation';
@@ -154,7 +154,15 @@ function getAvatarColor(name: string) {
    MAIN COMPONENT
    ═════════════════════════════════════════ */
 
-export default function MessagesPage() {
+export default function MessagesPageWrapper() {
+  return (
+    <Suspense fallback={<div className="flex items-center justify-center min-h-[60vh]"><Loader2 className="w-8 h-8 animate-spin text-accent" /></div>}>
+      <MessagesPage />
+    </Suspense>
+  );
+}
+
+function MessagesPage() {
   const { data: session } = useSession();
   const searchParams = useSearchParams();
   const router = useRouter();
@@ -966,13 +974,12 @@ export default function MessagesPage() {
                 <div
                   ref={messagesContainerRef}
                   onScroll={handleScroll}
-                  className="flex-1 overflow-y-auto px-3 md:px-6 py-4 relative"
-                  style={{ cssText: typeof document !== 'undefined' && document.documentElement.classList.contains('dark') ? chatBgDark : chatBgLight }}
+                  className="flex-1 overflow-y-auto px-3 md:px-6 py-4 relative chat-messages-bg"
                 >
                   {/* Chat background style (applied via inline for SSR compat) */}
                   <style>{`
-                    .chat-bg-light { ${chatBgLight} }
-                    .chat-bg-dark { ${chatBgDark} }
+                    .chat-messages-bg { ${chatBgLight} }
+                    .dark .chat-messages-bg { ${chatBgDark} }
                   `}</style>
 
                   {messages.length === 0 && (

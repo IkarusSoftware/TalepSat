@@ -294,7 +294,23 @@ export default function CreateListingPage() {
                   />
                   {/* AI suggestion */}
                   {form.title.length > 5 && form.title.length < 20 && (
-                    <button className="flex items-center gap-1.5 text-body-sm text-accent font-medium mt-1">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const cat = categories.find(c => c.id === form.categoryId);
+                        const catLabel = cat?.label || '';
+                        const qty = form.quantity ? `${form.quantity} ${form.unit}` : '';
+                        const base = form.title.trim();
+                        const suggestions = [
+                          `${qty} ${base} — ${catLabel} Tedarik Talebi`.trim(),
+                          `${base} ${qty ? `(${qty})` : ''} — Toptan ${catLabel}`.trim(),
+                          `${catLabel}: ${qty} ${base} Alım Talebi`.trim(),
+                        ];
+                        const suggestion = suggestions[Math.floor(Math.random() * suggestions.length)].replace(/\s+/g, ' ').slice(0, 120);
+                        updateForm('title', suggestion);
+                      }}
+                      className="flex items-center gap-1.5 text-body-sm text-accent font-medium mt-1 hover:text-accent-600 transition-colors"
+                    >
                       <Sparkles size={14} /> AI başlık önerisi al
                     </button>
                   )}

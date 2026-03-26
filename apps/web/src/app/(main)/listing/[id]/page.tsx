@@ -185,12 +185,19 @@ export default function ListingDetailPage() {
   const [loading, setLoading] = useState(true);
   const [showOfferForm, setShowOfferForm] = useState(false);
   const [isFavorite, setIsFavorite] = useState(false);
+  const [shared, setShared] = useState(false);
   const [submitting, setSubmitting] = useState(false);
 
   // Offer form state
   const [offerPrice, setOfferPrice] = useState('');
   const [offerDeliveryDays, setOfferDeliveryDays] = useState('14');
   const [offerNote, setOfferNote] = useState('');
+
+  useEffect(() => {
+    if (!params.id) return;
+    const favs = JSON.parse(localStorage.getItem('talepsat_favorites') || '[]');
+    setIsFavorite(favs.includes(params.id));
+  }, [params.id]);
 
   useEffect(() => {
     if (!params.id) return;
@@ -348,7 +355,12 @@ export default function ListingDetailPage() {
             {/* Actions */}
             <div className="flex items-center gap-3 mb-6">
               <button
-                onClick={() => setIsFavorite(!isFavorite)}
+                onClick={() => {
+                  const favs = JSON.parse(localStorage.getItem('talepsat_favorites') || '[]');
+                  const newFavs = isFavorite ? favs.filter((id: string) => id !== params.id) : [...favs, params.id];
+                  localStorage.setItem('talepsat_favorites', JSON.stringify(newFavs));
+                  setIsFavorite(!isFavorite);
+                }}
                 className={`h-10 px-4 rounded-lg border text-body-md font-medium flex items-center gap-2 transition-all ${
                   isFavorite
                     ? 'border-error/30 bg-error-light text-error'
@@ -358,8 +370,21 @@ export default function ListingDetailPage() {
                 <Heart size={16} className={isFavorite ? 'fill-error' : ''} />
                 {isFavorite ? 'Favorilerde' : 'Favorile'}
               </button>
-              <button className="h-10 px-4 rounded-lg border border-neutral-200 dark:border-dark-border text-body-md font-medium text-neutral-600 hover:bg-neutral-50 flex items-center gap-2 transition-colors">
-                <Share2 size={16} /> Paylaş
+              <button
+                onClick={async () => {
+                  const url = window.location.href;
+                  const text = `${listing.title} - TalepSat`;
+                  if (navigator.share) {
+                    try { await navigator.share({ title: text, url }); } catch {}
+                  } else {
+                    await navigator.clipboard.writeText(url);
+                    setShared(true);
+                    setTimeout(() => setShared(false), 2000);
+                  }
+                }}
+                className="h-10 px-4 rounded-lg border border-neutral-200 dark:border-dark-border text-body-md font-medium text-neutral-600 hover:bg-neutral-50 flex items-center gap-2 transition-colors"
+              >
+                <Share2 size={16} /> {shared ? 'Kopyalandı!' : 'Paylaş'}
               </button>
               {isOwner && (
                 <Link

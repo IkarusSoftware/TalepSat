@@ -3,7 +3,13 @@
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 
-const feedItems = [
+interface FeedItem {
+  city: string;
+  item: string;
+  time: string;
+}
+
+const fallbackItems: FeedItem[] = [
   { city: 'İstanbul', item: '500 adet ofis sandalyesi', time: '2 dk önce' },
   { city: 'Ankara', item: '200 adet karton kutu', time: '5 dk önce' },
   { city: 'İzmir', item: '1000 metre kumaş', time: '8 dk önce' },
@@ -14,15 +20,43 @@ const feedItems = [
   { city: 'Trabzon', item: '500 adet ambalaj poşeti', time: '25 dk önce' },
 ];
 
+function timeAgo(dateStr: string) {
+  const diff = Date.now() - new Date(dateStr).getTime();
+  const mins = Math.floor(diff / 60000);
+  if (mins < 1) return 'Az önce';
+  if (mins < 60) return `${mins} dk önce`;
+  const hours = Math.floor(mins / 60);
+  if (hours < 24) return `${hours} saat önce`;
+  const days = Math.floor(hours / 24);
+  return `${days} gün önce`;
+}
+
 export function LiveFeedSection() {
+  const [feedItems, setFeedItems] = useState<FeedItem[]>(fallbackItems);
   const [currentIndex, setCurrentIndex] = useState(0);
+
+  useEffect(() => {
+    fetch('/api/listings?status=active')
+      .then((r) => r.json())
+      .then((data) => {
+        if (Array.isArray(data) && data.length > 0) {
+          const items = data.slice(0, 8).map((l: Record<string, unknown>) => ({
+            city: l.city as string,
+            item: l.title as string,
+            time: timeAgo(l.createdAt as string),
+          }));
+          setFeedItems(items);
+        }
+      })
+      .catch(() => {});
+  }, []);
 
   useEffect(() => {
     const interval = setInterval(() => {
       setCurrentIndex((prev) => (prev + 1) % feedItems.length);
     }, 3500);
     return () => clearInterval(interval);
-  }, []);
+  }, [feedItems.length]);
 
   const visibleItems = [
     feedItems[currentIndex],

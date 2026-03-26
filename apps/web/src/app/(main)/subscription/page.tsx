@@ -1,22 +1,15 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { useSession } from 'next-auth/react';
 import { motion } from 'framer-motion';
 import Link from 'next/link';
 import {
   Crown, Shield, Zap, Star, CreditCard, Calendar,
-  ArrowUpRight, Download, RotateCcw, Check, AlertTriangle,
-  ChevronRight, BarChart3, Sparkles, Receipt,
+  ArrowUpRight, RotateCcw,
+  ChevronRight, BarChart3, Sparkles, Loader2,
 } from 'lucide-react';
-import { currentSubscription, subscriptionPlans } from '@/lib/mock-data';
-
-function formatPrice(price: number) {
-  return new Intl.NumberFormat('tr-TR').format(price);
-}
-
-function formatDate(date: string) {
-  return new Date(date).toLocaleDateString('tr-TR', { day: 'numeric', month: 'long', year: 'numeric' });
-}
+import { subscriptionPlans } from '@/lib/mock-data';
 
 const planIcons: Record<string, typeof Star> = {
   free: Star,
@@ -32,19 +25,49 @@ const planColors: Record<string, { text: string; bg: string; border: string }> =
   pro: { text: 'text-accent', bg: 'bg-accent-lighter dark:bg-accent/10', border: 'border-accent/30' },
 };
 
+interface UsageData {
+  listingCount: number;
+  totalOffers: number;
+  acceptedOffers: number;
+  reviewCount: number;
+}
+
 export default function SubscriptionPage() {
-  const [showCancelModal, setShowCancelModal] = useState(false);
-  const plan = subscriptionPlans.find((p) => p.slug === currentSubscription.planSlug)!;
-  const PlanIcon = planIcons[plan.slug];
-  const colors = planColors[plan.slug];
+  const { data: session } = useSession();
+  const [usage, setUsage] = useState<UsageData | null>(null);
+  const [loading, setLoading] = useState(true);
 
-  const daysLeft = Math.ceil(
-    (new Date(currentSubscription.currentPeriodEnd).getTime() - Date.now()) / (1000 * 60 * 60 * 24)
-  );
+  const currentBadge = (session?.user as Record<string, string> | undefined)?.badge || 'free';
+  const plan = subscriptionPlans.find((p) => p.slug === currentBadge) || subscriptionPlans[0];
+  const PlanIcon = planIcons[currentBadge] || Star;
+  const colors = planColors[currentBadge] || planColors.free;
 
-  const offersPercent = currentSubscription.offersLimit
-    ? Math.round((currentSubscription.offersUsed / currentSubscription.offersLimit) * 100)
-    : null;
+  useEffect(() => {
+    if (!session?.user?.id) return;
+    fetch(`/api/users/${session.user.id}`)
+      .then((r) => r.json())
+      .then((data) => {
+        setUsage({
+          listingCount: data.listingCount || 0,
+          totalOffers: data.totalOffers || 0,
+          acceptedOffers: data.acceptedOffers || 0,
+          reviewCount: data.reviewCount || 0,
+        });
+      })
+      .finally(() => setLoading(false));
+  }, [session?.user?.id]);
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center min-h-[60vh]">
+        <Loader2 className="w-8 h-8 animate-spin text-accent" />
+      </div>
+    );
+  }
+
+  const offersLimit = plan.limits.offersPerMonth;
+  const offersUsed = usage?.totalOffers || 0;
+  const offersPercent = offersLimit ? Math.round((offersUsed / offersLimit) * 100) : null;
 
   return (
     <div className="max-w-5xl mx-auto px-6 py-8">
@@ -52,7 +75,7 @@ export default function SubscriptionPage() {
       <div className="flex items-center justify-between mb-8">
         <div>
           <h1 className="text-h1 font-bold text-neutral-900 dark:text-dark-textPrimary">Abonelik Yönetimi</h1>
-          <p className="mt-1 text-body-lg text-neutral-500">Planınızı, kullanımınızı ve faturalarınızı yönetin.</p>
+          <p className="mt-1 text-body-lg text-neutral-500">Planınızı ve kullanımınızı görüntüleyin.</p>
         </div>
         <Link
           href="/pricing"
@@ -90,42 +113,11 @@ export default function SubscriptionPage() {
               </div>
               <div className="text-right">
                 <p className="text-2xl font-bold text-neutral-900 dark:text-dark-textPrimary">
-                  ₺{formatPrice(currentSubscription.billingCycle === 'monthly' ? plan.monthlyPrice : plan.yearlyPrice)}
+                  {plan.monthlyPrice === 0 ? 'Ücretsiz' : `₺${new Intl.NumberFormat('tr-TR').format(plan.monthlyPrice)}`}
                 </p>
-                <p className="text-body-sm text-neutral-400">
-                  /{currentSubscription.billingCycle === 'monthly' ? 'ay' : 'yıl'}
-                </p>
-              </div>
-            </div>
-
-            {/* Period info */}
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
-              <div className="flex items-center gap-3 p-3 rounded-xl bg-neutral-50 dark:bg-dark-surfaceRaised">
-                <Calendar size={18} className="text-neutral-400" />
-                <div>
-                  <p className="text-body-sm text-neutral-400">Dönem Başlangıcı</p>
-                  <p className="text-body-md font-medium text-neutral-900 dark:text-dark-textPrimary">
-                    {formatDate(currentSubscription.currentPeriodStart)}
-                  </p>
-                </div>
-              </div>
-              <div className="flex items-center gap-3 p-3 rounded-xl bg-neutral-50 dark:bg-dark-surfaceRaised">
-                <Calendar size={18} className="text-neutral-400" />
-                <div>
-                  <p className="text-body-sm text-neutral-400">Yenileme Tarihi</p>
-                  <p className="text-body-md font-medium text-neutral-900 dark:text-dark-textPrimary">
-                    {formatDate(currentSubscription.currentPeriodEnd)}
-                  </p>
-                </div>
-              </div>
-              <div className="flex items-center gap-3 p-3 rounded-xl bg-neutral-50 dark:bg-dark-surfaceRaised">
-                <RotateCcw size={18} className="text-neutral-400" />
-                <div>
-                  <p className="text-body-sm text-neutral-400">Kalan Süre</p>
-                  <p className="text-body-md font-medium text-neutral-900 dark:text-dark-textPrimary">
-                    {daysLeft} gün
-                  </p>
-                </div>
+                {plan.monthlyPrice > 0 && (
+                  <p className="text-body-sm text-neutral-400">/ay</p>
+                )}
               </div>
             </div>
 
@@ -136,14 +128,8 @@ export default function SubscriptionPage() {
                 className="h-10 px-5 rounded-xl bg-accent text-white text-body-md font-semibold flex items-center gap-2 hover:bg-accent-600 active:scale-[0.97] transition-all"
               >
                 <Sparkles size={16} />
-                Planı Yükselt
+                {currentBadge === 'pro' ? 'Plan Detayları' : 'Planı Yükselt'}
               </Link>
-              <button
-                onClick={() => setShowCancelModal(true)}
-                className="h-10 px-5 rounded-xl border border-neutral-200 dark:border-dark-border text-body-md font-medium text-neutral-500 hover:text-error hover:border-red-200 dark:hover:border-red-500/30 transition-colors"
-              >
-                Aboneliği İptal Et
-              </button>
             </div>
           </motion.div>
 
@@ -163,10 +149,10 @@ export default function SubscriptionPage() {
               {/* Offers usage */}
               <div>
                 <div className="flex items-center justify-between mb-2">
-                  <span className="text-body-md text-neutral-700 dark:text-dark-textSecondary">Teklif Hakkı</span>
+                  <span className="text-body-md text-neutral-700 dark:text-dark-textSecondary">Toplam Teklif</span>
                   <span className="text-body-md font-semibold text-neutral-900 dark:text-dark-textPrimary">
-                    {currentSubscription.offersUsed}
-                    {currentSubscription.offersLimit ? ` / ${currentSubscription.offersLimit}` : ' (Sınırsız)'}
+                    {offersUsed}
+                    {offersLimit ? ` / ${offersLimit}` : ' (Sınırsız)'}
                   </span>
                 </div>
                 <div className="h-2.5 rounded-full bg-neutral-100 dark:bg-dark-surfaceRaised overflow-hidden">
@@ -181,80 +167,28 @@ export default function SubscriptionPage() {
                 </div>
               </div>
 
-              {/* Boosts usage */}
-              <div>
-                <div className="flex items-center justify-between mb-2">
-                  <span className="text-body-md text-neutral-700 dark:text-dark-textSecondary">Öne Çıkarma</span>
-                  <span className="text-body-md font-semibold text-neutral-900 dark:text-dark-textPrimary">
-                    {currentSubscription.boostsUsed}
-                    {currentSubscription.boostsLimit >= 999 ? ' (Sınırsız)' : ` / ${currentSubscription.boostsLimit}`}
-                  </span>
+              {/* Summary stats */}
+              <div className="grid grid-cols-3 gap-4 pt-3 border-t border-neutral-100 dark:border-dark-border">
+                <div className="text-center p-3 rounded-xl bg-neutral-50 dark:bg-dark-surfaceRaised">
+                  <p className="text-h3 font-bold text-neutral-900 dark:text-dark-textPrimary">{usage?.listingCount || 0}</p>
+                  <p className="text-body-sm text-neutral-500">İlan</p>
                 </div>
-                <div className="h-2.5 rounded-full bg-neutral-100 dark:bg-dark-surfaceRaised overflow-hidden">
-                  <motion.div
-                    initial={{ width: 0 }}
-                    animate={{ width: currentSubscription.boostsLimit >= 999 ? '8%' : `${Math.min((currentSubscription.boostsUsed / currentSubscription.boostsLimit) * 100, 100)}%` }}
-                    transition={{ duration: 0.8, ease: 'easeOut', delay: 0.1 }}
-                    className="h-full rounded-full bg-blue-400"
-                  />
+                <div className="text-center p-3 rounded-xl bg-neutral-50 dark:bg-dark-surfaceRaised">
+                  <p className="text-h3 font-bold text-neutral-900 dark:text-dark-textPrimary">{usage?.acceptedOffers || 0}</p>
+                  <p className="text-body-sm text-neutral-500">Kabul Edilen</p>
+                </div>
+                <div className="text-center p-3 rounded-xl bg-neutral-50 dark:bg-dark-surfaceRaised">
+                  <p className="text-h3 font-bold text-neutral-900 dark:text-dark-textPrimary">{usage?.reviewCount || 0}</p>
+                  <p className="text-body-sm text-neutral-500">Değerlendirme</p>
                 </div>
               </div>
-            </div>
-          </motion.div>
-
-          {/* Invoices */}
-          <motion.div
-            initial={{ opacity: 0, y: 12 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.35, delay: 0.16 }}
-            className="rounded-2xl border border-neutral-200/50 dark:border-dark-border bg-white dark:bg-dark-surface p-6"
-          >
-            <h3 className="text-h3 font-bold text-neutral-900 dark:text-dark-textPrimary mb-5 flex items-center gap-2">
-              <Receipt size={20} className="text-neutral-400" />
-              Fatura Geçmişi
-            </h3>
-
-            <div className="space-y-2">
-              {currentSubscription.invoices.map((inv) => (
-                <div
-                  key={inv.id}
-                  className="flex items-center justify-between p-3.5 rounded-xl hover:bg-neutral-50 dark:hover:bg-dark-surfaceRaised transition-colors group"
-                >
-                  <div className="flex items-center gap-3">
-                    <div className="w-9 h-9 rounded-lg bg-neutral-100 dark:bg-dark-surfaceRaised flex items-center justify-center">
-                      <Receipt size={16} className="text-neutral-400" />
-                    </div>
-                    <div>
-                      <p className="text-body-md font-medium text-neutral-900 dark:text-dark-textPrimary">{inv.description}</p>
-                      <p className="text-body-sm text-neutral-400">{formatDate(inv.date)}</p>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-4">
-                    <div className="text-right">
-                      <p className="text-body-md font-semibold text-neutral-900 dark:text-dark-textPrimary">₺{formatPrice(inv.amount)}</p>
-                      <span className={`text-[11px] font-medium px-2 py-0.5 rounded-full ${
-                        inv.status === 'paid'
-                          ? 'text-success bg-emerald-50 dark:bg-emerald-500/10'
-                          : inv.status === 'pending'
-                            ? 'text-amber-600 bg-amber-50 dark:bg-amber-500/10'
-                            : 'text-error bg-red-50 dark:bg-red-500/10'
-                      }`}>
-                        {inv.status === 'paid' ? 'Ödendi' : inv.status === 'pending' ? 'Bekliyor' : 'Başarısız'}
-                      </span>
-                    </div>
-                    <button className="p-2 rounded-lg text-neutral-300 hover:text-neutral-500 hover:bg-neutral-100 dark:hover:bg-dark-surfaceRaised transition-colors opacity-0 group-hover:opacity-100">
-                      <Download size={16} />
-                    </button>
-                  </div>
-                </div>
-              ))}
             </div>
           </motion.div>
         </div>
 
         {/* Right column */}
         <div className="space-y-6">
-          {/* Payment method */}
+          {/* Plan features */}
           <motion.div
             initial={{ opacity: 0, y: 12 }}
             animate={{ opacity: 1, y: 0 }}
@@ -262,53 +196,42 @@ export default function SubscriptionPage() {
             className="rounded-2xl border border-neutral-200/50 dark:border-dark-border bg-white dark:bg-dark-surface p-6"
           >
             <h3 className="text-h4 font-bold text-neutral-900 dark:text-dark-textPrimary mb-4 flex items-center gap-2">
-              <CreditCard size={18} className="text-neutral-400" />
-              Ödeme Yöntemi
+              <Crown size={18} className="text-neutral-400" />
+              Plan Özellikleri
             </h3>
 
-            <div className="p-4 rounded-xl bg-neutral-50 dark:bg-dark-surfaceRaised border border-neutral-100 dark:border-dark-border mb-4">
-              <div className="flex items-center gap-3 mb-2">
-                <div className="w-10 h-7 rounded bg-gradient-to-r from-blue-600 to-blue-400 flex items-center justify-center">
-                  <span className="text-white text-[9px] font-bold tracking-wider">VISA</span>
+            <div className="space-y-2.5">
+              {plan.features.filter(f => f.included).map((feature) => (
+                <div key={feature.text} className="flex items-center gap-2.5 text-body-sm text-neutral-700 dark:text-dark-textSecondary">
+                  <div className="w-4 h-4 rounded-full bg-success/10 flex items-center justify-center shrink-0">
+                    <div className="w-1.5 h-1.5 rounded-full bg-success" />
+                  </div>
+                  {feature.text}
                 </div>
-                <div>
-                  <p className="text-body-md font-medium text-neutral-900 dark:text-dark-textPrimary">
-                    •••• •••• •••• {currentSubscription.paymentMethod.last4}
-                  </p>
-                  <p className="text-body-sm text-neutral-400">
-                    Son kullanma: {String(currentSubscription.paymentMethod.expiryMonth).padStart(2, '0')}/{currentSubscription.paymentMethod.expiryYear}
-                  </p>
-                </div>
-              </div>
+              ))}
             </div>
-
-            <button className="w-full h-9 rounded-lg border border-neutral-200 dark:border-dark-border text-body-sm font-medium text-neutral-600 dark:text-dark-textSecondary hover:bg-neutral-50 dark:hover:bg-dark-surfaceRaised transition-colors">
-              Kartı Değiştir
-            </button>
           </motion.div>
 
-          {/* Auto-renewal */}
+          {/* Payment info placeholder */}
           <motion.div
             initial={{ opacity: 0, y: 12 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.35, delay: 0.15 }}
             className="rounded-2xl border border-neutral-200/50 dark:border-dark-border bg-white dark:bg-dark-surface p-6"
           >
-            <div className="flex items-center justify-between mb-3">
-              <h3 className="text-h4 font-bold text-neutral-900 dark:text-dark-textPrimary">Otomatik Yenileme</h3>
-              <div className={`w-11 h-6 rounded-full relative cursor-pointer transition-colors ${
-                currentSubscription.autoRenew ? 'bg-success' : 'bg-neutral-200 dark:bg-dark-border'
-              }`}>
-                <div className={`w-5 h-5 rounded-full bg-white shadow-sm absolute top-0.5 transition-transform ${
-                  currentSubscription.autoRenew ? 'translate-x-[22px]' : 'translate-x-0.5'
-                }`} />
-              </div>
+            <h3 className="text-h4 font-bold text-neutral-900 dark:text-dark-textPrimary mb-4 flex items-center gap-2">
+              <CreditCard size={18} className="text-neutral-400" />
+              Ödeme
+            </h3>
+
+            <div className="p-4 rounded-xl bg-neutral-50 dark:bg-dark-surfaceRaised border border-neutral-100 dark:border-dark-border text-center">
+              <p className="text-body-md text-neutral-500 mb-2">
+                Ödeme entegrasyonu yakında aktif olacak.
+              </p>
+              <p className="text-body-sm text-neutral-400">
+                Plan yükseltme ve ödeme işlemleri için lütfen bizimle iletişime geçin.
+              </p>
             </div>
-            <p className="text-body-sm text-neutral-500">
-              {currentSubscription.autoRenew
-                ? `Aboneliğiniz ${formatDate(currentSubscription.currentPeriodEnd)} tarihinde otomatik olarak yenilenecektir.`
-                : 'Otomatik yenileme kapalı. Aboneliğiniz dönem sonunda sona erecektir.'}
-            </p>
           </motion.div>
 
           {/* Quick links */}
@@ -334,50 +257,13 @@ export default function SubscriptionPage() {
             >
               <div className="flex items-center gap-3">
                 <CreditCard size={18} className="text-neutral-400" />
-                <span className="text-body-md font-medium text-neutral-700 dark:text-dark-textPrimary">Fatura Bilgileri</span>
+                <span className="text-body-md font-medium text-neutral-700 dark:text-dark-textPrimary">Hesap Ayarları</span>
               </div>
               <ChevronRight size={16} className="text-neutral-400" />
             </Link>
           </motion.div>
         </div>
       </div>
-
-      {/* Cancel modal */}
-      {showCancelModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm px-4">
-          <motion.div
-            initial={{ opacity: 0, scale: 0.95 }}
-            animate={{ opacity: 1, scale: 1 }}
-            transition={{ duration: 0.2 }}
-            className="bg-white dark:bg-dark-surface rounded-2xl border border-neutral-200 dark:border-dark-border shadow-2xl max-w-md w-full p-6"
-          >
-            <div className="w-12 h-12 rounded-2xl bg-red-50 dark:bg-red-500/10 flex items-center justify-center mb-4">
-              <AlertTriangle size={24} className="text-error" />
-            </div>
-            <h3 className="text-h3 font-bold text-neutral-900 dark:text-dark-textPrimary mb-2">
-              Aboneliği iptal et?
-            </h3>
-            <p className="text-body-md text-neutral-500 mb-6">
-              İptal etmeniz durumunda mevcut dönem sonuna kadar ({formatDate(currentSubscription.currentPeriodEnd)})
-              tüm özelliklerden yararlanmaya devam edersiniz. Sonrasında ücretsiz plana düşürülürsünüz.
-            </p>
-            <div className="flex items-center gap-3">
-              <button
-                onClick={() => setShowCancelModal(false)}
-                className="flex-1 h-11 rounded-xl border border-neutral-200 dark:border-dark-border text-body-md font-medium text-neutral-700 dark:text-dark-textSecondary hover:bg-neutral-50 dark:hover:bg-dark-surfaceRaised transition-colors"
-              >
-                Vazgeç
-              </button>
-              <button
-                onClick={() => setShowCancelModal(false)}
-                className="flex-1 h-11 rounded-xl bg-error text-white text-body-md font-semibold hover:bg-red-600 active:scale-[0.97] transition-all"
-              >
-                İptal Et
-              </button>
-            </div>
-          </motion.div>
-        </div>
-      )}
     </div>
   );
 }

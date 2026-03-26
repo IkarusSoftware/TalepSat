@@ -1,13 +1,30 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
-  Flag, Search, AlertTriangle, CheckCircle, XCircle,
-  Eye, FileText, User, MessageSquare, ShoppingBag,
-  Clock, X,
+  Flag, Search, CheckCircle, XCircle,
+  Eye, User, Clock, X, Loader2, AlertTriangle,
 } from 'lucide-react';
-import { adminReports, type AdminReport } from '@/lib/mock-data';
+
+interface ReportUser {
+  id: string;
+  name: string;
+  email: string;
+  image: string | null;
+}
+
+interface Report {
+  id: string;
+  reporterId: string;
+  reportedId: string;
+  reason: 'spam' | 'harassment' | 'fraud' | 'inappropriate' | 'other';
+  detail: string;
+  status: 'pending' | 'reviewed' | 'resolved';
+  createdAt: string;
+  reporter: ReportUser;
+  reported: ReportUser;
+}
 
 function timeAgo(date: string) {
   const diff = Date.now() - new Date(date).getTime();
@@ -20,24 +37,22 @@ function timeAgo(date: string) {
   return `${days} gün önce`;
 }
 
+function getInitials(name: string) {
+  return name.split(' ').map((n) => n[0]).join('').toUpperCase().slice(0, 2);
+}
+
+const reasonLabels: Record<Report['reason'], string> = {
+  spam: 'Spam',
+  harassment: 'Taciz',
+  fraud: 'Dolandırıcılık',
+  inappropriate: 'Uygunsuz İçerik',
+  other: 'Diğer',
+};
+
 const statusConfig = {
   pending: { label: 'Bekliyor', color: 'text-amber-600', bg: 'bg-amber-50 dark:bg-amber-500/10', icon: Clock },
   reviewed: { label: 'İnceleniyor', color: 'text-blue-600', bg: 'bg-blue-50 dark:bg-blue-500/10', icon: Eye },
   resolved: { label: 'Çözüldü', color: 'text-success', bg: 'bg-emerald-50 dark:bg-emerald-500/10', icon: CheckCircle },
-  dismissed: { label: 'Reddedildi', color: 'text-neutral-500', bg: 'bg-neutral-100 dark:bg-neutral-500/10', icon: XCircle },
-};
-
-const typeConfig = {
-  listing: { label: 'İlan', icon: FileText, color: 'text-blue-500', bg: 'bg-blue-50 dark:bg-blue-500/10' },
-  user: { label: 'Kullanıcı', icon: User, color: 'text-purple-500', bg: 'bg-purple-50 dark:bg-purple-500/10' },
-  offer: { label: 'Teklif', icon: ShoppingBag, color: 'text-amber-500', bg: 'bg-amber-50 dark:bg-amber-500/10' },
-  message: { label: 'Mesaj', icon: MessageSquare, color: 'text-emerald-500', bg: 'bg-emerald-50 dark:bg-emerald-500/10' },
-};
-
-const priorityConfig = {
-  high: { label: 'Yüksek', color: 'text-error', bg: 'bg-red-50 dark:bg-red-500/10', dot: 'bg-error' },
-  medium: { label: 'Orta', color: 'text-amber-600', bg: 'bg-amber-50 dark:bg-amber-500/10', dot: 'bg-amber-400' },
-  low: { label: 'Düşük', color: 'text-neutral-500', bg: 'bg-neutral-100 dark:bg-neutral-500/10', dot: 'bg-neutral-400' },
 };
 
 const tabs = [
@@ -45,27 +60,58 @@ const tabs = [
   { value: 'pending', label: 'Bekleyen' },
   { value: 'reviewed', label: 'İncelenen' },
   { value: 'resolved', label: 'Çözülen' },
-  { value: 'dismissed', label: 'Reddedilen' },
 ];
 
 export default function AdminReportsPage() {
   const [activeTab, setActiveTab] = useState('all');
   const [searchQuery, setSearchQuery] = useState('');
-  const [selectedReport, setSelectedReport] = useState<AdminReport | null>(null);
+  const [reports, setReports] = useState<Report[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [actionLoading, setActionLoading] = useState(false);
+  const [selectedReport, setSelectedReport] = useState<Report | null>(null);
 
-  const filtered = useMemo(() => {
-    let result = adminReports;
-    if (activeTab !== 'all') result = result.filter((r) => r.status === activeTab);
-    if (searchQuery) {
-      const q = searchQuery.toLowerCase();
-      result = result.filter(
-        (r) => r.reason.toLowerCase().includes(q) || r.targetTitle.toLowerCase().includes(q) || r.reportedBy.toLowerCase().includes(q)
-      );
+  const fetchReports = useCallback(async () => {
+    setLoading(true);
+    try {
+      const params = new URLSearchParams();
+      if (activeTab !== 'all') params.set('status', activeTab);
+      if (searchQuery) params.set('search', searchQuery);
+      const res = await fetch(`/api/admin/reports?${params.toString()}`);
+      if (res.ok) {
+        const data = await res.json();
+        setReports(data);
+      }
+    } catch {
+      // silently fail
+    } finally {
+      setLoading(false);
     }
-    return result;
   }, [activeTab, searchQuery]);
 
-  const pendingCount = adminReports.filter((r) => r.status === 'pending').length;
+  useEffect(() => {
+    fetchReports();
+  }, [fetchReports]);
+
+  const handleAction = async (reportId: string, action: 'resolve' | 'dismiss') => {
+    setActionLoading(true);
+    try {
+      const res = await fetch('/api/admin/reports', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ reportId, action }),
+      });
+      if (res.ok) {
+        setSelectedReport(null);
+        await fetchReports();
+      }
+    } catch {
+      // silently fail
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const pendingCount = reports.filter((r) => r.status === 'pending').length;
 
   return (
     <div className="p-8">
@@ -110,63 +156,74 @@ export default function AdminReportsPage() {
         </div>
       </div>
 
+      {/* Loading state */}
+      {loading && (
+        <div className="py-20 flex items-center justify-center">
+          <Loader2 size={32} className="animate-spin text-primary" />
+        </div>
+      )}
+
       {/* Reports list */}
-      <div className="space-y-3">
-        {filtered.map((report, index) => {
-          const status = statusConfig[report.status];
-          const type = typeConfig[report.type];
-          const priority = priorityConfig[report.priority];
-          const StatusIcon = status.icon;
-          const TypeIcon = type.icon;
+      {!loading && (
+        <div className="space-y-3">
+          {reports.map((report, index) => {
+            const status = statusConfig[report.status];
+            const StatusIcon = status.icon;
 
-          return (
-            <motion.div
-              key={report.id}
-              initial={{ opacity: 0, y: 8 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.25, delay: index * 0.04 }}
-              onClick={() => setSelectedReport(report)}
-              className="bg-white dark:bg-dark-surface rounded-xl border border-neutral-200/50 dark:border-dark-border p-5 hover:shadow-md transition-all cursor-pointer"
-            >
-              <div className="flex items-start gap-4">
-                <div className="relative">
-                  <div className={`w-11 h-11 rounded-xl ${type.bg} flex items-center justify-center`}>
-                    <TypeIcon size={20} className={type.color} />
+            return (
+              <motion.div
+                key={report.id}
+                initial={{ opacity: 0, y: 8 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.25, delay: index * 0.04 }}
+                onClick={() => setSelectedReport(report)}
+                className="bg-white dark:bg-dark-surface rounded-xl border border-neutral-200/50 dark:border-dark-border p-5 hover:shadow-md transition-all cursor-pointer"
+              >
+                <div className="flex items-start gap-4">
+                  <div className="w-11 h-11 rounded-xl bg-red-50 dark:bg-red-500/10 flex items-center justify-center">
+                    <AlertTriangle size={20} className="text-red-500" />
                   </div>
-                  <div className={`absolute -top-1 -right-1 w-3 h-3 rounded-full ${priority.dot} border-2 border-white dark:border-dark-surface`} />
-                </div>
 
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2 mb-1">
-                    <h3 className="text-body-lg font-semibold text-neutral-900 dark:text-dark-textPrimary">{report.reason}</h3>
-                    <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase ${type.bg} ${type.color}`}>
-                      {type.label}
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 mb-1">
+                      <h3 className="text-body-lg font-semibold text-neutral-900 dark:text-dark-textPrimary">
+                        {reasonLabels[report.reason]}
+                      </h3>
+                    </div>
+                    <p className="text-body-sm text-neutral-500 mb-2 line-clamp-1">{report.detail}</p>
+                    <div className="flex items-center gap-4 text-body-sm text-neutral-400">
+                      <span>
+                        Raporlayan:{' '}
+                        <span className="text-neutral-600 dark:text-dark-textSecondary font-medium">
+                          {report.reporter.name}
+                        </span>
+                      </span>
+                      <span>
+                        Raporlanan:{' '}
+                        <span className="text-neutral-600 dark:text-dark-textSecondary font-medium">
+                          {report.reported.name}
+                        </span>
+                      </span>
+                    </div>
+                  </div>
+
+                  <div className="text-right shrink-0">
+                    <span
+                      className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold ${status.bg} ${status.color}`}
+                    >
+                      <StatusIcon size={12} />
+                      {status.label}
                     </span>
-                    <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase ${priority.bg} ${priority.color}`}>
-                      {priority.label}
-                    </span>
-                  </div>
-                  <p className="text-body-sm text-neutral-500 mb-2 line-clamp-1">{report.description}</p>
-                  <div className="flex items-center gap-4 text-body-sm text-neutral-400">
-                    <span>Hedef: <span className="text-neutral-600 dark:text-dark-textSecondary font-medium">{report.targetTitle}</span></span>
-                    <span>Raporlayan: <span className="text-neutral-600 dark:text-dark-textSecondary font-medium">{report.reportedBy}</span></span>
+                    <p className="text-[11px] text-neutral-400 mt-1.5">{timeAgo(report.createdAt)}</p>
                   </div>
                 </div>
+              </motion.div>
+            );
+          })}
+        </div>
+      )}
 
-                <div className="text-right shrink-0">
-                  <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold ${status.bg} ${status.color}`}>
-                    <StatusIcon size={12} />
-                    {status.label}
-                  </span>
-                  <p className="text-[11px] text-neutral-400 mt-1.5">{timeAgo(report.createdAt)}</p>
-                </div>
-              </div>
-            </motion.div>
-          );
-        })}
-      </div>
-
-      {filtered.length === 0 && (
+      {!loading && reports.length === 0 && (
         <div className="py-20 text-center">
           <Flag size={32} className="mx-auto mb-3 text-neutral-300" />
           <h3 className="text-h4 font-semibold text-neutral-500 mb-1">Rapor bulunamadı</h3>
@@ -208,45 +265,32 @@ export default function AdminReportsPage() {
                 <div className="space-y-5">
                   <div>
                     <label className="text-body-sm font-medium text-neutral-400 mb-1.5 block">Sebep</label>
-                    <p className="text-body-lg font-semibold text-neutral-900 dark:text-dark-textPrimary">{selectedReport.reason}</p>
+                    <p className="text-body-lg font-semibold text-neutral-900 dark:text-dark-textPrimary">
+                      {reasonLabels[selectedReport.reason]}
+                    </p>
                   </div>
 
                   <div>
-                    <label className="text-body-sm font-medium text-neutral-400 mb-1.5 block">Açıklama</label>
-                    <p className="text-body-md text-neutral-700 dark:text-dark-textSecondary leading-relaxed">{selectedReport.description}</p>
+                    <label className="text-body-sm font-medium text-neutral-400 mb-1.5 block">Detay</label>
+                    <p className="text-body-md text-neutral-700 dark:text-dark-textSecondary leading-relaxed">
+                      {selectedReport.detail}
+                    </p>
                   </div>
 
                   <div className="grid grid-cols-2 gap-4">
                     <div>
-                      <label className="text-body-sm font-medium text-neutral-400 mb-1.5 block">Tür</label>
-                      <div className="flex items-center gap-2">
-                        {(() => { const t = typeConfig[selectedReport.type]; const TI = t.icon; return <><TI size={16} className={t.color} /><span className="text-body-md text-neutral-900 dark:text-dark-textPrimary">{t.label}</span></>; })()}
-                      </div>
-                    </div>
-                    <div>
-                      <label className="text-body-sm font-medium text-neutral-400 mb-1.5 block">Öncelik</label>
-                      <div className="flex items-center gap-2">
-                        <div className={`w-2.5 h-2.5 rounded-full ${priorityConfig[selectedReport.priority].dot}`} />
-                        <span className="text-body-md text-neutral-900 dark:text-dark-textPrimary">{priorityConfig[selectedReport.priority].label}</span>
-                      </div>
-                    </div>
-                    <div>
                       <label className="text-body-sm font-medium text-neutral-400 mb-1.5 block">Durum</label>
-                      <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold ${statusConfig[selectedReport.status].bg} ${statusConfig[selectedReport.status].color}`}>
+                      <span
+                        className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold ${statusConfig[selectedReport.status].bg} ${statusConfig[selectedReport.status].color}`}
+                      >
                         {statusConfig[selectedReport.status].label}
                       </span>
                     </div>
                     <div>
                       <label className="text-body-sm font-medium text-neutral-400 mb-1.5 block">Tarih</label>
-                      <span className="text-body-md text-neutral-900 dark:text-dark-textPrimary">{timeAgo(selectedReport.createdAt)}</span>
-                    </div>
-                  </div>
-
-                  <div>
-                    <label className="text-body-sm font-medium text-neutral-400 mb-1.5 block">Hedef</label>
-                    <div className="p-3 rounded-xl bg-neutral-50 dark:bg-dark-surfaceRaised border border-neutral-100 dark:border-dark-border">
-                      <p className="text-body-md font-medium text-neutral-900 dark:text-dark-textPrimary">{selectedReport.targetTitle}</p>
-                      <p className="text-body-sm text-neutral-400">ID: {selectedReport.targetId}</p>
+                      <span className="text-body-md text-neutral-900 dark:text-dark-textPrimary">
+                        {timeAgo(selectedReport.createdAt)}
+                      </span>
                     </div>
                   </div>
 
@@ -254,25 +298,57 @@ export default function AdminReportsPage() {
                     <label className="text-body-sm font-medium text-neutral-400 mb-1.5 block">Raporlayan</label>
                     <div className="flex items-center gap-3 p-3 rounded-xl bg-neutral-50 dark:bg-dark-surfaceRaised border border-neutral-100 dark:border-dark-border">
                       <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center text-primary font-bold text-[11px]">
-                        {selectedReport.reportedByInitials}
+                        {getInitials(selectedReport.reporter.name)}
                       </div>
-                      <span className="text-body-md font-medium text-neutral-900 dark:text-dark-textPrimary">{selectedReport.reportedBy}</span>
+                      <div>
+                        <span className="text-body-md font-medium text-neutral-900 dark:text-dark-textPrimary block">
+                          {selectedReport.reporter.name}
+                        </span>
+                        <span className="text-body-sm text-neutral-400">{selectedReport.reporter.email}</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="text-body-sm font-medium text-neutral-400 mb-1.5 block">Raporlanan</label>
+                    <div className="flex items-center gap-3 p-3 rounded-xl bg-neutral-50 dark:bg-dark-surfaceRaised border border-neutral-100 dark:border-dark-border">
+                      <div className="w-8 h-8 rounded-full bg-red-500/10 flex items-center justify-center text-red-500 font-bold text-[11px]">
+                        {getInitials(selectedReport.reported.name)}
+                      </div>
+                      <div>
+                        <span className="text-body-md font-medium text-neutral-900 dark:text-dark-textPrimary block">
+                          {selectedReport.reported.name}
+                        </span>
+                        <span className="text-body-sm text-neutral-400">{selectedReport.reported.email}</span>
+                      </div>
                     </div>
                   </div>
 
                   {selectedReport.status === 'pending' && (
                     <div className="flex items-center gap-3 pt-3 border-t border-neutral-100 dark:border-dark-border">
                       <button
-                        onClick={() => setSelectedReport(null)}
-                        className="flex-1 h-11 rounded-xl bg-success text-white text-body-md font-semibold hover:bg-emerald-600 active:scale-[0.97] transition-all flex items-center justify-center gap-2"
+                        disabled={actionLoading}
+                        onClick={() => handleAction(selectedReport.id, 'resolve')}
+                        className="flex-1 h-11 rounded-xl bg-success text-white text-body-md font-semibold hover:bg-emerald-600 active:scale-[0.97] transition-all flex items-center justify-center gap-2 disabled:opacity-50"
                       >
-                        <CheckCircle size={16} /> Çözüldü İşaretle
+                        {actionLoading ? (
+                          <Loader2 size={16} className="animate-spin" />
+                        ) : (
+                          <CheckCircle size={16} />
+                        )}
+                        Çözüldü İşaretle
                       </button>
                       <button
-                        onClick={() => setSelectedReport(null)}
-                        className="flex-1 h-11 rounded-xl border border-neutral-200 dark:border-dark-border text-body-md font-medium text-neutral-600 dark:text-dark-textSecondary hover:bg-neutral-50 dark:hover:bg-dark-surfaceRaised transition-colors flex items-center justify-center gap-2"
+                        disabled={actionLoading}
+                        onClick={() => handleAction(selectedReport.id, 'dismiss')}
+                        className="flex-1 h-11 rounded-xl border border-neutral-200 dark:border-dark-border text-body-md font-medium text-neutral-600 dark:text-dark-textSecondary hover:bg-neutral-50 dark:hover:bg-dark-surfaceRaised transition-colors flex items-center justify-center gap-2 disabled:opacity-50"
                       >
-                        <XCircle size={16} /> Reddet
+                        {actionLoading ? (
+                          <Loader2 size={16} className="animate-spin" />
+                        ) : (
+                          <XCircle size={16} />
+                        )}
+                        Reddet
                       </button>
                     </div>
                   )}

@@ -549,6 +549,44 @@ export default function OfferDetailPage() {
                 </>
               )}
 
+              {/* Seller actions on counter-offer: accept, revise, reject */}
+              {isSeller && offer.status === 'counter_offered' && (
+                <>
+                  <div className="text-center pb-2">
+                    <p className="text-body-sm text-blue-600 dark:text-blue-400 font-medium">Alıcı karşı teklif gönderdi</p>
+                    {offer.counterPrice && (
+                      <p className="text-h3 font-bold text-blue-700 dark:text-blue-300 mt-1">
+                        {new Intl.NumberFormat('tr-TR', { style: 'currency', currency: 'TRY', maximumFractionDigits: 0 }).format(offer.counterPrice)}
+                        {offer.counterDays && <span className="text-body-md font-normal text-neutral-500 ml-2">/ {offer.counterDays} gün</span>}
+                      </p>
+                    )}
+                  </div>
+                  <button
+                    onClick={handleAccept}
+                    disabled={actionLoading}
+                    className="w-full h-12 bg-accent text-white text-body-lg font-semibold rounded-lg hover:bg-accent-600 active:scale-[0.98] transition-all duration-fast shadow-sm flex items-center justify-center gap-2 disabled:opacity-50 disabled:pointer-events-none"
+                  >
+                    {actionLoading ? <Loader2 size={18} className="animate-spin" /> : <CheckCircle size={18} />}
+                    Karşı Teklifi Kabul Et
+                  </button>
+                  <button
+                    onClick={() => setShowEditForm(true)}
+                    disabled={actionLoading}
+                    className="w-full h-11 border border-accent text-accent text-body-md font-semibold rounded-lg hover:bg-accent-lighter/50 dark:hover:bg-accent/10 transition-colors flex items-center justify-center gap-2 disabled:opacity-50"
+                  >
+                    <Edit3 size={16} />
+                    Teklifimi Revize Et
+                  </button>
+                  <button
+                    onClick={() => setShowRejectModal(true)}
+                    disabled={actionLoading}
+                    className="w-full h-11 border border-neutral-200 dark:border-dark-border text-body-md font-medium text-neutral-500 rounded-lg hover:bg-neutral-50 dark:hover:bg-dark-surfaceRaised hover:text-error hover:border-error/30 transition-colors flex items-center justify-center gap-2 disabled:opacity-50"
+                  >
+                    Reddet
+                  </button>
+                </>
+              )}
+
               {/* Seller: rejected - new offer link */}
               {isSeller && offer.status === 'rejected' && (
                 <Link

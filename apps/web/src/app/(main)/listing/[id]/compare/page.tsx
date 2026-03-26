@@ -1,19 +1,48 @@
 'use client';
 
-import { useState, useMemo } from 'react';
-import { useParams } from 'next/navigation';
+import { useState, useMemo, useEffect } from 'react';
+import { useParams, useRouter } from 'next/navigation';
 import { motion } from 'framer-motion';
 import Link from 'next/link';
 import {
   ArrowLeft, ChevronRight, Star, CheckCircle, Sparkles,
-  ArrowRightLeft, ChevronDown, Shield, Trophy,
+  ArrowRightLeft, ChevronDown, Shield, Trophy, Loader2,
 } from 'lucide-react';
-import { mockListings, mockOffers } from '@/lib/mock-data';
 import { OfferStatusBadge } from '@/components/offers/offer-status-badge';
 import { CounterOfferForm } from '@/components/offers/counter-offer-form';
 
 function formatCurrency(n: number) {
   return new Intl.NumberFormat('tr-TR', { style: 'currency', currency: 'TRY', maximumFractionDigits: 0 }).format(n);
+}
+
+function getInitials(name: string) {
+  return name.split(' ').map((n) => n[0]).join('').toUpperCase().slice(0, 2);
+}
+
+interface OfferData {
+  id: string;
+  price: number;
+  deliveryDays: number;
+  note: string | null;
+  status: string;
+  isBoosted: boolean;
+  seller: {
+    id: string;
+    name: string;
+    score: number;
+    verified: boolean;
+    badge: string | null;
+    completedDeals: number;
+    companyName: string | null;
+  };
+}
+
+interface ListingData {
+  id: string;
+  title: string;
+  budgetMin: number;
+  budgetMax: number;
+  offers: OfferData[];
 }
 
 const sortOptions = [
@@ -25,32 +54,80 @@ const sortOptions = [
 
 export default function CompareOffersPage() {
   const params = useParams();
-  const listing = mockListings.find((l) => l.id === params.id) || mockListings[0];
+  const router = useRouter();
+  const [listing, setListing] = useState<ListingData | null>(null);
+  const [loading, setLoading] = useState(true);
   const [sortBy, setSortBy] = useState('price-low');
   const [selectedOfferId, setSelectedOfferId] = useState<string | null>(null);
   const [showCounterForm, setShowCounterForm] = useState(false);
+  const [actionLoading, setActionLoading] = useState(false);
+
+  useEffect(() => {
+    if (!params.id) return;
+    fetch(`/api/listings/${params.id}`)
+      .then((r) => {
+        if (!r.ok) throw new Error('Not found');
+        return r.json();
+      })
+      .then((data) => setListing(data))
+      .catch(() => setListing(null))
+      .finally(() => setLoading(false));
+  }, [params.id]);
 
   const offers = useMemo(() => {
-    const listingOffers = mockOffers.filter((o) => o.listingId === listing.id && o.status !== 'withdrawn' && o.status !== 'rejected');
-
+    if (!listing) return [];
+    const active = listing.offers.filter((o) => o.status !== 'withdrawn' && o.status !== 'rejected');
     switch (sortBy) {
       case 'price-high':
-        return [...listingOffers].sort((a, b) => b.price - a.price);
+        return [...active].sort((a, b) => b.price - a.price);
       case 'delivery':
-        return [...listingOffers].sort((a, b) => a.deliveryDays - b.deliveryDays);
+        return [...active].sort((a, b) => a.deliveryDays - b.deliveryDays);
       case 'score':
-        return [...listingOffers].sort((a, b) => b.sellerScore - a.sellerScore);
+        return [...active].sort((a, b) => (b.seller?.score ?? 0) - (a.seller?.score ?? 0));
       default:
-        return [...listingOffers].sort((a, b) => a.price - b.price);
+        return [...active].sort((a, b) => a.price - b.price);
     }
-  }, [listing.id, sortBy]);
+  }, [listing, sortBy]);
 
-  // Find best values for highlighting
-  const bestPrice = Math.min(...offers.map((o) => o.price));
-  const bestDelivery = Math.min(...offers.map((o) => o.deliveryDays));
-  const bestScore = Math.max(...offers.map((o) => o.sellerScore));
+  const bestPrice = offers.length > 0 ? Math.min(...offers.map((o) => o.price)) : 0;
+  const bestDelivery = offers.length > 0 ? Math.min(...offers.map((o) => o.deliveryDays)) : 0;
+  const bestScore = offers.length > 0 ? Math.max(...offers.map((o) => o.seller?.score ?? 0)) : 0;
 
   const selectedOffer = offers.find((o) => o.id === selectedOfferId);
+
+  const handleAccept = async () => {
+    if (!selectedOfferId) return;
+    setActionLoading(true);
+    const res = await fetch(`/api/offers/${selectedOfferId}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'accept' }),
+    });
+    setActionLoading(false);
+    if (res.ok) {
+      router.push(`/offers/${selectedOfferId}`);
+    }
+  };
+
+  const handleCounterSubmit = async (data: { price: string; deliveryDays: string; note: string }) => {
+    if (!selectedOfferId) return;
+    const res = await fetch(`/api/offers/${selectedOfferId}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        action: 'counter',
+        counterPrice: parseFloat(data.price),
+        counterDays: data.deliveryDays ? parseInt(data.deliveryDays) : undefined,
+        counterNote: data.note || undefined,
+      }),
+    });
+    if (res.ok) {
+      setShowCounterForm(false);
+      // Refresh listing data
+      const refreshed = await fetch(`/api/listings/${params.id}`).then((r) => r.json());
+      setListing(refreshed);
+    }
+  };
 
   const badgeLabel: Record<string, string> = { pro: 'Pro', plus: 'Plus', basic: 'Basic' };
   const badgeColor: Record<string, string> = {
@@ -58,6 +135,23 @@ export default function CompareOffersPage() {
     plus: 'bg-neutral-100 text-neutral-600 dark:bg-neutral-500/10 dark:text-neutral-400',
     basic: 'bg-neutral-50 text-neutral-500 dark:bg-neutral-500/10 dark:text-neutral-400',
   };
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center min-h-[60vh]">
+        <Loader2 className="w-8 h-8 animate-spin text-accent" />
+      </div>
+    );
+  }
+
+  if (!listing) {
+    return (
+      <div className="max-w-3xl mx-auto px-6 py-20 text-center">
+        <h2 className="text-h2 font-bold text-neutral-900 dark:text-dark-textPrimary mb-2">İlan Bulunamadı</h2>
+        <Link href="/explore" className="text-accent font-semibold hover:text-accent-600">İlanlara Dön</Link>
+      </div>
+    );
+  }
 
   return (
     <div className="max-w-7xl mx-auto px-6 py-8">
@@ -116,7 +210,7 @@ export default function CompareOffersPage() {
           const isSelected = selectedOfferId === offer.id;
           const isBestPrice = offer.price === bestPrice;
           const isBestDelivery = offer.deliveryDays === bestDelivery;
-          const isBestScore = offer.sellerScore === bestScore;
+          const isBestScore = (offer.seller?.score ?? 0) === bestScore;
 
           return (
             <motion.div
@@ -133,14 +227,12 @@ export default function CompareOffersPage() {
                     : 'border-neutral-200/50 dark:border-dark-border/80 bg-white dark:bg-dark-surface hover:shadow-md hover:border-neutral-300'
               }`}
             >
-              {/* Boosted badge */}
               {offer.isBoosted && (
                 <span className="absolute -top-2.5 left-4 px-2 py-0.5 bg-accent text-white text-[11px] font-bold rounded-sm flex items-center gap-1">
                   <Sparkles size={10} /> Öne Çıkan
                 </span>
               )}
 
-              {/* Selection radio */}
               <div className="flex items-start gap-3 mb-4">
                 <div className={`shrink-0 w-5 h-5 rounded-full border-2 mt-0.5 flex items-center justify-center transition-colors ${
                   isSelected ? 'border-accent bg-accent' : 'border-neutral-300 dark:border-dark-border'
@@ -150,21 +242,19 @@ export default function CompareOffersPage() {
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 flex-wrap">
                     <h4 className="text-body-md font-semibold text-neutral-900 dark:text-dark-textPrimary truncate">
-                      {offer.sellerName}
+                      {offer.seller?.companyName || offer.seller?.name || 'Satıcı'}
                     </h4>
-                    {offer.sellerVerified && <CheckCircle size={14} className="text-success shrink-0" />}
+                    {offer.seller?.verified && <CheckCircle size={14} className="text-success shrink-0" />}
                   </div>
-                  {offer.sellerBadge && (
-                    <span className={`inline-flex px-1.5 py-0.5 text-[10px] font-bold rounded mt-1 ${badgeColor[offer.sellerBadge]}`}>
-                      {badgeLabel[offer.sellerBadge]}
+                  {offer.seller?.badge && (
+                    <span className={`inline-flex px-1.5 py-0.5 text-[10px] font-bold rounded mt-1 ${badgeColor[offer.seller.badge]}`}>
+                      {badgeLabel[offer.seller.badge]}
                     </span>
                   )}
                 </div>
               </div>
 
-              {/* Stats */}
               <div className="space-y-3">
-                {/* Price */}
                 <div className="flex items-center justify-between">
                   <span className="text-body-sm text-neutral-500">Fiyat</span>
                   <span className={`text-body-lg font-bold ${isBestPrice ? 'text-success' : 'text-neutral-900 dark:text-dark-textPrimary'}`}>
@@ -173,7 +263,6 @@ export default function CompareOffersPage() {
                   </span>
                 </div>
 
-                {/* Delivery */}
                 <div className="flex items-center justify-between">
                   <span className="text-body-sm text-neutral-500">Teslimat</span>
                   <span className={`text-body-md font-semibold ${isBestDelivery ? 'text-success' : 'text-neutral-900 dark:text-dark-textPrimary'}`}>
@@ -182,26 +271,23 @@ export default function CompareOffersPage() {
                   </span>
                 </div>
 
-                {/* Score */}
                 <div className="flex items-center justify-between">
                   <span className="text-body-sm text-neutral-500">Puan</span>
                   <span className={`flex items-center gap-1 text-body-md font-semibold ${isBestScore ? 'text-success' : 'text-neutral-900 dark:text-dark-textPrimary'}`}>
                     <Star size={13} className="text-amber-400 fill-amber-400" />
-                    {offer.sellerScore}
+                    {offer.seller?.score ?? 0}
                     {isBestScore && <Trophy size={12} className="text-success" />}
                   </span>
                 </div>
 
-                {/* Deals */}
                 <div className="flex items-center justify-between">
                   <span className="text-body-sm text-neutral-500">Tamamlanan İş</span>
-                  <span className="text-body-md font-semibold text-neutral-900 dark:text-dark-textPrimary">{offer.sellerCompletedDeals}</span>
+                  <span className="text-body-md font-semibold text-neutral-900 dark:text-dark-textPrimary">{offer.seller?.completedDeals ?? 0}</span>
                 </div>
 
-                {/* Verified */}
                 <div className="flex items-center justify-between">
                   <span className="text-body-sm text-neutral-500">Doğrulanma</span>
-                  {offer.sellerVerified ? (
+                  {offer.seller?.verified ? (
                     <span className="flex items-center gap-1 text-body-sm font-medium text-success">
                       <Shield size={12} /> Doğrulanmış
                     </span>
@@ -210,14 +296,14 @@ export default function CompareOffersPage() {
                   )}
                 </div>
 
-                {/* Status */}
                 <div className="pt-3 border-t border-neutral-100 dark:border-dark-border">
                   <OfferStatusBadge status={offer.status} />
                 </div>
               </div>
 
-              {/* Note preview */}
-              <p className="mt-3 text-body-sm text-neutral-400 line-clamp-2">{offer.note}</p>
+              {offer.note && (
+                <p className="mt-3 text-body-sm text-neutral-400 line-clamp-2">{offer.note}</p>
+              )}
             </motion.div>
           );
         })}
@@ -234,10 +320,10 @@ export default function CompareOffersPage() {
           <div className="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between gap-4">
             <div className="flex items-center gap-4 min-w-0">
               <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center text-primary font-bold text-body-sm shrink-0">
-                {selectedOffer.sellerInitials}
+                {getInitials(selectedOffer.seller?.name || 'S')}
               </div>
               <div className="min-w-0">
-                <p className="text-body-md font-semibold text-neutral-900 dark:text-dark-textPrimary truncate">{selectedOffer.sellerName}</p>
+                <p className="text-body-md font-semibold text-neutral-900 dark:text-dark-textPrimary truncate">{selectedOffer.seller?.companyName || selectedOffer.seller?.name}</p>
                 <p className="text-body-sm text-accent font-bold">{formatCurrency(selectedOffer.price)} · {selectedOffer.deliveryDays} gün</p>
               </div>
             </div>
@@ -255,8 +341,12 @@ export default function CompareOffersPage() {
                 <ArrowRightLeft size={16} />
                 <span className="hidden sm:inline">Karşı Teklif</span>
               </button>
-              <button className="h-10 px-6 bg-accent text-white text-body-md font-semibold rounded-lg hover:bg-accent-600 active:scale-[0.97] transition-all shadow-sm flex items-center gap-2">
-                <CheckCircle size={16} />
+              <button
+                onClick={handleAccept}
+                disabled={actionLoading}
+                className="h-10 px-6 bg-accent text-white text-body-md font-semibold rounded-lg hover:bg-accent-600 active:scale-[0.97] transition-all shadow-sm flex items-center gap-2 disabled:opacity-50"
+              >
+                {actionLoading ? <Loader2 size={16} className="animate-spin" /> : <CheckCircle size={16} />}
                 Kabul Et
               </button>
             </div>
@@ -271,7 +361,8 @@ export default function CompareOffersPage() {
           onClose={() => setShowCounterForm(false)}
           originalPrice={selectedOffer.price}
           originalDeliveryDays={selectedOffer.deliveryDays}
-          sellerName={selectedOffer.sellerName}
+          sellerName={selectedOffer.seller?.companyName || selectedOffer.seller?.name || 'Satıcı'}
+          onSubmit={handleCounterSubmit}
         />
       )}
     </div>

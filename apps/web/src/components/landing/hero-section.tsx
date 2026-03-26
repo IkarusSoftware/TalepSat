@@ -1,10 +1,44 @@
 'use client';
 
-import { motion } from 'framer-motion';
+import { useState } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
 import Link from 'next/link';
-import { ArrowRight, Play } from 'lucide-react';
+import { ArrowRight, Play, X, FileText, MessageSquare, BarChart3, Handshake } from 'lucide-react';
+
+const howItWorksSteps = [
+  {
+    icon: FileText,
+    title: 'İlanını Oluştur',
+    description: 'Ne almak istediğini detaylıca yaz. Bütçeni, teslimat süresini ve şehrini belirt. Ücretsiz ve sadece 2 dakika.',
+    color: 'text-primary',
+    bg: 'bg-primary/10',
+  },
+  {
+    icon: MessageSquare,
+    title: 'Teklifleri Al',
+    description: 'Doğrulanmış satıcılar ilanını görür ve sana rekabetçi teklifler gönderir. Ne kadar çok teklif, o kadar iyi fiyat.',
+    color: 'text-accent',
+    bg: 'bg-accent/10',
+  },
+  {
+    icon: BarChart3,
+    title: 'Karşılaştır',
+    description: 'Gelen teklifleri fiyat, teslimat süresi ve satıcı puanına göre karşılaştır. Karşı teklif gönderebilirsin.',
+    color: 'text-blue-500',
+    bg: 'bg-blue-500/10',
+  },
+  {
+    icon: Handshake,
+    title: 'Anlaş & Tamamla',
+    description: 'En uygun teklifi kabul et, teslimatı onayla ve satıcıyı değerlendir. Her iki taraf da birbirini puanlar.',
+    color: 'text-success',
+    bg: 'bg-success/10',
+  },
+];
 
 export function HeroSection() {
+  const [showModal, setShowModal] = useState(false);
+
   return (
     <section className="relative min-h-[90vh] flex items-center overflow-hidden">
       {/* Background gradient */}
@@ -63,6 +97,7 @@ export function HeroSection() {
                 <ArrowRight size={20} />
               </Link>
               <button
+                onClick={() => setShowModal(true)}
                 className="inline-flex items-center gap-2 h-14 px-8 border-2 border-neutral-200 text-neutral-700 dark:text-dark-textPrimary dark:border-dark-border text-body-lg font-semibold rounded-full hover:border-neutral-300 hover:bg-neutral-100/50 dark:hover:bg-dark-surface active:scale-[0.97] transition-all duration-fast"
               >
                 <Play size={18} className="text-accent" />
@@ -199,6 +234,92 @@ export function HeroSection() {
           </motion.div>
         </div>
       </div>
+
+      {/* How It Works Modal */}
+      <AnimatePresence>
+        {showModal && (
+          <>
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50"
+              onClick={() => setShowModal(false)}
+            />
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 20 }}
+              transition={{ type: 'spring', stiffness: 300, damping: 30 }}
+              className="fixed inset-4 md:inset-auto md:top-1/2 md:left-1/2 md:-translate-x-1/2 md:-translate-y-1/2 md:w-full md:max-w-2xl bg-white dark:bg-dark-surface rounded-2xl shadow-2xl border border-neutral-200 dark:border-dark-border z-50 overflow-y-auto max-h-[90vh]"
+            >
+              <div className="p-6 md:p-8">
+                <div className="flex items-center justify-between mb-8">
+                  <div>
+                    <h2 className="text-h2 font-bold text-neutral-900 dark:text-dark-textPrimary">
+                      Nasıl Çalışır?
+                    </h2>
+                    <p className="text-body-md text-neutral-500 mt-1">
+                      4 basit adımda ihtiyacını karşıla
+                    </p>
+                  </div>
+                  <button
+                    onClick={() => setShowModal(false)}
+                    className="p-2 rounded-lg hover:bg-neutral-100 dark:hover:bg-dark-surfaceRaised transition-colors"
+                  >
+                    <X size={20} className="text-neutral-400" />
+                  </button>
+                </div>
+
+                <div className="space-y-6">
+                  {howItWorksSteps.map((step, i) => (
+                    <motion.div
+                      key={step.title}
+                      initial={{ opacity: 0, x: -20 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      transition={{ duration: 0.3, delay: i * 0.1 }}
+                      className="flex items-start gap-4"
+                    >
+                      <div className="relative shrink-0">
+                        <div className={`w-12 h-12 rounded-xl ${step.bg} flex items-center justify-center`}>
+                          <step.icon size={24} className={step.color} />
+                        </div>
+                        <div className="absolute -top-1 -right-1 w-5 h-5 rounded-full bg-accent text-white text-[10px] font-bold flex items-center justify-center">
+                          {i + 1}
+                        </div>
+                      </div>
+                      <div className="pt-1">
+                        <h3 className="text-h4 font-semibold text-neutral-900 dark:text-dark-textPrimary mb-1">
+                          {step.title}
+                        </h3>
+                        <p className="text-body-md text-neutral-500 leading-relaxed">
+                          {step.description}
+                        </p>
+                      </div>
+                    </motion.div>
+                  ))}
+                </div>
+
+                <div className="mt-8 flex gap-3">
+                  <Link
+                    href="/create"
+                    onClick={() => setShowModal(false)}
+                    className="flex-1 h-12 bg-accent text-white text-body-lg font-semibold rounded-xl hover:bg-accent-600 transition-colors flex items-center justify-center gap-2"
+                  >
+                    Hemen Başla <ArrowRight size={18} />
+                  </Link>
+                  <button
+                    onClick={() => setShowModal(false)}
+                    className="h-12 px-6 border border-neutral-200 dark:border-dark-border text-body-md font-medium text-neutral-600 dark:text-dark-textSecondary rounded-xl hover:bg-neutral-50 dark:hover:bg-dark-surfaceRaised transition-colors"
+                  >
+                    Kapat
+                  </button>
+                </div>
+              </div>
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
     </section>
   );
 }

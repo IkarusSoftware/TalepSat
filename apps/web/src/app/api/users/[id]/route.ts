@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
+import { auth } from '@/lib/auth';
 
 // GET /api/users/[id] — public profile
 export async function GET(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -47,4 +48,39 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
     acceptRate,
     reviewCount,
   });
+}
+
+// PATCH /api/users/[id] — update own profile
+export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params;
+  const session = await auth();
+  if (!session?.user?.id || session.user.id !== id) {
+    return NextResponse.json({ error: 'Yetkisiz' }, { status: 401 });
+  }
+
+  const body = await req.json();
+  const allowedFields = ['name', 'phone', 'bio', 'city', 'companyName', 'taxNumber', 'image'];
+  const data: Record<string, string> = {};
+
+  for (const field of allowedFields) {
+    if (body[field] !== undefined) {
+      data[field] = body[field];
+    }
+  }
+
+  if (Object.keys(data).length === 0) {
+    return NextResponse.json({ error: 'Güncellenecek alan bulunamadı' }, { status: 400 });
+  }
+
+  const updated = await prisma.user.update({
+    where: { id },
+    data,
+    select: {
+      id: true, name: true, image: true, bio: true, city: true,
+      companyName: true, taxNumber: true, phone: true, role: true,
+      verified: true, badge: true,
+    },
+  });
+
+  return NextResponse.json(updated);
 }

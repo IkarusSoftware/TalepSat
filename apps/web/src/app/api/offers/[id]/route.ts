@@ -158,8 +158,65 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     return NextResponse.json(updated);
   }
 
-  // Only listing owner can accept/reject/counter
-  if (offer.listing.buyerId !== session.user.id) {
+  const isBuyerOfListing = offer.listing.buyerId === session.user.id;
+  const isSellerOfOffer = offer.sellerId === session.user.id;
+
+  // Seller can accept/reject counter-offer from buyer
+  if (isSellerOfOffer && offer.status === 'counter_offered') {
+    if (action === 'accept') {
+      // Seller accepts buyer's counter-offer → update price/days and mark accepted
+      const updateData: Record<string, unknown> = { status: 'accepted' };
+      if (offer.counterPrice) updateData.price = offer.counterPrice;
+      if (offer.counterDays) updateData.deliveryDays = offer.counterDays;
+      const updated = await prisma.offer.update({ where: { id }, data: updateData });
+      await prisma.notification.create({
+        data: {
+          userId: offer.listing.buyerId,
+          type: 'offer_accepted',
+          title: 'Karşı Teklifiniz Kabul Edildi',
+          description: `"${offer.listing.title}" ilanındaki karşı teklifiniz satıcı tarafından kabul edildi.`,
+          link: `/offers/${offer.id}`,
+        },
+      });
+      return NextResponse.json(updated);
+    }
+
+    if (action === 'reject') {
+      const updated = await prisma.offer.update({ where: { id }, data: { status: 'rejected', rejectedReason: rejectedReason || 'Karşı teklif satıcı tarafından reddedildi' } });
+      await prisma.notification.create({
+        data: {
+          userId: offer.listing.buyerId,
+          type: 'offer_rejected',
+          title: 'Satıcı Karşı Teklifinizi Reddetti',
+          description: `"${offer.listing.title}" ilanındaki karşı teklifiniz reddedildi.`,
+          link: `/offers/${offer.id}`,
+        },
+      });
+      return NextResponse.json(updated);
+    }
+
+    // Seller revises their offer in response to counter
+    if (action === 'edit') {
+      const updateData: Record<string, unknown> = { status: 'pending', counterPrice: null, counterDays: null, counterNote: null, counterAt: null, revisionCount: { increment: 1 } };
+      if (body.price) updateData.price = parseFloat(body.price);
+      if (body.deliveryDays) updateData.deliveryDays = parseInt(body.deliveryDays);
+      if (body.note !== undefined) updateData.note = body.note || null;
+      const updated = await prisma.offer.update({ where: { id }, data: updateData });
+      await prisma.notification.create({
+        data: {
+          userId: offer.listing.buyerId,
+          type: 'offer_updated',
+          title: 'Satıcı Teklifini Güncelledi',
+          description: `"${offer.listing.title}" ilanındaki teklif satıcı tarafından revize edildi.`,
+          link: `/offers/${offer.id}`,
+        },
+      });
+      return NextResponse.json(updated);
+    }
+  }
+
+  // Only listing owner (buyer) can accept/reject/counter from here
+  if (!isBuyerOfListing) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
   }
 
