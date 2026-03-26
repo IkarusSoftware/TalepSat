@@ -40,8 +40,8 @@ export default function LoginPage() {
       if (result?.error) {
         setErrors({ form: 'E-posta veya şifre hatalı.' });
       } else {
-        router.push('/dashboard');
-        router.refresh();
+        // Use window.location for hard redirect so middleware sees the new cookie
+        window.location.href = '/dashboard';
       }
     } catch {
       setErrors({ form: 'Bir hata oluştu. Lütfen tekrar deneyin.' });
