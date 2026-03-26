@@ -49,6 +49,13 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
     }),
   ],
   callbacks: {
+    authorized({ auth: session, request: { nextUrl } }) {
+      const isLoggedIn = !!session?.user;
+      if (!isLoggedIn) {
+        return Response.redirect(new URL('/login', nextUrl));
+      }
+      return true;
+    },
     async jwt({ token, user }) {
       if (user) {
         token.id = user.id;
@@ -74,12 +81,13 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
         });
 
         if (dbUser) {
-          (session.user as Record<string, unknown>).role = dbUser.role;
-          (session.user as Record<string, unknown>).verified = dbUser.verified;
-          (session.user as Record<string, unknown>).badge = dbUser.badge;
-          (session.user as Record<string, unknown>).companyName = dbUser.companyName;
-          (session.user as Record<string, unknown>).phone = dbUser.phone;
-          (session.user as Record<string, unknown>).city = dbUser.city;
+          const user = session.user as unknown as Record<string, unknown>;
+          user.role = dbUser.role;
+          user.verified = dbUser.verified;
+          user.badge = dbUser.badge;
+          user.companyName = dbUser.companyName;
+          user.phone = dbUser.phone;
+          user.city = dbUser.city;
         }
       }
       return session;

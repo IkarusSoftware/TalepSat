@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import { Plus_Jakarta_Sans } from 'next/font/google';
 import { ThemeProvider } from '@/components/theme-provider';
+import { SessionProvider } from '@/components/session-provider';
 import './globals.css';
 
 const plusJakarta = Plus_Jakarta_Sans({
@@ -54,9 +55,11 @@ export default function RootLayout({
         />
       </head>
       <body className="min-h-screen bg-neutral-50 dark:bg-dark-bg font-sans antialiased dark:text-dark-textPrimary">
-        <ThemeProvider>
-          {children}
-        </ThemeProvider>
+        <SessionProvider>
+          <ThemeProvider>
+            {children}
+          </ThemeProvider>
+        </SessionProvider>
       </body>
     </html>
   );
