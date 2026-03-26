@@ -18,6 +18,7 @@ import {
   LogOut,
   Sun,
   Moon,
+  Package,
 } from 'lucide-react';
 import { useSession } from 'next-auth/react';
 import { UserDropdown } from './user-dropdown';
@@ -28,6 +29,7 @@ const navLinks = [
   { href: '/create', label: 'İlan Oluştur', icon: Plus },
   { href: '/dashboard', label: 'İlanlarım', icon: LayoutDashboard },
   { href: '/offers', label: 'Tekliflerim', icon: FileText },
+  { href: '/orders', label: 'Siparişlerim', icon: Package },
   { href: '/messages', label: 'Mesajlar', icon: MessageSquare },
 ];
 

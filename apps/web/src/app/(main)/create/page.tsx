@@ -1,10 +1,11 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useRef } from 'react';
+import { useRouter } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   ArrowLeft, ArrowRight, Check, Layers, FileText,
-  Banknote, Image as ImageIcon, Eye,
+  Banknote, Image as ImageIcon, Eye, X, Upload, Loader2,
   Sofa, Monitor, Shirt, Wrench, Utensils, Building2,
   Package, Truck, Palette, Stethoscope, GraduationCap, Leaf,
   Sparkles, PartyPopper,
@@ -42,8 +43,12 @@ const deliveryOptions = [
 ];
 
 export default function CreateListingPage() {
+  const router = useRouter();
   const [currentStep, setCurrentStep] = useState(0);
   const [isPublished, setIsPublished] = useState(false);
+  const [publishing, setPublishing] = useState(false);
+  const imageInputRef = useRef<HTMLInputElement>(null);
+  const docInputRef = useRef<HTMLInputElement>(null);
 
   const [form, setForm] = useState({
     categoryId: '',
@@ -58,7 +63,8 @@ export default function CreateListingPage() {
     budgetMax: '',
     budgetFixed: '',
     includesVat: false,
-    images: [] as string[],
+    images: [] as { url: string; name: string; preview: string }[],
+    docs: [] as { url: string; name: string }[],
     durationDays: '14',
   });
 
@@ -97,8 +103,69 @@ export default function CreateListingPage() {
   };
   const prevStep = () => setCurrentStep((s) => Math.max(s - 1, 0));
 
-  const handlePublish = () => {
-    setIsPublished(true);
+  const handleFileUpload = async (files: FileList, type: 'images' | 'docs') => {
+    const formData = new FormData();
+    Array.from(files).forEach((f) => formData.append('files', f));
+
+    const res = await fetch('/api/upload', { method: 'POST', body: formData });
+    if (!res.ok) {
+      const err = await res.json();
+      alert(err.error || 'Yükleme başarısız');
+      return;
+    }
+    const { urls } = await res.json() as { urls: string[] };
+
+    if (type === 'images') {
+      const newImages = urls.map((url: string, i: number) => ({
+        url,
+        name: files[i].name,
+        preview: URL.createObjectURL(files[i]),
+      }));
+      setForm((prev) => ({ ...prev, images: [...prev.images, ...newImages].slice(0, 10) }));
+    } else {
+      const newDocs = urls.map((url: string, i: number) => ({ url, name: files[i].name }));
+      setForm((prev) => ({ ...prev, docs: [...prev.docs, ...newDocs].slice(0, 5) }));
+    }
+  };
+
+  const removeImage = (index: number) => {
+    setForm((prev) => ({ ...prev, images: prev.images.filter((_, i) => i !== index) }));
+  };
+
+  const removeDoc = (index: number) => {
+    setForm((prev) => ({ ...prev, docs: prev.docs.filter((_, i) => i !== index) }));
+  };
+
+  const handlePublish = async () => {
+    setPublishing(true);
+    const selectedCat = categories.find((c) => c.id === form.categoryId);
+    const budgetMin = form.budgetType === 'range' ? form.budgetMin : form.budgetType === 'fixed' ? form.budgetFixed : '0';
+    const budgetMax = form.budgetType === 'range' ? form.budgetMax : form.budgetType === 'fixed' ? form.budgetFixed : '0';
+
+    const res = await fetch('/api/listings', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        title: form.title,
+        description: form.description,
+        category: selectedCat?.label || '',
+        categorySlug: form.categoryId,
+        budgetMin,
+        budgetMax,
+        city: form.city,
+        deliveryUrgency: form.deliveryUrgency,
+        images: [...form.images.map((i) => i.url), ...form.docs.map((d) => d.url)],
+        expiresInDays: parseInt(form.durationDays),
+      }),
+    });
+
+    setPublishing(false);
+    if (res.ok) {
+      setIsPublished(true);
+    } else {
+      const err = await res.json();
+      alert(err.error || 'İlan oluşturulamadı');
+    }
   };
 
   const progress = ((currentStep + 1) / steps.length) * 100;
@@ -391,25 +458,74 @@ export default function CreateListingPage() {
               <h2 className="text-h2 font-bold text-neutral-900 dark:text-dark-textPrimary mb-2">Görseller & Dokümanlar</h2>
               <p className="text-body-lg text-neutral-500 mb-8">Referans görseller eklemek tekliflerinizin kalitesini artırır.</p>
 
-              <div className="border-2 border-dashed border-neutral-300 dark:border-dark-border rounded-xl p-12 text-center hover:border-accent/50 transition-colors cursor-pointer mb-6">
-                <ImageIcon size={40} className="mx-auto mb-3 text-neutral-400" />
+              {/* Hidden file inputs */}
+              <input ref={imageInputRef} type="file" accept="image/png,image/jpeg,image/webp" multiple className="hidden"
+                onChange={(e) => e.target.files && handleFileUpload(e.target.files, 'images')} />
+              <input ref={docInputRef} type="file" accept=".pdf,.doc,.docx" multiple className="hidden"
+                onChange={(e) => e.target.files && handleFileUpload(e.target.files, 'docs')} />
+
+              {/* Image upload area */}
+              <div
+                onClick={() => imageInputRef.current?.click()}
+                onDragOver={(e) => { e.preventDefault(); e.currentTarget.classList.add('border-accent'); }}
+                onDragLeave={(e) => { e.preventDefault(); e.currentTarget.classList.remove('border-accent'); }}
+                onDrop={(e) => {
+                  e.preventDefault();
+                  e.currentTarget.classList.remove('border-accent');
+                  if (e.dataTransfer.files.length) handleFileUpload(e.dataTransfer.files, 'images');
+                }}
+                className="border-2 border-dashed border-neutral-300 dark:border-dark-border rounded-xl p-10 text-center hover:border-accent/50 transition-colors cursor-pointer mb-4"
+              >
+                <Upload size={36} className="mx-auto mb-3 text-neutral-400" />
                 <p className="text-body-lg font-medium text-neutral-700 dark:text-dark-textPrimary mb-1">
-                  Görselleri sürükleyip bırakın
+                  Görselleri sürükleyip bırakın veya tıklayın
                 </p>
                 <p className="text-body-md text-neutral-400">
                   PNG, JPG veya WEBP — max 10 görsel, 5MB/dosya
                 </p>
-                <button className="mt-4 h-10 px-5 bg-neutral-100 dark:bg-dark-surfaceRaised text-body-md font-medium text-neutral-700 dark:text-dark-textPrimary rounded-lg hover:bg-neutral-200 transition-colors">
-                  Dosya Seç
-                </button>
               </div>
 
-              <div className="border-2 border-dashed border-neutral-200 dark:border-dark-border rounded-xl p-8 text-center hover:border-neutral-300 transition-colors cursor-pointer">
+              {/* Image previews */}
+              {form.images.length > 0 && (
+                <div className="grid grid-cols-3 sm:grid-cols-5 gap-3 mb-6">
+                  {form.images.map((img, i) => (
+                    <div key={i} className="relative group aspect-square rounded-lg overflow-hidden border border-neutral-200 dark:border-dark-border">
+                      <img src={img.preview} alt={img.name} className="w-full h-full object-cover" />
+                      <button
+                        onClick={(e) => { e.stopPropagation(); removeImage(i); }}
+                        className="absolute top-1 right-1 w-6 h-6 bg-black/60 text-white rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+                      >
+                        <X size={14} />
+                      </button>
+                      <p className="absolute bottom-0 left-0 right-0 bg-black/50 text-white text-[10px] px-1.5 py-0.5 truncate">{img.name}</p>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {/* Document upload area */}
+              <div
+                onClick={() => docInputRef.current?.click()}
+                className="border-2 border-dashed border-neutral-200 dark:border-dark-border rounded-xl p-8 text-center hover:border-neutral-300 transition-colors cursor-pointer"
+              >
                 <FileText size={32} className="mx-auto mb-2 text-neutral-400" />
                 <p className="text-body-md text-neutral-500">
                   Teknik şartname, katalog veya doküman ekleyin (PDF, DOC — max 5 dosya)
                 </p>
               </div>
+
+              {/* Document list */}
+              {form.docs.length > 0 && (
+                <div className="mt-3 space-y-2">
+                  {form.docs.map((doc, i) => (
+                    <div key={i} className="flex items-center gap-3 p-3 bg-neutral-50 dark:bg-dark-surfaceRaised rounded-lg">
+                      <FileText size={18} className="text-neutral-400 shrink-0" />
+                      <span className="text-body-md text-neutral-700 dark:text-dark-textPrimary truncate flex-1">{doc.name}</span>
+                      <button onClick={() => removeDoc(i)} className="text-neutral-400 hover:text-error transition-colors"><X size={16} /></button>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           )}
 
@@ -507,9 +623,10 @@ export default function CreateListingPage() {
         ) : (
           <button
             onClick={handlePublish}
-            className="h-12 px-8 bg-accent text-white text-body-lg font-bold rounded-lg hover:bg-accent-600 active:scale-[0.97] transition-all duration-fast shadow-md hover:shadow-lg flex items-center gap-2"
+            disabled={publishing}
+            className="h-12 px-8 bg-accent text-white text-body-lg font-bold rounded-lg hover:bg-accent-600 active:scale-[0.97] disabled:opacity-60 disabled:pointer-events-none transition-all duration-fast shadow-md hover:shadow-lg flex items-center gap-2"
           >
-            <Check size={18} /> İlanı Yayınla
+            {publishing ? <><Loader2 size={18} className="animate-spin" /> Yayınlanıyor...</> : <><Check size={18} /> İlanı Yayınla</>}
           </button>
         )}
       </div>

@@ -72,6 +72,18 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Kendi ilanınıza teklif veremezsiniz' }, { status: 400 });
   }
 
+  // Check for existing pending offer from this seller
+  const existingOffer = await prisma.offer.findFirst({
+    where: {
+      listingId,
+      sellerId: session.user.id,
+      status: 'pending'
+    },
+  });
+  if (existingOffer) {
+    return NextResponse.json({ error: 'Bu ilana zaten bekleyen bir teklifiniz var' }, { status: 400 });
+  }
+
   const offer = await prisma.offer.create({
     data: {
       listingId,
@@ -79,6 +91,9 @@ export async function POST(req: NextRequest) {
       price: parseFloat(price),
       deliveryDays: parseInt(deliveryDays),
       note: note || null,
+    },
+    include: {
+      seller: { select: { id: true, name: true, score: true, verified: true, badge: true, completedDeals: true, companyName: true, createdAt: true } },
     },
   });
 

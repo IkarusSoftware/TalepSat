@@ -1,10 +1,12 @@
 generator client {
-  provider = "prisma-client"
+  provider = "prisma-client-js"
   output   = "../src/generated/prisma"
 }
 
 datasource db {
-  provider = "sqlite"
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
 }
 
 model User {
@@ -24,6 +26,7 @@ model User {
   badge          String?   // basic, plus, pro
   score          Float     @default(0)
   completedDeals Int       @default(0)
+  lastSeen       DateTime?
   createdAt      DateTime  @default(now())
   updatedAt      DateTime  @updatedAt
 
@@ -34,6 +37,12 @@ model User {
   notifications Notification[]
   sentMessages  Message[]       @relation("sender")
   conversations ConversationParticipant[]
+  blockedUsers  UserBlock[]     @relation("blocker")
+  blockedBy     UserBlock[]     @relation("blocked")
+  reports       UserReport[]    @relation("reporter")
+  reportedBy    UserReport[]    @relation("reported")
+  givenReviews  Review[]        @relation("reviewer")
+  receivedReviews Review[]      @relation("reviewee")
 }
 
 model Account {
@@ -84,6 +93,18 @@ model Listing {
   buyerId String
   buyer   User    @relation(fields: [buyerId], references: [id], onDelete: Cascade)
   offers  Offer[]
+  views   ListingView[]
+}
+
+model ListingView {
+  id          String   @id @default(cuid())
+  listingId   String
+  visitorHash String
+  createdAt   DateTime @default(now())
+
+  listing Listing @relation(fields: [listingId], references: [id], onDelete: Cascade)
+
+  @@unique([listingId, visitorHash])
 }
 
 model Offer {
@@ -91,7 +112,9 @@ model Offer {
   price          Float
   deliveryDays   Int
   note           String?
-  status         String   @default("pending") // pending, accepted, rejected, counter_offered, withdrawn
+  status          String   @default("pending") // pending, accepted, rejected, counter_offered, withdrawn, completed
+  buyerConfirmed  Boolean  @default(false)
+  sellerConfirmed Boolean  @default(false)
   isBoosted      Boolean  @default(false)
   rejectedReason String?
   revisionCount  Int      @default(0)
@@ -102,10 +125,29 @@ model Offer {
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
 
+  completedAt DateTime?
+
   listingId String
   listing   Listing @relation(fields: [listingId], references: [id], onDelete: Cascade)
   sellerId  String
   seller    User    @relation(fields: [sellerId], references: [id], onDelete: Cascade)
+  reviews   Review[]
+}
+
+model Review {
+  id        String   @id @default(cuid())
+  rating    Int      // 1-5
+  comment   String?
+  createdAt DateTime @default(now())
+
+  offerId    String
+  offer      Offer  @relation(fields: [offerId], references: [id], onDelete: Cascade)
+  reviewerId String
+  reviewer   User   @relation("reviewer", fields: [reviewerId], references: [id], onDelete: Cascade)
+  revieweeId String
+  reviewee   User   @relation("reviewee", fields: [revieweeId], references: [id], onDelete: Cascade)
+
+  @@unique([offerId, reviewerId])
 }
 
 model Notification {
@@ -133,10 +175,11 @@ model Conversation {
 }
 
 model ConversationParticipant {
-  id             String @id @default(cuid())
+  id             String  @id @default(cuid())
   conversationId String
   userId         String
-  unreadCount    Int    @default(0)
+  unreadCount    Int     @default(0)
+  muted          Boolean @default(false)
 
   conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
   user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -145,13 +188,39 @@ model ConversationParticipant {
 }
 
 model Message {
-  id        String   @id @default(cuid())
-  text      String
-  read      Boolean  @default(false)
-  createdAt DateTime @default(now())
+  id          String   @id @default(cuid())
+  text        String
+  attachments String?  // JSON array: [{ url, name, type, size }]
+  read        Boolean  @default(false)
+  createdAt   DateTime @default(now())
 
   conversationId String
   conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
   senderId       String
   sender         User         @relation("sender", fields: [senderId], references: [id], onDelete: Cascade)
+}
+
+model UserBlock {
+  id        String   @id @default(cuid())
+  blockerId String
+  blockedId String
+  createdAt DateTime @default(now())
+
+  blocker User @relation("blocker", fields: [blockerId], references: [id], onDelete: Cascade)
+  blocked User @relation("blocked", fields: [blockedId], references: [id], onDelete: Cascade)
+
+  @@unique([blockerId, blockedId])
+}
+
+model UserReport {
+  id         String   @id @default(cuid())
+  reporterId String
+  reportedId String
+  reason     String   // spam, harassment, fraud, inappropriate, other
+  detail     String?
+  status     String   @default("pending") // pending, reviewed, resolved
+  createdAt  DateTime @default(now())
+
+  reporter User @relation("reporter", fields: [reporterId], references: [id], onDelete: Cascade)
+  reported User @relation("reported", fields: [reportedId], references: [id], onDelete: Cascade)
 }

@@ -14,7 +14,7 @@ export async function GET() {
     include: {
       participants: {
         include: {
-          user: { select: { id: true, name: true, verified: true, image: true } },
+          user: { select: { id: true, name: true, verified: true, image: true, lastSeen: true } },
         },
       },
       messages: {
@@ -25,10 +25,20 @@ export async function GET() {
     orderBy: { updatedAt: 'desc' },
   });
 
+  // Gather listing IDs to find accepted offers
+  const listingIds = conversations.map((c) => c.listingId).filter(Boolean) as string[];
+  const acceptedOffers = listingIds.length > 0
+    ? await prisma.offer.findMany({
+        where: { listingId: { in: listingIds }, status: { in: ['accepted', 'completed'] } },
+        select: { id: true, listingId: true, status: true, sellerId: true },
+      })
+    : [];
+
   const result = conversations.map((c) => {
     const otherParticipant = c.participants.find((p) => p.userId !== session.user!.id);
     const myParticipant = c.participants.find((p) => p.userId === session.user!.id);
     const lastMsg = c.messages[0];
+    const relatedOffer = c.listingId ? acceptedOffers.find((o) => o.listingId === c.listingId) : null;
 
     return {
       id: c.id,
@@ -38,9 +48,15 @@ export async function GET() {
       participantName: otherParticipant?.user.name ?? 'Kullanıcı',
       participantInitials: (otherParticipant?.user.name ?? 'K').split(' ').map((n: string) => n[0]).join('').toUpperCase().slice(0, 2),
       participantVerified: otherParticipant?.user.verified ?? false,
+      participantLastSeen: otherParticipant?.user.lastSeen ?? null,
       lastMessage: lastMsg?.text ?? '',
       lastMessageAt: lastMsg?.createdAt ?? c.createdAt,
       unreadCount: myParticipant?.unreadCount ?? 0,
+      muted: myParticipant?.muted ?? false,
+      // Offer info for the chat
+      acceptedOfferId: relatedOffer?.id ?? null,
+      acceptedOfferStatus: relatedOffer?.status ?? null,
+      isBuyerInOffer: relatedOffer ? relatedOffer.sellerId === otherParticipant?.user.id : false,
     };
   });
 

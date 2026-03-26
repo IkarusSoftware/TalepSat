@@ -14,9 +14,11 @@ interface CounterOfferFormProps {
   originalPrice: number;
   originalDeliveryDays: number;
   sellerName: string;
+  onSubmit?: (data: { price: string; deliveryDays: string; note: string }) => void;
+  submitting?: boolean;
 }
 
-export function CounterOfferForm({ open, onClose, originalPrice, originalDeliveryDays, sellerName }: CounterOfferFormProps) {
+export function CounterOfferForm({ open, onClose, originalPrice, originalDeliveryDays, sellerName, onSubmit, submitting }: CounterOfferFormProps) {
   const [price, setPrice] = useState('');
   const [deliveryDays, setDeliveryDays] = useState('');
   const [note, setNote] = useState('');
@@ -65,7 +67,7 @@ export function CounterOfferForm({ open, onClose, originalPrice, originalDeliver
                 </div>
               </div>
 
-              <form className="space-y-5" onSubmit={(e) => e.preventDefault()}>
+              <form className="space-y-5" onSubmit={(e) => { e.preventDefault(); onSubmit?.({ price, deliveryDays, note }); }}>
                 <div className="space-y-1.5">
                   <label className="text-body-md font-medium text-neutral-700 dark:text-dark-textPrimary">
                     Önerdiğiniz Fiyat (₺)
@@ -109,10 +111,15 @@ export function CounterOfferForm({ open, onClose, originalPrice, originalDeliver
 
                 <button
                   type="submit"
-                  className="w-full h-12 bg-accent text-white text-body-lg font-semibold rounded-lg hover:bg-accent-600 active:scale-[0.98] transition-all duration-fast shadow-sm flex items-center justify-center gap-2"
+                  disabled={submitting}
+                  className="w-full h-12 bg-accent text-white text-body-lg font-semibold rounded-lg hover:bg-accent-600 active:scale-[0.98] transition-all duration-fast shadow-sm flex items-center justify-center gap-2 disabled:opacity-50 disabled:pointer-events-none"
                 >
-                  <Send size={18} />
-                  Karşı Teklifi Gönder
+                  {submitting ? (
+                    <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                  ) : (
+                    <Send size={18} />
+                  )}
+                  {submitting ? 'Gönderiliyor...' : 'Karşı Teklifi Gönder'}
                 </button>
               </form>
             </div>

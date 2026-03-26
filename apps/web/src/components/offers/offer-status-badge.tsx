@@ -6,6 +6,7 @@ const statusConfig = {
   rejected: { label: 'Reddedildi', bg: 'bg-red-50 dark:bg-red-500/10', text: 'text-red-600 dark:text-red-400', border: 'border-red-200 dark:border-red-500/20' },
   counter_offered: { label: 'Karşı Teklif', bg: 'bg-blue-50 dark:bg-blue-500/10', text: 'text-blue-600 dark:text-blue-400', border: 'border-blue-200 dark:border-blue-500/20' },
   withdrawn: { label: 'Geri Çekildi', bg: 'bg-neutral-100 dark:bg-neutral-500/10', text: 'text-neutral-500 dark:text-neutral-400', border: 'border-neutral-200 dark:border-neutral-500/20' },
+  completed: { label: 'Tamamlandı', bg: 'bg-emerald-50 dark:bg-emerald-500/10', text: 'text-emerald-700 dark:text-emerald-300', border: 'border-emerald-300 dark:border-emerald-500/30' },
 } as const;
 
 type OfferStatus = keyof typeof statusConfig;

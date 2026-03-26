@@ -40,20 +40,32 @@ interface OfferItem {
 export default function SellerDashboardPage() {
   const [offers, setOffers] = useState<OfferItem[]>([]);
   const [loading, setLoading] = useState(true);
+  const [userScore, setUserScore] = useState<number>(0);
 
   useEffect(() => {
     fetch('/api/offers?role=seller')
       .then((r) => r.json())
       .then((data) => setOffers(Array.isArray(data) ? data : []))
       .finally(() => setLoading(false));
+    // Fetch user score
+    fetch('/api/auth/session')
+      .then((r) => r.json())
+      .then((session) => {
+        if (session?.user?.id) {
+          fetch(`/api/users/${session.user.id}`)
+            .then((r) => r.json())
+            .then((u) => { if (u.score !== undefined) setUserScore(u.score); });
+        }
+      })
+      .catch(() => {});
   }, []);
 
   const stats = useMemo(() => {
     const total = offers.length;
-    const accepted = offers.filter((o) => o.status === 'accepted').length;
+    const accepted = offers.filter((o) => o.status === 'accepted' || o.status === 'completed').length;
     const pending = offers.filter((o) => o.status === 'pending').length;
     const counterOffered = offers.filter((o) => o.status === 'counter_offered').length;
-    const totalEarnings = offers.filter((o) => o.status === 'accepted').reduce((sum, o) => sum + o.price, 0);
+    const totalEarnings = offers.filter((o) => o.status === 'accepted' || o.status === 'completed').reduce((sum, o) => sum + o.price, 0);
     const acceptRate = total > 0 ? Math.round((accepted / total) * 100) : 0;
     return { total, accepted, pending, counterOffered, totalEarnings, acceptRate };
   }, [offers]);
@@ -83,7 +95,7 @@ export default function SellerDashboardPage() {
           { label: 'Aktif Teklifler', value: stats.pending.toString(), icon: Clock, color: 'text-amber-600 dark:text-amber-400', iconBg: 'bg-amber-50 dark:bg-amber-500/10' },
           { label: 'Kabul Oranı', value: stats.total > 0 ? `%${stats.acceptRate}` : '—', icon: CheckCircle, color: 'text-success', iconBg: 'bg-emerald-50 dark:bg-emerald-500/10' },
           { label: 'Toplam Kazanç', value: formatCurrency(stats.totalEarnings), icon: Banknote, color: 'text-accent', iconBg: 'bg-accent-lighter dark:bg-accent/10' },
-          { label: 'Ortalama Puan', value: '—', icon: Star, color: 'text-amber-500', iconBg: 'bg-amber-50 dark:bg-amber-500/10' },
+          { label: 'Ortalama Puan', value: userScore > 0 ? userScore.toFixed(1) : '—', icon: Star, color: 'text-amber-500', iconBg: 'bg-amber-50 dark:bg-amber-500/10' },
         ].map((stat, i) => (
           <motion.div
             key={stat.label}

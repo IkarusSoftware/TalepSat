@@ -27,7 +27,12 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
     data: { unreadCount: 0 },
   });
 
-  return NextResponse.json(messages);
+  const result = messages.map((m) => ({
+    ...m,
+    attachments: m.attachments ? JSON.parse(m.attachments) : null,
+  }));
+
+  return NextResponse.json(result);
 }
 
 // POST /api/conversations/[id]/messages — send message
@@ -45,7 +50,12 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   if (!participant) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
 
   const message = await prisma.message.create({
-    data: { conversationId: id, senderId: session.user.id, text: body.text },
+    data: {
+      conversationId: id,
+      senderId: session.user.id,
+      text: body.text || '',
+      attachments: body.attachments ? JSON.stringify(body.attachments) : null,
+    },
     include: { sender: { select: { id: true, name: true } } },
   });
 
@@ -57,5 +67,8 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
 
   await prisma.conversation.update({ where: { id }, data: { updatedAt: new Date() } });
 
-  return NextResponse.json(message, { status: 201 });
+  return NextResponse.json({
+    ...message,
+    attachments: message.attachments ? JSON.parse(message.attachments) : null,
+  }, { status: 201 });
 }
