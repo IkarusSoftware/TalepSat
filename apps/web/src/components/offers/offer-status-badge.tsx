@@ -10,8 +10,8 @@ const statusConfig = {
 
 type OfferStatus = keyof typeof statusConfig;
 
-export function OfferStatusBadge({ status }: { status: OfferStatus }) {
-  const config = statusConfig[status];
+export function OfferStatusBadge({ status }: { status: string }) {
+  const config = statusConfig[status as OfferStatus] || statusConfig.pending;
   return (
     <span className={`inline-flex items-center px-2.5 py-1 text-body-sm font-semibold rounded-lg border ${config.bg} ${config.text} ${config.border}`}>
       {config.label}

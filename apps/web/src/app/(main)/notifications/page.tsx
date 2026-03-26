@@ -1,13 +1,12 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { motion } from 'framer-motion';
 import Link from 'next/link';
 import {
   Bell, MessageSquare, CheckCircle, XCircle, ArrowRightLeft,
-  Clock, Settings, Check, Trash2,
+  Clock, Settings, Check, Loader2,
 } from 'lucide-react';
-import { mockNotifications } from '@/lib/mock-data';
 
 function timeAgo(date: string) {
   const diff = Date.now() - new Date(date).getTime();
@@ -35,9 +34,27 @@ const tabs = [
   { value: 'unread', label: 'Okunmamış' },
 ];
 
+interface NotificationItem {
+  id: string;
+  type: string;
+  title: string;
+  description: string;
+  link?: string;
+  read: boolean;
+  createdAt: string;
+}
+
 export default function NotificationsPage() {
   const [activeTab, setActiveTab] = useState('all');
-  const [notifications, setNotifications] = useState(mockNotifications);
+  const [notifications, setNotifications] = useState<NotificationItem[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    fetch('/api/notifications')
+      .then((r) => r.json())
+      .then((data) => setNotifications(Array.isArray(data) ? data : []))
+      .finally(() => setLoading(false));
+  }, []);
 
   const filtered = useMemo(() => {
     if (activeTab === 'unread') return notifications.filter((n) => !n.read);
@@ -47,12 +64,18 @@ export default function NotificationsPage() {
   const unreadCount = notifications.filter((n) => !n.read).length;
 
   const markAllRead = () => {
+    fetch('/api/notifications', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ markAllRead: true }) });
     setNotifications(notifications.map((n) => ({ ...n, read: true })));
   };
 
   const markAsRead = (id: string) => {
+    fetch('/api/notifications', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id }) });
     setNotifications(notifications.map((n) => n.id === id ? { ...n, read: true } : n));
   };
+
+  if (loading) {
+    return <div className="flex items-center justify-center min-h-[60vh]"><Loader2 className="w-8 h-8 animate-spin text-accent" /></div>;
+  }
 
   return (
     <div className="max-w-3xl mx-auto px-6 py-8">
@@ -105,7 +128,7 @@ export default function NotificationsPage() {
       {filtered.length > 0 ? (
         <div className="space-y-2">
           {filtered.map((notification, index) => {
-            const config = typeConfig[notification.type];
+            const config = typeConfig[notification.type as keyof typeof typeConfig] || typeConfig.system;
             const Icon = config.icon;
 
             const content = (

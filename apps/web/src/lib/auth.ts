@@ -49,19 +49,11 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
     }),
   ],
   callbacks: {
-    async jwt({ token, user }) {
+    async jwt({ token, user, trigger }) {
       if (user) {
-        token.id = user.id;
-      }
-      return token;
-    },
-    async session({ session, token }) {
-      if (token?.id) {
-        session.user.id = token.id as string;
-
-        // Fetch fresh user data
+        // Login — encode user data into JWT once
         const dbUser = await prisma.user.findUnique({
-          where: { id: token.id as string },
+          where: { id: user.id as string },
           select: {
             role: true,
             verified: true,
@@ -69,20 +61,35 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
             companyName: true,
             phone: true,
             city: true,
-            image: true,
           },
         });
-
-        if (dbUser) {
-          const user = session.user as unknown as Record<string, unknown>;
-          user.role = dbUser.role;
-          user.verified = dbUser.verified;
-          user.badge = dbUser.badge;
-          user.companyName = dbUser.companyName;
-          user.phone = dbUser.phone;
-          user.city = dbUser.city;
-        }
+        token.id = user.id;
+        token.role = dbUser?.role ?? 'buyer';
+        token.verified = dbUser?.verified ?? false;
+        token.badge = dbUser?.badge ?? null;
+        token.companyName = dbUser?.companyName ?? null;
+        token.phone = dbUser?.phone ?? null;
+        token.city = dbUser?.city ?? null;
       }
+      if (trigger === 'update') {
+        // Profile update — refresh from DB
+        const dbUser = await prisma.user.findUnique({
+          where: { id: token.id as string },
+          select: { role: true, verified: true, badge: true, companyName: true, phone: true, city: true },
+        });
+        if (dbUser) Object.assign(token, dbUser);
+      }
+      return token;
+    },
+    async session({ session, token }) {
+      const user = session.user as unknown as Record<string, unknown>;
+      user.id = token.id;
+      user.role = token.role;
+      user.verified = token.verified;
+      user.badge = token.badge;
+      user.companyName = token.companyName;
+      user.phone = token.phone;
+      user.city = token.city;
       return session;
     },
   },

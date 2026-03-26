@@ -1,13 +1,12 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { motion } from 'framer-motion';
 import Link from 'next/link';
 import {
   Search, SlidersHorizontal, MapPin, Clock, MessageSquare,
-  X, ChevronDown, Star,
+  X, ChevronDown, Star, Loader2,
 } from 'lucide-react';
-import { mockListings } from '@/lib/mock-data';
 
 const categories = [
   'Tümü', 'Mobilya', 'Elektronik', 'Tekstil', 'Endüstriyel',
@@ -39,58 +38,72 @@ function getTimeLeft(expiresAt: string) {
   return `${days} gün kaldı`;
 }
 
+interface ListingItem {
+  id: string;
+  title: string;
+  description: string;
+  category: string;
+  categorySlug: string;
+  budgetMin: number;
+  budgetMax: number;
+  city: string;
+  deliveryUrgency: string;
+  viewCount: number;
+  offerCount: number;
+  status: string;
+  expiresAt: string;
+  createdAt: string;
+  buyerName: string;
+  buyerInitials: string;
+  buyerScore: number;
+}
+
 export default function ExplorePage() {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('Tümü');
   const [selectedCity, setSelectedCity] = useState('Tümü');
   const [sortBy, setSortBy] = useState('newest');
   const [showFilters, setShowFilters] = useState(false);
+  const [listings, setListings] = useState<ListingItem[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    fetch('/api/listings')
+      .then((r) => r.json())
+      .then((data) => setListings(Array.isArray(data) ? data : []))
+      .finally(() => setLoading(false));
+  }, []);
 
   const filteredListings = useMemo(() => {
-    let result = [...mockListings];
+    let result = listings.filter((l) => l.status === 'active');
 
     if (searchQuery) {
       const q = searchQuery.toLowerCase();
-      result = result.filter(
-        (l) => l.title.toLowerCase().includes(q) || l.description.toLowerCase().includes(q)
-      );
+      result = result.filter((l) => l.title.toLowerCase().includes(q) || l.description.toLowerCase().includes(q));
     }
-    if (selectedCategory !== 'Tümü') {
-      result = result.filter((l) => l.category === selectedCategory);
-    }
-    if (selectedCity !== 'Tümü') {
-      result = result.filter((l) => l.city === selectedCity);
-    }
+    if (selectedCategory !== 'Tümü') result = result.filter((l) => l.category === selectedCategory);
+    if (selectedCity !== 'Tümü') result = result.filter((l) => l.city === selectedCity);
 
     switch (sortBy) {
-      case 'budget-high':
-        result.sort((a, b) => b.budgetMax - a.budgetMax);
-        break;
-      case 'most-offers':
-        result.sort((a, b) => b.offerCount - a.offerCount);
-        break;
-      case 'ending-soon':
-        result.sort((a, b) => new Date(a.expiresAt).getTime() - new Date(b.expiresAt).getTime());
-        break;
-      default:
-        result.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+      case 'budget-high': result.sort((a, b) => b.budgetMax - a.budgetMax); break;
+      case 'most-offers': result.sort((a, b) => b.offerCount - a.offerCount); break;
+      case 'ending-soon': result.sort((a, b) => new Date(a.expiresAt).getTime() - new Date(b.expiresAt).getTime()); break;
+      default: result.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
     }
-
     return result;
-  }, [searchQuery, selectedCategory, selectedCity, sortBy]);
+  }, [listings, searchQuery, selectedCategory, selectedCity, sortBy]);
 
   const activeFilterCount = [selectedCategory !== 'Tümü', selectedCity !== 'Tümü'].filter(Boolean).length;
 
+  if (loading) {
+    return <div className="flex items-center justify-center min-h-[60vh]"><Loader2 className="w-8 h-8 animate-spin text-accent" /></div>;
+  }
+
   return (
     <div className="max-w-7xl mx-auto px-6 py-8">
-      {/* Page header */}
       <div className="mb-8">
-        <h1 className="text-h1 font-bold text-neutral-900 dark:text-dark-textPrimary">
-          İlanları Keşfet
-        </h1>
-        <p className="mt-2 text-body-lg text-neutral-500">
-          Gerçek talepleri incele, teklif ver, satışını yap.
-        </p>
+        <h1 className="text-h1 font-bold text-neutral-900 dark:text-dark-textPrimary">İlanları Keşfet</h1>
+        <p className="mt-2 text-body-lg text-neutral-500">Gerçek talepleri incele, teklif ver, satışını yap.</p>
       </div>
 
       {/* Search + Filter bar */}
@@ -98,39 +111,19 @@ export default function ExplorePage() {
         <div className="relative flex-1">
           <Search size={18} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-neutral-400" />
           <input
-            type="text"
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
+            type="text" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)}
             placeholder="İlan ara... (ör: sandalye, laptop, kumaş)"
             className="w-full h-11 pl-10 pr-4 rounded-lg border border-neutral-200 dark:border-dark-border bg-white dark:bg-dark-surface text-body-md text-neutral-900 dark:text-dark-textPrimary placeholder:text-neutral-300 focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-colors"
           />
         </div>
         <div className="flex gap-3">
-          <button
-            onClick={() => setShowFilters(!showFilters)}
-            className={`h-11 px-4 rounded-lg border text-body-md font-medium flex items-center gap-2 transition-colors ${
-              showFilters || activeFilterCount > 0
-                ? 'border-accent bg-accent-lighter text-accent'
-                : 'border-neutral-200 dark:border-dark-border text-neutral-600 dark:text-dark-textSecondary hover:bg-neutral-50 dark:hover:bg-dark-surfaceRaised'
-            }`}
-          >
-            <SlidersHorizontal size={16} />
-            Filtrele
-            {activeFilterCount > 0 && (
-              <span className="w-5 h-5 rounded-full bg-accent text-white text-[11px] font-bold flex items-center justify-center">
-                {activeFilterCount}
-              </span>
-            )}
+          <button onClick={() => setShowFilters(!showFilters)} className={`h-11 px-4 rounded-lg border text-body-md font-medium flex items-center gap-2 transition-colors ${showFilters || activeFilterCount > 0 ? 'border-accent bg-accent-lighter text-accent' : 'border-neutral-200 dark:border-dark-border text-neutral-600 dark:text-dark-textSecondary hover:bg-neutral-50 dark:hover:bg-dark-surfaceRaised'}`}>
+            <SlidersHorizontal size={16} /> Filtrele
+            {activeFilterCount > 0 && <span className="w-5 h-5 rounded-full bg-accent text-white text-[11px] font-bold flex items-center justify-center">{activeFilterCount}</span>}
           </button>
           <div className="relative">
-            <select
-              value={sortBy}
-              onChange={(e) => setSortBy(e.target.value)}
-              className="h-11 pl-4 pr-9 rounded-lg border border-neutral-200 dark:border-dark-border bg-white dark:bg-dark-surface text-body-md text-neutral-700 dark:text-dark-textPrimary appearance-none cursor-pointer focus:outline-none focus:ring-2 focus:ring-primary/20"
-            >
-              {sortOptions.map((opt) => (
-                <option key={opt.value} value={opt.value}>{opt.label}</option>
-              ))}
+            <select value={sortBy} onChange={(e) => setSortBy(e.target.value)} className="h-11 pl-4 pr-9 rounded-lg border border-neutral-200 dark:border-dark-border bg-white dark:bg-dark-surface text-body-md text-neutral-700 dark:text-dark-textPrimary appearance-none cursor-pointer focus:outline-none focus:ring-2 focus:ring-primary/20">
+              {sortOptions.map((opt) => <option key={opt.value} value={opt.value}>{opt.label}</option>)}
             </select>
             <ChevronDown size={16} className="absolute right-3 top-1/2 -translate-y-1/2 text-neutral-400 pointer-events-none" />
           </div>
@@ -139,26 +132,13 @@ export default function ExplorePage() {
 
       {/* Filters panel */}
       {showFilters && (
-        <motion.div
-          initial={{ opacity: 0, height: 0 }}
-          animate={{ opacity: 1, height: 'auto' }}
-          exit={{ opacity: 0, height: 0 }}
-          className="mb-6 p-5 bg-white dark:bg-dark-surface rounded-xl border border-neutral-200/50 dark:border-dark-border"
-        >
+        <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }} className="mb-6 p-5 bg-white dark:bg-dark-surface rounded-xl border border-neutral-200/50 dark:border-dark-border">
           <div className="grid sm:grid-cols-2 gap-5">
             <div>
               <p className="text-body-sm font-semibold text-neutral-700 dark:text-dark-textPrimary mb-2">Kategori</p>
               <div className="flex flex-wrap gap-2">
                 {categories.map((cat) => (
-                  <button
-                    key={cat}
-                    onClick={() => setSelectedCategory(cat)}
-                    className={`px-3 py-1.5 rounded-lg text-body-sm font-medium transition-colors ${
-                      selectedCategory === cat
-                        ? 'bg-primary text-white'
-                        : 'bg-neutral-100 dark:bg-dark-surfaceRaised text-neutral-600 dark:text-dark-textSecondary hover:bg-neutral-200'
-                    }`}
-                  >
+                  <button key={cat} onClick={() => setSelectedCategory(cat)} className={`px-3 py-1.5 rounded-lg text-body-sm font-medium transition-colors ${selectedCategory === cat ? 'bg-primary text-white' : 'bg-neutral-100 dark:bg-dark-surfaceRaised text-neutral-600 dark:text-dark-textSecondary hover:bg-neutral-200'}`}>
                     {cat}
                   </button>
                 ))}
@@ -168,15 +148,7 @@ export default function ExplorePage() {
               <p className="text-body-sm font-semibold text-neutral-700 dark:text-dark-textPrimary mb-2">Şehir</p>
               <div className="flex flex-wrap gap-2">
                 {cities.map((city) => (
-                  <button
-                    key={city}
-                    onClick={() => setSelectedCity(city)}
-                    className={`px-3 py-1.5 rounded-lg text-body-sm font-medium transition-colors ${
-                      selectedCity === city
-                        ? 'bg-primary text-white'
-                        : 'bg-neutral-100 dark:bg-dark-surfaceRaised text-neutral-600 dark:text-dark-textSecondary hover:bg-neutral-200'
-                    }`}
-                  >
+                  <button key={city} onClick={() => setSelectedCity(city)} className={`px-3 py-1.5 rounded-lg text-body-sm font-medium transition-colors ${selectedCity === city ? 'bg-primary text-white' : 'bg-neutral-100 dark:bg-dark-surfaceRaised text-neutral-600 dark:text-dark-textSecondary hover:bg-neutral-200'}`}>
                     {city}
                   </button>
                 ))}
@@ -184,35 +156,28 @@ export default function ExplorePage() {
             </div>
           </div>
           {activeFilterCount > 0 && (
-            <button
-              onClick={() => { setSelectedCategory('Tümü'); setSelectedCity('Tümü'); }}
-              className="mt-4 text-body-sm text-accent font-medium hover:text-accent-600 flex items-center gap-1"
-            >
+            <button onClick={() => { setSelectedCategory('Tümü'); setSelectedCity('Tümü'); }} className="mt-4 text-body-sm text-accent font-medium hover:text-accent-600 flex items-center gap-1">
               <X size={14} /> Filtreleri Temizle
             </button>
           )}
         </motion.div>
       )}
 
-      {/* Active filter chips */}
       {activeFilterCount > 0 && !showFilters && (
         <div className="flex flex-wrap gap-2 mb-6">
           {selectedCategory !== 'Tümü' && (
             <span className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-primary/10 text-primary text-body-sm font-medium rounded-lg">
-              {selectedCategory}
-              <button onClick={() => setSelectedCategory('Tümü')} className="hover:text-primary-700"><X size={14} /></button>
+              {selectedCategory} <button onClick={() => setSelectedCategory('Tümü')} className="hover:text-primary-700"><X size={14} /></button>
             </span>
           )}
           {selectedCity !== 'Tümü' && (
             <span className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-primary/10 text-primary text-body-sm font-medium rounded-lg">
-              {selectedCity}
-              <button onClick={() => setSelectedCity('Tümü')} className="hover:text-primary-700"><X size={14} /></button>
+              {selectedCity} <button onClick={() => setSelectedCity('Tümü')} className="hover:text-primary-700"><X size={14} /></button>
             </span>
           )}
         </div>
       )}
 
-      {/* Results count */}
       <p className="text-body-md text-neutral-500 mb-4">
         <strong className="text-neutral-700 dark:text-dark-textPrimary">{filteredListings.length}</strong> aktif ilan bulundu
       </p>
@@ -221,85 +186,45 @@ export default function ExplorePage() {
       {filteredListings.length > 0 ? (
         <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-5">
           {filteredListings.map((listing, index) => (
-            <motion.article
-              key={listing.id}
-              initial={{ opacity: 0, y: 16 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.35, delay: index * 0.05, ease: [0, 0, 0.2, 1] }}
-            >
-              <Link
-                href={`/listing/${listing.id}`}
-                className="group block h-full rounded-xl border border-neutral-200/50 dark:border-dark-border/80 bg-white dark:bg-dark-surface p-6 hover:shadow-md hover:border-neutral-300 dark:hover:border-neutral-500 hover:scale-[1.01] transition-all duration-normal"
-              >
-                {/* Category + Status */}
+            <motion.article key={listing.id} initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.35, delay: index * 0.05, ease: [0, 0, 0.2, 1] }}>
+              <Link href={`/listing/${listing.id}`} className="group block h-full rounded-xl border border-neutral-200/50 dark:border-dark-border/80 bg-white dark:bg-dark-surface p-6 hover:shadow-md hover:border-neutral-300 dark:hover:border-neutral-500 hover:scale-[1.01] transition-all duration-normal">
                 <div className="flex items-center justify-between mb-3">
-                  <span className="px-2.5 py-1 bg-primary-lighter dark:bg-primary/20 text-primary dark:text-blue-300 text-body-sm font-medium rounded-sm">
-                    {listing.category}
-                  </span>
-                  <span className="text-body-sm text-neutral-400 flex items-center gap-1">
-                    <Clock size={13} />
-                    {getTimeLeft(listing.expiresAt)}
-                  </span>
+                  <span className="px-2.5 py-1 bg-primary-lighter dark:bg-primary/20 text-primary dark:text-blue-300 text-body-sm font-medium rounded-sm">{listing.category}</span>
+                  <span className="text-body-sm text-neutral-400 flex items-center gap-1"><Clock size={13} />{getTimeLeft(listing.expiresAt)}</span>
                 </div>
-
-                {/* Title */}
-                <h3 className="text-h4 font-semibold text-neutral-900 dark:text-dark-textPrimary mb-2 line-clamp-2 group-hover:text-accent transition-colors">
-                  {listing.title}
-                </h3>
-
-                {/* Budget */}
-                <p className="text-body-lg font-bold text-accent mb-3">
-                  {formatBudget(listing.budgetMin, listing.budgetMax)}
-                </p>
-
-                {/* Meta row */}
+                <h3 className="text-h4 font-semibold text-neutral-900 dark:text-dark-textPrimary mb-2 line-clamp-2 group-hover:text-accent transition-colors">{listing.title}</h3>
+                <p className="text-body-lg font-bold text-accent mb-3">{formatBudget(listing.budgetMin, listing.budgetMax)}</p>
                 <div className="flex flex-wrap items-center gap-3 text-body-sm text-neutral-400 mb-4">
-                  <span className="flex items-center gap-1">
-                    <MapPin size={13} /> {listing.city}
-                  </span>
-                  <span className="flex items-center gap-1">
-                    <Clock size={13} /> {listing.deliveryUrgency}
-                  </span>
+                  <span className="flex items-center gap-1"><MapPin size={13} /> {listing.city}</span>
+                  <span className="flex items-center gap-1"><Clock size={13} /> {listing.deliveryUrgency}</span>
                 </div>
-
-                {/* Footer */}
                 <div className="flex items-center justify-between pt-4 border-t border-neutral-100 dark:border-dark-border">
                   <div className="flex items-center gap-2">
-                    <div className="w-7 h-7 rounded-full bg-neutral-200 dark:bg-dark-surfaceRaised flex items-center justify-center text-[11px] font-semibold text-neutral-600 dark:text-dark-textSecondary">
-                      {listing.buyerInitials}
-                    </div>
-                    <div className="flex items-center gap-1 text-body-sm text-neutral-500">
-                      <Star size={12} className="text-amber-400 fill-amber-400" />
-                      {listing.buyerScore}
-                    </div>
+                    <div className="w-7 h-7 rounded-full bg-neutral-200 dark:bg-dark-surfaceRaised flex items-center justify-center text-[11px] font-semibold text-neutral-600 dark:text-dark-textSecondary">{listing.buyerInitials}</div>
+                    <div className="flex items-center gap-1 text-body-sm text-neutral-500"><Star size={12} className="text-amber-400 fill-amber-400" />{listing.buyerScore}</div>
                   </div>
-                  <span className="flex items-center gap-1 text-body-sm font-semibold text-accent">
-                    <MessageSquare size={14} />
-                    {listing.offerCount} teklif
-                  </span>
+                  <span className="flex items-center gap-1 text-body-sm font-semibold text-accent"><MessageSquare size={14} />{listing.offerCount} teklif</span>
                 </div>
               </Link>
             </motion.article>
           ))}
         </div>
       ) : (
-        /* Empty state */
         <div className="text-center py-20">
           <div className="w-16 h-16 mx-auto mb-4 rounded-2xl bg-neutral-100 dark:bg-dark-surfaceRaised flex items-center justify-center">
             <Search size={28} className="text-neutral-400" />
           </div>
           <h3 className="text-h3 font-semibold text-neutral-700 dark:text-dark-textPrimary mb-2">
-            Aramanızla eşleşen ilan bulunamadı
+            {listings.length === 0 ? 'Henüz ilan yok' : 'Aramanızla eşleşen ilan bulunamadı'}
           </h3>
           <p className="text-body-lg text-neutral-500 mb-6">
-            Filtrelerinizi değiştirmeyi veya arama kelimesini güncellemeyi deneyin.
+            {listings.length === 0 ? 'İlk ilanı oluşturan sen ol!' : 'Filtrelerinizi değiştirmeyi veya arama kelimesini güncellemeyi deneyin.'}
           </p>
-          <button
-            onClick={() => { setSearchQuery(''); setSelectedCategory('Tümü'); setSelectedCity('Tümü'); }}
-            className="inline-flex items-center gap-2 h-10 px-5 border border-neutral-200 rounded-lg text-body-md font-medium text-neutral-700 hover:bg-neutral-50 transition-colors"
-          >
-            <X size={16} /> Filtreleri Temizle
-          </button>
+          {listings.length > 0 && (
+            <button onClick={() => { setSearchQuery(''); setSelectedCategory('Tümü'); setSelectedCity('Tümü'); }} className="inline-flex items-center gap-2 h-10 px-5 border border-neutral-200 rounded-lg text-body-md font-medium text-neutral-700 hover:bg-neutral-50 transition-colors">
+              <X size={16} /> Filtreleri Temizle
+            </button>
+          )}
         </div>
       )}
     </div>

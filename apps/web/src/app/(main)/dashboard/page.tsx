@@ -1,13 +1,13 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { motion } from 'framer-motion';
 import Link from 'next/link';
+import { useSession } from 'next-auth/react';
 import {
   Clock, MessageSquare, MapPin, Eye, Plus, ArrowRight,
-  Calendar, FileText,
+  Calendar, FileText, Loader2,
 } from 'lucide-react';
-import { mockListings, mockOffers, currentUser } from '@/lib/mock-data';
 
 function formatCurrency(n: number) {
   return new Intl.NumberFormat('tr-TR', { style: 'currency', currency: 'TRY', maximumFractionDigits: 0 }).format(n);
@@ -26,66 +26,94 @@ const tabs = [
   { value: 'expired', label: 'Süresi Dolan' },
 ];
 
-const statusConfig = {
+const statusConfig: Record<string, { label: string; bg: string; text: string }> = {
   active: { label: 'Aktif', bg: 'bg-emerald-50 dark:bg-emerald-500/10', text: 'text-emerald-600 dark:text-emerald-400' },
   completed: { label: 'Tamamlandı', bg: 'bg-blue-50 dark:bg-blue-500/10', text: 'text-blue-600 dark:text-blue-400' },
   expired: { label: 'Süresi Doldu', bg: 'bg-neutral-100 dark:bg-neutral-500/10', text: 'text-neutral-500 dark:text-neutral-400' },
 };
 
+interface Listing {
+  id: string;
+  title: string;
+  category: string;
+  city: string;
+  budgetMin: number;
+  budgetMax: number;
+  deliveryUrgency: string;
+  viewCount: number;
+  status: string;
+  expiresAt: string;
+  offerCount: number;
+  createdAt: string;
+}
+
+interface Offer {
+  id: string;
+  listingId: string;
+  status: string;
+}
+
 export default function DashboardPage() {
+  const { data: session } = useSession();
   const [activeTab, setActiveTab] = useState('active');
+  const [listings, setListings] = useState<Listing[]>([]);
+  const [offers, setOffers] = useState<Offer[]>([]);
+  const [loading, setLoading] = useState(true);
 
-  const myListings = useMemo(() => {
-    let result = mockListings.filter((l) => l.buyerId === currentUser.id);
-    if (activeTab !== 'all') {
-      result = result.filter((l) => l.status === activeTab);
-    }
-    return result;
-  }, [activeTab]);
+  useEffect(() => {
+    if (!session?.user?.id) return;
+    setLoading(true);
+    Promise.all([
+      fetch(`/api/listings?buyerId=${session.user.id}`).then((r) => r.json()),
+      fetch('/api/offers?role=buyer').then((r) => r.json()),
+    ])
+      .then(([listingsData, offersData]) => {
+        setListings(listingsData);
+        setOffers(Array.isArray(offersData) ? offersData : []);
+      })
+      .finally(() => setLoading(false));
+  }, [session?.user?.id]);
 
-  // Count offers per listing
-  const offerCounts = useMemo(() => {
-    const counts: Record<string, number> = {};
-    mockOffers.forEach((o) => {
-      counts[o.listingId] = (counts[o.listingId] || 0) + 1;
-    });
-    return counts;
-  }, []);
+  const filtered = useMemo(() => listings.filter((l) => l.status === activeTab), [listings, activeTab]);
 
-  // Pending offers count per listing
   const pendingOfferCounts = useMemo(() => {
     const counts: Record<string, number> = {};
-    mockOffers.filter((o) => o.status === 'pending').forEach((o) => {
+    offers.filter((o) => o.status === 'pending').forEach((o) => {
       counts[o.listingId] = (counts[o.listingId] || 0) + 1;
     });
     return counts;
-  }, []);
+  }, [offers]);
 
-  const allMyListings = mockListings.filter((l) => l.buyerId === currentUser.id);
   const tabCounts = {
-    active: allMyListings.filter((l) => l.status === 'active').length,
-    completed: allMyListings.filter((l) => l.status === 'completed').length,
-    expired: allMyListings.filter((l) => l.status === 'expired').length,
+    active: listings.filter((l) => l.status === 'active').length,
+    completed: listings.filter((l) => l.status === 'completed').length,
+    expired: listings.filter((l) => l.status === 'expired').length,
   };
+
+  const totalOffers = offers.length;
+  const totalPending = offers.filter((o) => o.status === 'pending').length;
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center min-h-[60vh]">
+        <Loader2 className="w-8 h-8 animate-spin text-accent" />
+      </div>
+    );
+  }
 
   return (
     <div className="max-w-7xl mx-auto px-6 py-8">
       {/* Header */}
       <div className="flex items-center justify-between mb-8">
         <div>
-          <h1 className="text-h1 font-bold text-neutral-900 dark:text-dark-textPrimary">
-            İlanlarım
-          </h1>
-          <p className="mt-2 text-body-lg text-neutral-500">
-            Oluşturduğun ilanları yönet, gelen teklifleri incele.
-          </p>
+          <h1 className="text-h1 font-bold text-neutral-900 dark:text-dark-textPrimary">İlanlarım</h1>
+          <p className="mt-2 text-body-lg text-neutral-500">Oluşturduğun ilanları yönet, gelen teklifleri incele.</p>
         </div>
         <Link
           href="/create"
           className="hidden sm:inline-flex items-center gap-2 h-11 px-5 bg-accent text-white text-body-md font-semibold rounded-lg hover:bg-accent-600 active:scale-[0.97] transition-all shadow-sm"
         >
-          <Plus size={18} />
-          Yeni İlan
+          <Plus size={18} /> Yeni İlan
         </Link>
       </div>
 
@@ -93,8 +121,8 @@ export default function DashboardPage() {
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-8">
         {[
           { label: 'Aktif İlan', value: tabCounts.active, color: 'text-accent' },
-          { label: 'Toplam Teklif', value: Object.values(offerCounts).reduce((a, b) => a + b, 0), color: 'text-primary' },
-          { label: 'Bekleyen Teklif', value: Object.values(pendingOfferCounts).reduce((a, b) => a + b, 0), color: 'text-amber-600' },
+          { label: 'Toplam Teklif', value: totalOffers, color: 'text-primary' },
+          { label: 'Bekleyen Teklif', value: totalPending, color: 'text-amber-600' },
           { label: 'Tamamlanan', value: tabCounts.completed, color: 'text-success' },
         ].map((stat) => (
           <div key={stat.label} className="bg-white dark:bg-dark-surface rounded-xl border border-neutral-200/50 dark:border-dark-border/80 p-4">
@@ -130,12 +158,11 @@ export default function DashboardPage() {
       </div>
 
       {/* Listing cards */}
-      {myListings.length > 0 ? (
+      {filtered.length > 0 ? (
         <div className="space-y-4">
-          {myListings.map((listing, index) => {
-            const offerCount = offerCounts[listing.id] || 0;
+          {filtered.map((listing, index) => {
             const pendingCount = pendingOfferCounts[listing.id] || 0;
-            const config = statusConfig[listing.status];
+            const config = statusConfig[listing.status] || statusConfig.active;
 
             return (
               <motion.div
@@ -146,7 +173,6 @@ export default function DashboardPage() {
                 className="bg-white dark:bg-dark-surface rounded-xl border border-neutral-200/50 dark:border-dark-border/80 p-5 hover:shadow-md hover:border-neutral-300 dark:hover:border-neutral-500 transition-all"
               >
                 <div className="flex flex-col sm:flex-row sm:items-start gap-4">
-                  {/* Left */}
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 mb-2">
                       <span className="px-2 py-0.5 bg-primary-lighter dark:bg-primary/20 text-primary dark:text-blue-300 text-body-sm font-medium rounded-sm">
@@ -156,24 +182,16 @@ export default function DashboardPage() {
                         {config.label}
                       </span>
                     </div>
-
                     <Link
                       href={`/listing/${listing.id}`}
                       className="text-h4 font-semibold text-neutral-900 dark:text-dark-textPrimary hover:text-accent transition-colors line-clamp-2 mb-2 block"
                     >
                       {listing.title}
                     </Link>
-
                     <div className="flex flex-wrap items-center gap-3 text-body-sm text-neutral-400">
-                      <span className="flex items-center gap-1">
-                        <MapPin size={13} /> {listing.city}
-                      </span>
-                      <span className="flex items-center gap-1">
-                        <Calendar size={13} /> {listing.deliveryUrgency}
-                      </span>
-                      <span className="flex items-center gap-1">
-                        <Eye size={13} /> {listing.viewCount}
-                      </span>
+                      <span className="flex items-center gap-1"><MapPin size={13} /> {listing.city}</span>
+                      <span className="flex items-center gap-1"><Calendar size={13} /> {listing.deliveryUrgency}</span>
+                      <span className="flex items-center gap-1"><Eye size={13} /> {listing.viewCount}</span>
                       {listing.status === 'active' && (
                         <span className="flex items-center gap-1 text-amber-500 font-medium">
                           <Clock size={13} /> {getTimeLeft(listing.expiresAt)}
@@ -181,8 +199,6 @@ export default function DashboardPage() {
                       )}
                     </div>
                   </div>
-
-                  {/* Right */}
                   <div className="flex sm:flex-col items-center sm:items-end gap-3 sm:gap-1 shrink-0">
                     <p className="text-body-sm text-neutral-400">Bütçe</p>
                     <p className="text-h4 font-bold text-accent">
@@ -191,22 +207,17 @@ export default function DashboardPage() {
                   </div>
                 </div>
 
-                {/* Footer actions */}
                 <div className="mt-4 pt-4 border-t border-neutral-100 dark:border-dark-border flex items-center justify-between">
-                  <div className="flex items-center gap-4">
-                    <span className="flex items-center gap-1.5 text-body-md font-semibold text-accent">
-                      <MessageSquare size={16} />
-                      {offerCount} teklif
-                      {pendingCount > 0 && (
-                        <span className="ml-1 w-5 h-5 rounded-full bg-accent text-white text-[11px] font-bold flex items-center justify-center">
-                          {pendingCount}
-                        </span>
-                      )}
-                    </span>
-                  </div>
-
+                  <span className="flex items-center gap-1.5 text-body-md font-semibold text-accent">
+                    <MessageSquare size={16} /> {listing.offerCount} teklif
+                    {pendingCount > 0 && (
+                      <span className="ml-1 w-5 h-5 rounded-full bg-accent text-white text-[11px] font-bold flex items-center justify-center">
+                        {pendingCount}
+                      </span>
+                    )}
+                  </span>
                   <div className="flex items-center gap-3">
-                    {offerCount > 1 && listing.status === 'active' && (
+                    {listing.offerCount > 1 && listing.status === 'active' && (
                       <Link
                         href={`/listing/${listing.id}/compare`}
                         className="h-9 px-4 rounded-lg border border-neutral-200 dark:border-dark-border text-body-sm font-medium text-neutral-600 dark:text-dark-textSecondary hover:bg-neutral-50 dark:hover:bg-dark-surfaceRaised transition-colors flex items-center gap-2"
@@ -232,7 +243,7 @@ export default function DashboardPage() {
             <FileText size={28} className="text-neutral-400" />
           </div>
           <h3 className="text-h3 font-semibold text-neutral-700 dark:text-dark-textPrimary mb-2">
-            Henüz ilanın yok
+            {activeTab === 'active' ? 'Henüz aktif ilanın yok' : activeTab === 'completed' ? 'Tamamlanan ilan yok' : 'Süresi dolan ilan yok'}
           </h3>
           <p className="text-body-lg text-neutral-500 mb-6">
             İlk ilanını oluştur ve tedarikçilerden teklif almaya başla!
@@ -246,7 +257,6 @@ export default function DashboardPage() {
         </div>
       )}
 
-      {/* Mobile FAB */}
       <Link
         href="/create"
         className="sm:hidden fixed bottom-6 right-6 w-14 h-14 bg-accent text-white rounded-2xl shadow-lg flex items-center justify-center hover:bg-accent-600 active:scale-95 transition-all z-20"

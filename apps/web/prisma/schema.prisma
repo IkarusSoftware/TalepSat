@@ -27,8 +27,13 @@ model User {
   createdAt      DateTime  @default(now())
   updatedAt      DateTime  @updatedAt
 
-  accounts Account[]
-  sessions Session[]
+  accounts      Account[]
+  sessions      Session[]
+  listings      Listing[]
+  offers        Offer[]
+  notifications Notification[]
+  sentMessages  Message[]       @relation("sender")
+  conversations ConversationParticipant[]
 }
 
 model Account {
@@ -57,4 +62,96 @@ model Session {
   expires      DateTime
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model Listing {
+  id              String   @id @default(cuid())
+  title           String
+  description     String
+  category        String
+  categorySlug    String
+  budgetMin       Float
+  budgetMax       Float
+  city            String
+  deliveryUrgency String   @default("normal") // urgent, normal, flexible
+  status          String   @default("active")  // active, expired, completed
+  images          String?  // JSON array of image URLs
+  viewCount       Int      @default(0)
+  expiresAt       DateTime
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  buyerId String
+  buyer   User    @relation(fields: [buyerId], references: [id], onDelete: Cascade)
+  offers  Offer[]
+}
+
+model Offer {
+  id             String   @id @default(cuid())
+  price          Float
+  deliveryDays   Int
+  note           String?
+  status         String   @default("pending") // pending, accepted, rejected, counter_offered, withdrawn
+  isBoosted      Boolean  @default(false)
+  rejectedReason String?
+  revisionCount  Int      @default(0)
+  counterPrice   Float?
+  counterDays    Int?
+  counterNote    String?
+  counterAt      DateTime?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  listingId String
+  listing   Listing @relation(fields: [listingId], references: [id], onDelete: Cascade)
+  sellerId  String
+  seller    User    @relation(fields: [sellerId], references: [id], onDelete: Cascade)
+}
+
+model Notification {
+  id          String   @id @default(cuid())
+  type        String   // offer_received, offer_accepted, offer_rejected, counter_offer, message, listing_expiry, system
+  title       String
+  description String
+  link        String?
+  read        Boolean  @default(false)
+  createdAt   DateTime @default(now())
+
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model Conversation {
+  id           String   @id @default(cuid())
+  listingId    String?
+  listingTitle String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  participants ConversationParticipant[]
+  messages     Message[]
+}
+
+model ConversationParticipant {
+  id             String @id @default(cuid())
+  conversationId String
+  userId         String
+  unreadCount    Int    @default(0)
+
+  conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([conversationId, userId])
+}
+
+model Message {
+  id        String   @id @default(cuid())
+  text      String
+  read      Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  conversationId String
+  conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  senderId       String
+  sender         User         @relation("sender", fields: [senderId], references: [id], onDelete: Cascade)
 }
