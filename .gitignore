@@ -60,3 +60,4 @@ coverage/
 
 # Metro
 .metro-health-check*
+.vercel
