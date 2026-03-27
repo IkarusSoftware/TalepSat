@@ -53,6 +53,7 @@ interface ListingItem {
   status: string;
   expiresAt: string;
   createdAt: string;
+  buyerId: string;
   buyerName: string;
   buyerInitials: string;
   buyerScore: number;
@@ -187,25 +188,33 @@ export default function ExplorePage() {
         <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-5">
           {filteredListings.map((listing, index) => (
             <motion.article key={listing.id} initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.35, delay: index * 0.05, ease: [0, 0, 0.2, 1] }}>
-              <Link href={`/listing/${listing.id}`} className="group block h-full rounded-xl border border-neutral-200/50 dark:border-dark-border/80 bg-white dark:bg-dark-surface p-6 hover:shadow-md hover:border-neutral-300 dark:hover:border-neutral-500 hover:scale-[1.01] transition-all duration-normal">
-                <div className="flex items-center justify-between mb-3">
-                  <span className="px-2.5 py-1 bg-primary-lighter dark:bg-primary/20 text-primary dark:text-blue-300 text-body-sm font-medium rounded-sm">{listing.category}</span>
-                  <span className="text-body-sm text-neutral-400 flex items-center gap-1"><Clock size={13} />{getTimeLeft(listing.expiresAt)}</span>
-                </div>
-                <h3 className="text-h4 font-semibold text-neutral-900 dark:text-dark-textPrimary mb-2 line-clamp-2 group-hover:text-accent transition-colors">{listing.title}</h3>
-                <p className="text-body-lg font-bold text-accent mb-3">{formatBudget(listing.budgetMin, listing.budgetMax)}</p>
-                <div className="flex flex-wrap items-center gap-3 text-body-sm text-neutral-400 mb-4">
-                  <span className="flex items-center gap-1"><MapPin size={13} /> {listing.city}</span>
-                  <span className="flex items-center gap-1"><Clock size={13} /> {listing.deliveryUrgency}</span>
-                </div>
-                <div className="flex items-center justify-between pt-4 border-t border-neutral-100 dark:border-dark-border">
-                  <div className="flex items-center gap-2">
-                    <div className="w-7 h-7 rounded-full bg-neutral-200 dark:bg-dark-surfaceRaised flex items-center justify-center text-[11px] font-semibold text-neutral-600 dark:text-dark-textSecondary">{listing.buyerInitials}</div>
-                    <div className="flex items-center gap-1 text-body-sm text-neutral-500"><Star size={12} className="text-amber-400 fill-amber-400" />{listing.buyerScore}</div>
+              <div className="group relative h-full rounded-xl border border-neutral-200/50 dark:border-dark-border/80 bg-white dark:bg-dark-surface hover:shadow-md hover:border-neutral-300 dark:hover:border-neutral-500 hover:scale-[1.01] transition-all duration-normal">
+                <Link href={`/listing/${listing.id}`} className="block p-6">
+                  <div className="flex items-center justify-between mb-3">
+                    <span className="px-2.5 py-1 bg-primary-lighter dark:bg-primary/20 text-primary dark:text-blue-300 text-body-sm font-medium rounded-sm">{listing.category}</span>
+                    <span className="text-body-sm text-neutral-400 flex items-center gap-1"><Clock size={13} />{getTimeLeft(listing.expiresAt)}</span>
                   </div>
-                  <span className="flex items-center gap-1 text-body-sm font-semibold text-accent"><MessageSquare size={14} />{listing.offerCount} teklif</span>
-                </div>
-              </Link>
+                  <h3 className="text-h4 font-semibold text-neutral-900 dark:text-dark-textPrimary mb-2 line-clamp-2 group-hover:text-accent transition-colors">{listing.title}</h3>
+                  <p className="text-body-lg font-bold text-accent mb-3">{formatBudget(listing.budgetMin, listing.budgetMax)}</p>
+                  <div className="flex flex-wrap items-center gap-3 text-body-sm text-neutral-400 mb-4">
+                    <span className="flex items-center gap-1"><MapPin size={13} /> {listing.city}</span>
+                    <span className="flex items-center gap-1"><Clock size={13} /> {listing.deliveryUrgency}</span>
+                  </div>
+                  <div className="flex items-center justify-between pt-4 border-t border-neutral-100 dark:border-dark-border">
+                    <div className="flex items-center gap-2">
+                      <Link
+                        href={`/profile/${listing.buyerId}`}
+                        onClick={(e) => e.stopPropagation()}
+                        className="w-7 h-7 rounded-full bg-neutral-200 dark:bg-dark-surfaceRaised flex items-center justify-center text-[11px] font-semibold text-neutral-600 dark:text-dark-textSecondary hover:ring-2 hover:ring-accent/30 transition-all"
+                      >
+                        {listing.buyerInitials}
+                      </Link>
+                      <div className="flex items-center gap-1 text-body-sm text-neutral-500"><Star size={12} className="text-amber-400 fill-amber-400" />{listing.buyerScore}</div>
+                    </div>
+                    <span className="flex items-center gap-1 text-body-sm font-semibold text-accent"><MessageSquare size={14} />{listing.offerCount} teklif</span>
+                  </div>
+                </Link>
+              </div>
             </motion.article>
           ))}
         </div>
