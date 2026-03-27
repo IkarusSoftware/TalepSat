@@ -75,7 +75,10 @@ export function CounterOfferForm({ open, onClose, originalPrice, originalDeliver
                   <input
                     type="text"
                     value={price}
-                    onChange={(e) => setPrice(e.target.value)}
+                    onChange={(e) => {
+                      const digits = e.target.value.replace(/\D/g, '');
+                      setPrice(digits ? Number(digits).toLocaleString('tr-TR') : '');
+                    }}
                     placeholder={`Örn: ${Math.round(originalPrice * 0.9).toLocaleString('tr-TR')}`}
                     className="w-full h-11 px-4 rounded-lg border border-neutral-200 dark:border-dark-border bg-white dark:bg-dark-surfaceRaised text-body-md text-neutral-900 dark:text-dark-textPrimary placeholder:text-neutral-300 focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-colors"
                   />

@@ -192,6 +192,8 @@ function MessagesPage() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
   const prevMessagesLenRef = useRef(0);
+  // Sound notification tracking: -1 = initial load (no sound), ≥0 = known count
+  const lastMsgCountRef = useRef<Record<string, number>>({});
 
   const currentUserId = session?.user?.id;
 
@@ -228,6 +230,23 @@ function MessagesPage() {
     return () => clearInterval(hbInterval);
   }, []);
 
+  /* ── Notification sound ── */
+  const playMessageSound = useCallback(() => {
+    try {
+      const AudioCtx = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
+      const ctx = new AudioCtx();
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.frequency.value = 880;
+      gain.gain.setValueAtTime(0.15, ctx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.3);
+      osc.start(ctx.currentTime);
+      osc.stop(ctx.currentTime + 0.3);
+    } catch { /* unsupported */ }
+  }, []);
+
   /* ── Fetch messages (when conversation selected + polling) ── */
   const fetchMessages = useCallback(async () => {
     if (!selectedId) return;
@@ -235,6 +254,15 @@ function MessagesPage() {
       const res = await fetch(`/api/conversations/${selectedId}/messages`);
       const data = await res.json();
       if (Array.isArray(data)) {
+        const prevCount = lastMsgCountRef.current[selectedId];
+        if (prevCount !== undefined && data.length > prevCount) {
+          // New messages arrived — play sound if any are from other user
+          const newMsgs = data.slice(prevCount);
+          if (newMsgs.some((m: MessageItem) => m.senderId !== currentUserId)) {
+            playMessageSound();
+          }
+        }
+        lastMsgCountRef.current[selectedId] = data.length;
         setMessages((prev) => {
           // Keep optimistic messages that haven't been confirmed yet
           const serverIds = new Set(data.map((m: MessageItem) => m.id));
@@ -243,7 +271,7 @@ function MessagesPage() {
         });
       }
     } catch { /* silent */ }
-  }, [selectedId]);
+  }, [selectedId, currentUserId, playMessageSound]);
 
   useEffect(() => {
     if (!selectedId) return;

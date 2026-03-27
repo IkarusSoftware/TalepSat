@@ -122,7 +122,7 @@ export default function OfferDetailPage() {
   // Populate edit form when offer loads or edit form opens
   useEffect(() => {
     if (offer && showEditForm) {
-      setEditPrice(String(offer.price));
+      setEditPrice(Number(offer.price).toLocaleString('tr-TR'));
       setEditDays(String(offer.deliveryDays));
       setEditNote(offer.note || '');
     }
@@ -162,7 +162,7 @@ export default function OfferDetailPage() {
   }
 
   function handleCounter(data: { price: string; deliveryDays: string; note: string }) {
-    patchOffer({ action: 'counter', counterPrice: data.price, counterDays: data.deliveryDays, counterNote: data.note }).then(() => {
+    patchOffer({ action: 'counter', counterPrice: data.price.replace(/\./g, ''), counterDays: data.deliveryDays, counterNote: data.note }).then(() => {
       setShowCounterForm(false);
     });
   }
@@ -228,7 +228,7 @@ export default function OfferDetailPage() {
 
   function handleEdit(e: React.FormEvent) {
     e.preventDefault();
-    patchOffer({ action: 'edit', price: editPrice, deliveryDays: editDays, note: editNote }).then(() => {
+    patchOffer({ action: 'edit', price: editPrice.replace(/\./g, ''), deliveryDays: editDays, note: editNote }).then(() => {
       setShowEditForm(false);
     });
   }
@@ -909,7 +909,10 @@ export default function OfferDetailPage() {
                   <input
                     type="text"
                     value={editPrice}
-                    onChange={(e) => setEditPrice(e.target.value)}
+                    onChange={(e) => {
+                      const digits = e.target.value.replace(/\D/g, '');
+                      setEditPrice(digits ? Number(digits).toLocaleString('tr-TR') : '');
+                    }}
                     className="w-full h-11 px-4 rounded-lg border border-neutral-200 dark:border-dark-border bg-white dark:bg-dark-surfaceRaised text-body-md text-neutral-900 dark:text-dark-textPrimary placeholder:text-neutral-300 focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-colors"
                   />
                 </div>

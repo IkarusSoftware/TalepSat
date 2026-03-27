@@ -261,7 +261,7 @@ export default function ListingDetailPage() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         listingId: listing.id,
-        price: parseFloat(offerPrice),
+        price: parseFloat(offerPrice.replace(/\./g, '')),
         deliveryDays: parseInt(offerDeliveryDays),
         note: offerNote || null,
       }),
@@ -564,8 +564,11 @@ export default function ListingDetailPage() {
                     <input
                       type="text"
                       value={offerPrice}
-                      onChange={(e) => setOfferPrice(e.target.value)}
-                      placeholder="Örn: 300000"
+                      onChange={(e) => {
+                        const digits = e.target.value.replace(/\D/g, '');
+                        setOfferPrice(digits ? Number(digits).toLocaleString('tr-TR') : '');
+                      }}
+                      placeholder="Örn: 300.000"
                       className="w-full h-11 px-4 rounded-lg border border-neutral-200 dark:border-dark-border bg-white dark:bg-dark-surfaceRaised text-body-md text-neutral-900 dark:text-dark-textPrimary placeholder:text-neutral-300 focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-colors"
                     />
                   </div>

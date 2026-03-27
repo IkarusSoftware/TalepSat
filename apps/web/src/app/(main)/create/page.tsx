@@ -75,6 +75,12 @@ export default function CreateListingPage() {
     if (errors[field]) setErrors((prev) => ({ ...prev, [field]: '' }));
   };
 
+  const updatePriceField = (field: string, raw: string) => {
+    const digits = raw.replace(/\D/g, '');
+    const formatted = digits ? Number(digits).toLocaleString('tr-TR') : '';
+    updateForm(field, formatted);
+  };
+
   const validateStep = () => {
     const newErrors: Record<string, string> = {};
     switch (currentStep) {
@@ -136,11 +142,13 @@ export default function CreateListingPage() {
     setForm((prev) => ({ ...prev, docs: prev.docs.filter((_, i) => i !== index) }));
   };
 
+  const stripDots = (v: string) => v.replace(/\./g, '');
+
   const handlePublish = async () => {
     setPublishing(true);
     const selectedCat = categories.find((c) => c.id === form.categoryId);
-    const budgetMin = form.budgetType === 'range' ? form.budgetMin : form.budgetType === 'fixed' ? form.budgetFixed : '0';
-    const budgetMax = form.budgetType === 'range' ? form.budgetMax : form.budgetType === 'fixed' ? form.budgetFixed : '0';
+    const budgetMin = stripDots(form.budgetType === 'range' ? form.budgetMin : form.budgetType === 'fixed' ? form.budgetFixed : '0');
+    const budgetMax = stripDots(form.budgetType === 'range' ? form.budgetMax : form.budgetType === 'fixed' ? form.budgetFixed : '0');
 
     const res = await fetch('/api/listings', {
       method: 'POST',
@@ -421,14 +429,14 @@ export default function CreateListingPage() {
                 <div className="grid grid-cols-2 gap-4 mb-4">
                   <div className="space-y-1.5">
                     <label className="text-body-md font-medium text-neutral-700 dark:text-dark-textPrimary">Minimum (₺)</label>
-                    <input type="text" value={form.budgetMin} onChange={(e) => updateForm('budgetMin', e.target.value)} placeholder="100.000"
+                    <input type="text" value={form.budgetMin} onChange={(e) => updatePriceField('budgetMin', e.target.value)} placeholder="100.000"
                       className={`w-full h-11 px-4 rounded-lg border bg-white dark:bg-dark-surfaceRaised text-body-md text-neutral-900 dark:text-dark-textPrimary placeholder:text-neutral-300 focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-colors ${errors.budgetMin ? 'border-error' : 'border-neutral-200 dark:border-dark-border'}`}
                     />
                     {errors.budgetMin && <p className="text-body-sm text-error">{errors.budgetMin}</p>}
                   </div>
                   <div className="space-y-1.5">
                     <label className="text-body-md font-medium text-neutral-700 dark:text-dark-textPrimary">Maksimum (₺)</label>
-                    <input type="text" value={form.budgetMax} onChange={(e) => updateForm('budgetMax', e.target.value)} placeholder="200.000"
+                    <input type="text" value={form.budgetMax} onChange={(e) => updatePriceField('budgetMax', e.target.value)} placeholder="200.000"
                       className={`w-full h-11 px-4 rounded-lg border bg-white dark:bg-dark-surfaceRaised text-body-md text-neutral-900 dark:text-dark-textPrimary placeholder:text-neutral-300 focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-colors ${errors.budgetMax ? 'border-error' : 'border-neutral-200 dark:border-dark-border'}`}
                     />
                     {errors.budgetMax && <p className="text-body-sm text-error">{errors.budgetMax}</p>}
@@ -439,7 +447,7 @@ export default function CreateListingPage() {
               {form.budgetType === 'fixed' && (
                 <div className="space-y-1.5 mb-4">
                   <label className="text-body-md font-medium text-neutral-700 dark:text-dark-textPrimary">Sabit Bütçe (₺)</label>
-                  <input type="text" value={form.budgetFixed} onChange={(e) => updateForm('budgetFixed', e.target.value)} placeholder="150.000"
+                  <input type="text" value={form.budgetFixed} onChange={(e) => updatePriceField('budgetFixed', e.target.value)} placeholder="150.000"
                     className={`w-full h-11 px-4 rounded-lg border bg-white dark:bg-dark-surfaceRaised text-body-md text-neutral-900 dark:text-dark-textPrimary placeholder:text-neutral-300 focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-colors ${errors.budgetFixed ? 'border-error' : 'border-neutral-200 dark:border-dark-border'}`}
                   />
                   {errors.budgetFixed && <p className="text-body-sm text-error">{errors.budgetFixed}</p>}

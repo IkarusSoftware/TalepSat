@@ -14,8 +14,6 @@ import {
   FileText,
   Settings,
   BarChart3,
-  User,
-  LogOut,
   Sun,
   Moon,
   Package,
@@ -40,11 +38,31 @@ export function Header() {
   const { theme, toggleTheme } = useTheme();
   const isLoggedIn = !!session?.user;
 
+  const [unreadMessages, setUnreadMessages] = useState(0);
+  const [unreadNotifications, setUnreadNotifications] = useState(0);
+
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 20);
     window.addEventListener('scroll', onScroll, { passive: true });
     return () => window.removeEventListener('scroll', onScroll);
   }, []);
+
+  useEffect(() => {
+    if (!isLoggedIn) return;
+    const fetchUnread = async () => {
+      try {
+        const res = await fetch('/api/unread-count');
+        if (res.ok) {
+          const data = await res.json();
+          setUnreadMessages(data.messages ?? 0);
+          setUnreadNotifications(data.notifications ?? 0);
+        }
+      } catch { /* silent */ }
+    };
+    fetchUnread();
+    const interval = setInterval(fetchUnread, 30000);
+    return () => clearInterval(interval);
+  }, [isLoggedIn]);
 
   return (
     <header
@@ -75,9 +93,14 @@ export function Header() {
             <Link
               key={link.href}
               href={link.href}
-              className="px-4 py-2 text-body-md font-medium text-neutral-600 hover:text-neutral-900 dark:text-dark-textSecondary dark:hover:text-dark-textPrimary rounded-md hover:bg-neutral-100 dark:hover:bg-dark-surface transition-colors duration-fast"
+              className="relative px-4 py-2 text-body-md font-medium text-neutral-600 hover:text-neutral-900 dark:text-dark-textSecondary dark:hover:text-dark-textPrimary rounded-md hover:bg-neutral-100 dark:hover:bg-dark-surface transition-colors duration-fast flex items-center gap-1.5"
             >
               {link.label}
+              {link.href === '/messages' && unreadMessages > 0 && (
+                <span className="inline-flex items-center justify-center min-w-[18px] h-[18px] px-1 rounded-full bg-accent text-white text-[10px] font-bold leading-none">
+                  {unreadMessages > 99 ? '99+' : unreadMessages}
+                </span>
+              )}
             </Link>
           ))}
         </nav>
@@ -99,7 +122,9 @@ export function Header() {
                 aria-label="Bildirimler"
               >
                 <Bell size={20} />
-                <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-accent rounded-full" />
+                {unreadNotifications > 0 && (
+                  <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-accent rounded-full" />
+                )}
               </Link>
               <UserDropdown />
               <Link
@@ -158,6 +183,11 @@ export function Header() {
                 >
                   {link.icon && <link.icon size={20} />}
                   {link.label}
+                  {link.href === '/messages' && unreadMessages > 0 && (
+                    <span className="ml-auto inline-flex items-center justify-center min-w-[20px] h-5 px-1.5 rounded-full bg-accent text-white text-[11px] font-bold">
+                      {unreadMessages > 99 ? '99+' : unreadMessages}
+                    </span>
+                  )}
                 </Link>
               ))}
               <hr className="my-2 border-neutral-200 dark:border-dark-border" />
