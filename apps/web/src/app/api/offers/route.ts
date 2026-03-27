@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
+import { getSettingsDirect } from '@/lib/site-settings';
 
 // GET /api/offers — list offers for current user (as buyer or seller)
 export async function GET(req: NextRequest) {
@@ -66,6 +67,15 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Gerekli alanlar eksik' }, { status: 400 });
   }
 
+  // ── Site ayarları — min teklif tutarı ──────────────────────────────────────
+  const settings = await getSettingsDirect();
+  if (parseFloat(price) < settings.offer_min_amount) {
+    return NextResponse.json({
+      error: `Minimum teklif tutarı ${settings.offer_min_amount.toLocaleString('tr-TR')} ₺ olmalıdır.`,
+    }, { status: 400 });
+  }
+  // ───────────────────────────────────────────────────────────────────────────
+
   const listing = await prisma.listing.findUnique({ where: { id: listingId } });
   if (!listing) return NextResponse.json({ error: 'İlan bulunamadı' }, { status: 404 });
   if (listing.buyerId === session.user.id) {
@@ -74,15 +84,39 @@ export async function POST(req: NextRequest) {
 
   // Check for existing pending offer from this seller
   const existingOffer = await prisma.offer.findFirst({
-    where: {
-      listingId,
-      sellerId: session.user.id,
-      status: 'pending'
-    },
+    where: { listingId, sellerId: session.user.id, status: 'pending' },
   });
   if (existingOffer) {
     return NextResponse.json({ error: 'Bu ilana zaten bekleyen bir teklifiniz var' }, { status: 400 });
   }
+
+  // ── Plan limit check (offersPerMonth) ──────────────────────────────────────
+  const seller = await prisma.user.findUnique({
+    where: { id: session.user.id },
+    select: { badge: true },
+  });
+  const planSlug = seller?.badge || 'free';
+  const plan = await prisma.plan.findUnique({ where: { slug: planSlug } });
+
+  if (plan && plan.offersPerMonth !== null) {
+    const startOfMonth = new Date();
+    startOfMonth.setDate(1);
+    startOfMonth.setHours(0, 0, 0, 0);
+
+    const monthlyOfferCount = await prisma.offer.count({
+      where: { sellerId: session.user.id, createdAt: { gte: startOfMonth } },
+    });
+
+    if (monthlyOfferCount >= plan.offersPerMonth) {
+      return NextResponse.json({
+        error: `Aylık teklif limitinize ulaştınız (${plan.offersPerMonth} teklif). Planınızı yükseltin.`,
+        limitReached: true,
+        limit: plan.offersPerMonth,
+        used: monthlyOfferCount,
+      }, { status: 403 });
+    }
+  }
+  // ───────────────────────────────────────────────────────────────────────────
 
   const offer = await prisma.offer.create({
     data: {

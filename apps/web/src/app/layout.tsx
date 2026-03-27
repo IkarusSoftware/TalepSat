@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import { Plus_Jakarta_Sans } from 'next/font/google';
 import { ThemeProvider } from '@/components/theme-provider';
 import { SessionProvider } from '@/components/session-provider';
+import { getSiteSettings } from '@/lib/site-settings';
 import './globals.css';
 
 const plusJakarta = Plus_Jakarta_Sans({
@@ -11,25 +12,38 @@ const plusJakarta = Plus_Jakarta_Sans({
   weight: ['400', '500', '600', '700', '800'],
 });
 
-export const metadata: Metadata = {
-  title: 'TalepSat — İhtiyacını Yaz, Satıcılar Yarışsın',
-  description:
-    'Türkiye\'nin ilk talep odaklı ticaret platformu. İlanını aç, teklifler gelsin, en uygununu seç. Reverse marketplace ile alıcı odaklı ticaret.',
-  keywords: [
-    'reverse marketplace',
-    'talep odaklı ticaret',
-    'toptan satın alma',
-    'teklif al',
-    'B2B marketplace',
-    'ilan aç teklif al',
-  ],
-  openGraph: {
-    title: 'TalepSat — İhtiyacını Yaz, Satıcılar Yarışsın',
-    description: 'İlanını aç, teklifler gelsin, en uygununu seç.',
-    type: 'website',
-    locale: 'tr_TR',
-  },
-};
+export async function generateMetadata(): Promise<Metadata> {
+  const settings = await getSiteSettings();
+  const siteName = settings.site_name || 'TalepSat';
+  const tagline = settings.site_tagline || 'İhtiyacını Yaz, Satıcılar Yarışsın';
+  const title = settings.seo_title || `${siteName} — ${tagline}`;
+  const description =
+    settings.seo_description ||
+    "Türkiye'nin ilk talep odaklı ticaret platformu. İlanını aç, teklifler gelsin, en uygununu seç. Reverse marketplace ile alıcı odaklı ticaret.";
+
+  return {
+    title,
+    description,
+    keywords: [
+      'reverse marketplace',
+      'talep odaklı ticaret',
+      'toptan satın alma',
+      'teklif al',
+      'B2B marketplace',
+      'ilan aç teklif al',
+    ],
+    icons: settings.favicon_url
+      ? { icon: settings.favicon_url, shortcut: settings.favicon_url }
+      : undefined,
+    openGraph: {
+      title,
+      description,
+      type: 'website',
+      locale: 'tr_TR',
+      ...(settings.seo_og_image ? { images: [{ url: settings.seo_og_image }] } : {}),
+    },
+  };
+}
 
 export default function RootLayout({
   children,

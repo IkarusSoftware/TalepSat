@@ -3,9 +3,10 @@
 import { useState, useEffect, useMemo } from 'react';
 import { motion } from 'framer-motion';
 import Link from 'next/link';
+import { useSession } from 'next-auth/react';
 import {
   Search, SlidersHorizontal, MapPin, Clock, MessageSquare,
-  X, ChevronDown, Star, Loader2,
+  X, ChevronDown, Star, Loader2, Heart,
 } from 'lucide-react';
 
 const categories = [
@@ -60,6 +61,7 @@ interface ListingItem {
 }
 
 export default function ExplorePage() {
+  const { data: session } = useSession();
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('Tümü');
   const [selectedCity, setSelectedCity] = useState('Tümü');
@@ -67,6 +69,7 @@ export default function ExplorePage() {
   const [showFilters, setShowFilters] = useState(false);
   const [listings, setListings] = useState<ListingItem[]>([]);
   const [loading, setLoading] = useState(true);
+  const [favorites, setFavorites] = useState<Set<string>>(new Set());
 
   useEffect(() => {
     fetch('/api/listings')
@@ -74,6 +77,34 @@ export default function ExplorePage() {
       .then((data) => setListings(Array.isArray(data) ? data : []))
       .finally(() => setLoading(false));
   }, []);
+
+  useEffect(() => {
+    if (!session?.user) return;
+    fetch('/api/listings/favorites')
+      .then((r) => r.ok ? r.json() : [])
+      .then((data: ListingItem[]) => {
+        if (Array.isArray(data)) {
+          setFavorites(new Set(data.map((l) => l.id)));
+        }
+      })
+      .catch(() => {});
+  }, [session?.user]);
+
+  const toggleFavorite = async (e: React.MouseEvent, listingId: string) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (!session?.user) return;
+    const res = await fetch(`/api/listings/${listingId}/favorite`, { method: 'POST' });
+    if (res.ok) {
+      const data = await res.json();
+      setFavorites((prev) => {
+        const next = new Set(prev);
+        if (data.favorited) next.add(listingId);
+        else next.delete(listingId);
+        return next;
+      });
+    }
+  };
 
   const filteredListings = useMemo(() => {
     let result = listings.filter((l) => l.status === 'active');
@@ -189,6 +220,19 @@ export default function ExplorePage() {
           {filteredListings.map((listing, index) => (
             <motion.article key={listing.id} initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.35, delay: index * 0.05, ease: [0, 0, 0.2, 1] }}>
               <div className="group relative h-full rounded-xl border border-neutral-200/50 dark:border-dark-border/80 bg-white dark:bg-dark-surface hover:shadow-md hover:border-neutral-300 dark:hover:border-neutral-500 hover:scale-[1.01] transition-all duration-normal">
+                {session?.user && (
+                  <button
+                    onClick={(e) => toggleFavorite(e, listing.id)}
+                    className={`absolute top-4 right-4 z-10 p-1.5 rounded-full transition-all duration-fast ${
+                      favorites.has(listing.id)
+                        ? 'text-red-500 bg-red-50 dark:bg-red-500/10'
+                        : 'text-neutral-300 hover:text-red-400 bg-white dark:bg-dark-surface border border-neutral-200 dark:border-dark-border'
+                    }`}
+                    aria-label={favorites.has(listing.id) ? 'Favorilerden çıkar' : 'Favorile'}
+                  >
+                    <Heart size={16} className={favorites.has(listing.id) ? 'fill-red-500' : ''} />
+                  </button>
+                )}
                 <Link href={`/listing/${listing.id}`} className="block p-6">
                   <div className="flex items-center justify-between mb-3">
                     <span className="px-2.5 py-1 bg-primary-lighter dark:bg-primary/20 text-primary dark:text-blue-300 text-body-sm font-medium rounded-sm">{listing.category}</span>

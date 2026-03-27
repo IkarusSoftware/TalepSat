@@ -27,7 +27,11 @@ const footerLinks = {
   ],
 };
 
-export function Footer() {
+interface FooterProps {
+  siteName?: string;
+}
+
+export function Footer({ siteName = 'TalepSat' }: FooterProps) {
   return (
     <footer className="bg-neutral-900 dark:bg-dark-bg text-neutral-400 mt-auto">
       <div className="max-w-7xl mx-auto px-6 py-16">
@@ -37,9 +41,11 @@ export function Footer() {
           <div className="col-span-2 md:col-span-1">
             <div className="flex items-center gap-2 mb-4">
               <div className="w-8 h-8 rounded-lg bg-accent flex items-center justify-center">
-                <span className="text-white font-bold text-sm">T</span>
+                <span className="text-white font-bold text-sm">
+                  {siteName.charAt(0).toUpperCase()}
+                </span>
               </div>
-              <span className="text-lg font-bold text-white">TalepSat</span>
+              <span className="text-lg font-bold text-white">{siteName}</span>
             </div>
             <p className="text-body-md text-neutral-500 leading-relaxed">
               Türkiye&apos;nin ilk talep odaklı ticaret platformu.
@@ -71,7 +77,7 @@ export function Footer() {
         {/* Divider */}
         <div className="border-t border-neutral-800 pt-8 flex flex-col md:flex-row items-center justify-between gap-4">
           <p className="text-body-sm text-neutral-600">
-            &copy; {new Date().getFullYear()} TalepSat. Tüm hakları saklıdır.
+            &copy; {new Date().getFullYear()} {siteName}. Tüm hakları saklıdır.
           </p>
           <div className="flex items-center gap-6">
             <span className="text-body-sm text-neutral-600">

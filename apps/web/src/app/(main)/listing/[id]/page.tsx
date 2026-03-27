@@ -194,10 +194,12 @@ export default function ListingDetailPage() {
   const [offerNote, setOfferNote] = useState('');
 
   useEffect(() => {
-    if (!params.id) return;
-    const favs = JSON.parse(localStorage.getItem('talepsat_favorites') || '[]');
-    setIsFavorite(favs.includes(params.id));
-  }, [params.id]);
+    if (!params.id || !session?.user) return;
+    fetch(`/api/listings/${params.id}/favorite-status`)
+      .then((r) => r.ok ? r.json() : null)
+      .then((data) => { if (data) setIsFavorite(data.favorited); })
+      .catch(() => {});
+  }, [params.id, session?.user]);
 
   useEffect(() => {
     if (!params.id) return;
@@ -354,22 +356,26 @@ export default function ListingDetailPage() {
 
             {/* Actions */}
             <div className="flex items-center gap-3 mb-6">
-              <button
-                onClick={() => {
-                  const favs = JSON.parse(localStorage.getItem('talepsat_favorites') || '[]');
-                  const newFavs = isFavorite ? favs.filter((id: string) => id !== params.id) : [...favs, params.id];
-                  localStorage.setItem('talepsat_favorites', JSON.stringify(newFavs));
-                  setIsFavorite(!isFavorite);
-                }}
-                className={`h-10 px-4 rounded-lg border text-body-md font-medium flex items-center gap-2 transition-all ${
-                  isFavorite
-                    ? 'border-error/30 bg-error-light text-error'
-                    : 'border-neutral-200 dark:border-dark-border text-neutral-600 hover:bg-neutral-50'
-                }`}
-              >
-                <Heart size={16} className={isFavorite ? 'fill-error' : ''} />
-                {isFavorite ? 'Favorilerde' : 'Favorile'}
-              </button>
+              {session?.user && (
+                <button
+                  onClick={async () => {
+                    if (!params.id) return;
+                    const res = await fetch(`/api/listings/${params.id}/favorite`, { method: 'POST' });
+                    if (res.ok) {
+                      const data = await res.json();
+                      setIsFavorite(data.favorited);
+                    }
+                  }}
+                  className={`h-10 px-4 rounded-lg border text-body-md font-medium flex items-center gap-2 transition-all ${
+                    isFavorite
+                      ? 'border-error/30 bg-error-light text-error'
+                      : 'border-neutral-200 dark:border-dark-border text-neutral-600 hover:bg-neutral-50'
+                  }`}
+                >
+                  <Heart size={16} className={isFavorite ? 'fill-error' : ''} />
+                  {isFavorite ? 'Favorilerde' : 'Favorile'}
+                </button>
+              )}
               <button
                 onClick={async () => {
                   const url = window.location.href;

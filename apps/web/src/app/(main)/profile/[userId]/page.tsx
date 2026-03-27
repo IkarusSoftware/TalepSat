@@ -1,13 +1,14 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { useParams } from 'next/navigation';
-import { motion } from 'framer-motion';
+import { useParams, useRouter } from 'next/navigation';
+import { useSession } from 'next-auth/react';
+import { motion, AnimatePresence } from 'framer-motion';
 import Link from 'next/link';
 import {
   ArrowLeft, Star, CheckCircle, MapPin, Calendar,
   Shield, Briefcase, Award, FileText, MessageSquare,
-  Loader2,
+  Loader2, Send, X,
 } from 'lucide-react';
 
 function formatCurrency(n: number) {
@@ -49,12 +50,39 @@ interface Review {
 
 export default function PublicProfilePage() {
   const params = useParams();
+  const router = useRouter();
+  const { data: session } = useSession();
   const userId = params.userId as string;
 
   const [user, setUser] = useState<UserProfile | null>(null);
   const [reviews, setReviews] = useState<Review[]>([]);
   const [loading, setLoading] = useState(true);
   const [notFound, setNotFound] = useState(false);
+
+  const [showMsgModal, setShowMsgModal] = useState(false);
+  const [msgText, setMsgText] = useState('');
+  const [msgSending, setMsgSending] = useState(false);
+
+  const isOwnProfile = session?.user?.id === userId;
+
+  async function handleSendMessage(e: React.FormEvent) {
+    e.preventDefault();
+    if (!msgText.trim() || !session?.user?.id) return;
+    setMsgSending(true);
+    try {
+      const res = await fetch('/api/conversations', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ participantId: userId, message: msgText.trim() }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        router.push(`/messages?conversation=${data.id}`);
+      }
+    } finally {
+      setMsgSending(false);
+    }
+  }
 
   useEffect(() => {
     async function fetchData() {
@@ -166,6 +194,16 @@ export default function PublicProfilePage() {
               <p className="text-body-lg text-neutral-600 dark:text-dark-textSecondary leading-relaxed">
                 {user.bio}
               </p>
+            )}
+
+            {/* Message button — only shown to logged-in users viewing others' profiles */}
+            {session?.user && !isOwnProfile && (
+              <button
+                onClick={() => setShowMsgModal(true)}
+                className="mt-4 inline-flex items-center gap-2 h-10 px-5 bg-accent text-white text-body-md font-semibold rounded-lg hover:bg-accent-600 transition-colors"
+              >
+                <MessageSquare size={16} /> Mesaj Gönder
+              </button>
             )}
           </div>
         </div>
@@ -313,6 +351,69 @@ export default function PublicProfilePage() {
           <p className="text-body-sm text-neutral-400 mt-1">Tamamlanan siparişler sonrası değerlendirmeler burada görünecek.</p>
         </motion.div>
       )}
+
+      {/* Send Message Modal */}
+      <AnimatePresence>
+        {showMsgModal && (
+          <>
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="fixed inset-0 bg-black/40 z-40"
+              onClick={() => setShowMsgModal(false)}
+            />
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 16 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 16 }}
+              transition={{ duration: 0.2 }}
+              className="fixed inset-0 z-50 flex items-center justify-center p-4"
+            >
+              <div className="w-full max-w-md bg-white dark:bg-dark-surface rounded-2xl border border-neutral-200/50 dark:border-dark-border shadow-xl p-6">
+                <div className="flex items-center justify-between mb-5">
+                  <h3 className="text-h4 font-semibold text-neutral-900 dark:text-dark-textPrimary">
+                    {user.name} ile Mesajlaş
+                  </h3>
+                  <button
+                    onClick={() => setShowMsgModal(false)}
+                    className="p-1.5 rounded-lg hover:bg-neutral-100 dark:hover:bg-dark-surfaceRaised transition-colors"
+                  >
+                    <X size={18} className="text-neutral-500" />
+                  </button>
+                </div>
+                <form onSubmit={handleSendMessage} className="space-y-4">
+                  <textarea
+                    autoFocus
+                    rows={4}
+                    value={msgText}
+                    onChange={(e) => setMsgText(e.target.value)}
+                    placeholder="Mesajınızı yazın..."
+                    className="w-full px-4 py-3 rounded-xl border border-neutral-200 dark:border-dark-border bg-white dark:bg-dark-surfaceRaised text-body-md text-neutral-900 dark:text-dark-textPrimary placeholder:text-neutral-300 focus:outline-none focus:ring-2 focus:ring-primary/20 resize-none"
+                  />
+                  <div className="flex justify-end gap-3">
+                    <button
+                      type="button"
+                      onClick={() => setShowMsgModal(false)}
+                      className="h-10 px-4 rounded-lg border border-neutral-200 dark:border-dark-border text-body-md font-medium text-neutral-600 dark:text-dark-textSecondary hover:bg-neutral-50 dark:hover:bg-dark-surfaceRaised transition-colors"
+                    >
+                      İptal
+                    </button>
+                    <button
+                      type="submit"
+                      disabled={!msgText.trim() || msgSending}
+                      className="h-10 px-5 rounded-lg bg-accent text-white text-body-md font-semibold hover:bg-accent-600 transition-colors flex items-center gap-2 disabled:opacity-50 disabled:pointer-events-none"
+                    >
+                      {msgSending ? <Loader2 size={15} className="animate-spin" /> : <Send size={15} />}
+                      Gönder
+                    </button>
+                  </div>
+                </form>
+              </div>
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
     </div>
   );
 }

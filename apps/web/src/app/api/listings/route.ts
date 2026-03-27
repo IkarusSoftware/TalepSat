@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
+import { getSettingsDirect } from '@/lib/site-settings';
 
 // GET /api/listings — list all or filter by user
 export async function GET(req: NextRequest) {
@@ -53,8 +54,55 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Gerekli alanlar eksik' }, { status: 400 });
   }
 
+  // ── Site ayarları ──────────────────────────────────────────────────────────
+  const settings = await getSettingsDirect();
+
+  // Maksimum bütçe kontrolü
+  if (parseFloat(budgetMax) > settings.listing_max_budget) {
+    return NextResponse.json({
+      error: `Maksimum bütçe ${settings.listing_max_budget.toLocaleString('tr-TR')} ₺ olabilir.`,
+    }, { status: 400 });
+  }
+
+  // Maksimum görsel sayısı kontrolü
+  if (images && Array.isArray(images) && images.length > settings.listing_max_images) {
+    return NextResponse.json({
+      error: `En fazla ${settings.listing_max_images} görsel yükleyebilirsiniz.`,
+    }, { status: 400 });
+  }
+  // ───────────────────────────────────────────────────────────────────────────
+
+  // ── Plan limit check (maxListings) ─────────────────────────────────────────
+  const buyer = await prisma.user.findUnique({
+    where: { id: session.user.id },
+    select: { badge: true },
+  });
+  const planSlug = buyer?.badge || 'free';
+  const plan = await prisma.plan.findUnique({ where: { slug: planSlug } });
+
+  if (plan && plan.maxListings !== null) {
+    const activeListingCount = await prisma.listing.count({
+      where: { buyerId: session.user.id, status: { in: ['active', 'pending'] } },
+    });
+
+    if (activeListingCount >= plan.maxListings) {
+      return NextResponse.json({
+        error: `Aktif ilan limitinize ulaştınız (${plan.maxListings} ilan). Planınızı yükseltin.`,
+        limitReached: true,
+        limit: plan.maxListings,
+        used: activeListingCount,
+      }, { status: 403 });
+    }
+  }
+  // ───────────────────────────────────────────────────────────────────────────
+
+  // İlan süresi: istek varsa onu kullan, yoksa ayardan al
+  const days = expiresInDays || settings.listing_default_days;
   const expiresAt = new Date();
-  expiresAt.setDate(expiresAt.getDate() + (expiresInDays || 30));
+  expiresAt.setDate(expiresAt.getDate() + days);
+
+  // Onay gerekiyorsa status = 'pending', değilse 'active'
+  const initialStatus = settings.listing_requires_approval ? 'pending' : 'active';
 
   const listing = await prisma.listing.create({
     data: {
@@ -68,9 +116,29 @@ export async function POST(req: NextRequest) {
       deliveryUrgency: deliveryUrgency || 'normal',
       images: images ? JSON.stringify(images) : null,
       expiresAt,
+      status: initialStatus,
       buyerId: session.user.id,
     },
   });
 
-  return NextResponse.json(listing, { status: 201 });
+  // Onay bekleniyorsa kullanıcıya bildirim gönder
+  if (settings.listing_requires_approval) {
+    await prisma.notification.create({
+      data: {
+        userId: session.user.id,
+        type: 'listing_pending',
+        title: 'İlanınız İnceleniyor',
+        description: `"${title}" ilanınız admin onayı bekliyor.`,
+        link: `/listing/${listing.id}`,
+      },
+    });
+  }
+
+  return NextResponse.json(
+    {
+      ...listing,
+      requiresApproval: settings.listing_requires_approval,
+    },
+    { status: 201 }
+  );
 }

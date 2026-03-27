@@ -1,9 +1,19 @@
 import { NextRequest, NextResponse } from 'next/server';
 import bcrypt from 'bcryptjs';
 import { prisma } from '@/lib/prisma';
+import { getSettingsDirect } from '@/lib/site-settings';
 
 export async function POST(req: NextRequest) {
   try {
+    // Kayıt açık mı kontrol et
+    const settings = await getSettingsDirect();
+    if (!settings.registration_open) {
+      return NextResponse.json(
+        { error: 'Kayıt şu an kapalıdır. Lütfen daha sonra tekrar deneyin.' },
+        { status: 403 }
+      );
+    }
+
     const body = await req.json();
     const { name, email, password, phone, role } = body;
 

@@ -4,7 +4,7 @@ generator client {
 }
 
 datasource db {
-  provider = "postgresql"
+  provider = "sqlite"
 }
 
 model User {
@@ -22,6 +22,7 @@ model User {
   taxNumber      String?
   verified       Boolean   @default(false)
   badge          String?   // basic, plus, pro
+  status         String    @default("active") // active, suspended, banned
   score          Float     @default(0)
   completedDeals Int       @default(0)
   lastSeen       DateTime?
@@ -41,6 +42,8 @@ model User {
   reportedBy    UserReport[]    @relation("reported")
   givenReviews  Review[]        @relation("reviewer")
   receivedReviews Review[]      @relation("reviewee")
+  favorites     Favorite[]
+  passwordResetTokens PasswordResetToken[]
 }
 
 model Account {
@@ -89,9 +92,10 @@ model Listing {
   updatedAt       DateTime @updatedAt
 
   buyerId String
-  buyer   User    @relation(fields: [buyerId], references: [id], onDelete: Cascade)
+  buyer   User       @relation(fields: [buyerId], references: [id], onDelete: Cascade)
   offers  Offer[]
   views   ListingView[]
+  favorites Favorite[]
 }
 
 model ListingView {
@@ -221,4 +225,51 @@ model UserReport {
 
   reporter User @relation("reporter", fields: [reporterId], references: [id], onDelete: Cascade)
   reported User @relation("reported", fields: [reportedId], references: [id], onDelete: Cascade)
+}
+
+model Favorite {
+  id        String   @id @default(cuid())
+  userId    String
+  listingId String
+  createdAt DateTime @default(now())
+
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  listing Listing @relation(fields: [listingId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, listingId])
+}
+
+model PasswordResetToken {
+  id        String   @id @default(cuid())
+  token     String   @unique
+  userId    String
+  expiresAt DateTime
+  used      Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model SiteSetting {
+  key       String   @id
+  value     String
+  updatedAt DateTime @updatedAt
+}
+
+model Plan {
+  id              String   @id @default(cuid())
+  slug            String   @unique  // free, basic, plus, pro
+  name            String
+  priceMonthly    Float    @default(0)
+  priceYearly     Float    @default(0)
+  offersPerMonth  Int?     // null = unlimited
+  boostPerMonth   Int?     // null = unlimited
+  maxListings     Int?     // null = unlimited
+  analytics       Boolean  @default(false)
+  prioritySupport Boolean  @default(false)
+  verifiedBadge   Boolean  @default(false)
+  customProfile   Boolean  @default(false)
+  responseTime    String   @default("Standart")
+  sortOrder       Int      @default(0)
+  updatedAt       DateTime @updatedAt
 }

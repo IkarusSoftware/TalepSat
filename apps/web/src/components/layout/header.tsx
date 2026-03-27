@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import Image from 'next/image';
 import Link from 'next/link';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
@@ -17,6 +18,7 @@ import {
   Sun,
   Moon,
   Package,
+  Bookmark,
 } from 'lucide-react';
 import { useSession } from 'next-auth/react';
 import { UserDropdown } from './user-dropdown';
@@ -28,10 +30,16 @@ const navLinks = [
   { href: '/dashboard', label: 'İlanlarım', icon: LayoutDashboard },
   { href: '/offers', label: 'Tekliflerim', icon: FileText },
   { href: '/orders', label: 'Siparişlerim', icon: Package },
+  { href: '/saved', label: 'Kaydedilenler', icon: Bookmark },
   { href: '/messages', label: 'Mesajlar', icon: MessageSquare },
 ];
 
-export function Header() {
+interface HeaderProps {
+  siteName?: string;
+  logoUrl?: string;
+}
+
+export function Header({ siteName = 'TalepSat', logoUrl = '' }: HeaderProps) {
   const { data: session } = useSession();
   const [scrolled, setScrolled] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
@@ -75,16 +83,31 @@ export function Header() {
       <div className="max-w-7xl mx-auto px-6 h-full flex items-center justify-between">
         {/* Logo */}
         <Link href="/" className="flex items-center gap-2 shrink-0">
-          <div className="w-8 h-8 rounded-lg bg-accent flex items-center justify-center">
-            <span className="text-white font-bold text-sm">T</span>
-          </div>
-          <span
-            className={`font-bold transition-all duration-normal ${
-              scrolled ? 'text-lg' : 'text-xl'
-            } text-neutral-900 dark:text-dark-textPrimary`}
-          >
-            TalepSat
-          </span>
+          {logoUrl ? (
+            <Image
+              src={logoUrl}
+              alt={siteName}
+              width={120}
+              height={36}
+              className={`object-contain transition-all duration-normal ${scrolled ? 'h-8' : 'h-9'}`}
+              unoptimized
+            />
+          ) : (
+            <>
+              <div className="w-8 h-8 rounded-lg bg-accent flex items-center justify-center">
+                <span className="text-white font-bold text-sm">
+                  {siteName.charAt(0).toUpperCase()}
+                </span>
+              </div>
+              <span
+                className={`font-bold transition-all duration-normal ${
+                  scrolled ? 'text-lg' : 'text-xl'
+                } text-neutral-900 dark:text-dark-textPrimary`}
+              >
+                {siteName}
+              </span>
+            </>
+          )}
         </Link>
 
         {/* Desktop Nav */}
