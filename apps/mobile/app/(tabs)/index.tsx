@@ -1,149 +1,229 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect, useRef, useMemo } from 'react';
 import {
-  View, Text, StyleSheet, FlatList, TextInput,
-  TouchableOpacity, ActivityIndicator, RefreshControl,
+  View, Text, StyleSheet, FlatList,
+  TouchableOpacity, RefreshControl,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Ionicons from '@expo/vector-icons/Ionicons';
-import { useQuery } from '@tanstack/react-query';
-import api from '../../src/lib/api';
-import { ListingCard } from '../../src/components/ListingCard';
-import { COLORS, RADIUS, SPACING } from '../../src/lib/constants';
+import { SearchBar, EmptyState } from '../../src/components/ui';
+import { ListingCard } from '../../src/components/listing/ListingCard';
+import { ListingCardSkeleton } from '../../src/components/listing/ListingCardSkeleton';
+import { CategoryFilter } from '../../src/components/listing/CategoryFilter';
+import { useListings, useToggleFavorite, useFavoriteIds } from '../../src/hooks/useListings';
+import { colors, fontFamily, space } from '../../src/theme';
+import type { Listing } from '../../src/types';
 
-const CATEGORIES = ['Tümü', 'Elektronik', 'Tekstil', 'Gıda', 'İnşaat', 'Hizmet', 'Diğer'];
+const CATEGORIES = ['Elektronik', 'Tekstil', 'G\u0131da', '\u0130n\u015faat', 'Hizmet', 'Di\u011fer'];
+
+type SortOption = 'newest' | 'budget_desc' | 'most_offers';
+
+const SORT_LABELS: Record<SortOption, string> = {
+  newest: 'En Yeni',
+  budget_desc: 'B\u00FCtçe',
+  most_offers: 'En Çok Teklif',
+};
+
+const SORT_CYCLE: SortOption[] = ['newest', 'budget_desc', 'most_offers'];
 
 export default function ExploreScreen() {
-  const [search, setSearch] = useState('');
-  const [selectedCategory, setSelectedCategory] = useState('Tümü');
+  // ── Search with debounce ───────────────────────────────────────────────
+  const [searchInput, setSearchInput] = useState('');
+  const [debouncedSearch, setDebouncedSearch] = useState('');
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const { data: listings = [], isLoading, refetch, isRefetching } = useQuery({
-    queryKey: ['listings', search, selectedCategory],
-    queryFn: async () => {
-      const params: Record<string, string> = { status: 'active' };
-      if (search) params.search = search;
-      if (selectedCategory !== 'Tümü') params.category = selectedCategory;
-      const res = await api.get('/api/listings', { params });
-      return res.data;
-    },
+  useEffect(() => {
+    if (timerRef.current) clearTimeout(timerRef.current);
+    timerRef.current = setTimeout(() => {
+      setDebouncedSearch(searchInput);
+    }, 300);
+    return () => {
+      if (timerRef.current) clearTimeout(timerRef.current);
+    };
+  }, [searchInput]);
+
+  // ── Filters & Sort ─────────────────────────────────────────────────────
+  const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
+  const [sortIndex, setSortIndex] = useState(0);
+  const currentSort = SORT_CYCLE[sortIndex];
+
+  const cycleSort = useCallback(() => {
+    setSortIndex((prev) => (prev + 1) % SORT_CYCLE.length);
+  }, []);
+
+  // ── Data ───────────────────────────────────────────────────────────────
+  const {
+    data: listings = [],
+    isLoading,
+    refetch,
+    isRefetching,
+  } = useListings({
+    search: debouncedSearch || undefined,
+    category: selectedCategory,
+    sort: currentSort,
   });
 
-  const renderHeader = () => (
+  // ── Favorites ──────────────────────────────────────────────────────────
+  const { data: remoteFavIds = [] } = useFavoriteIds();
+  const toggleFavMutation = useToggleFavorite();
+  const [localFavs, setLocalFavs] = useState<Set<string>>(new Set());
+
+  // Sync remote favorites into local set
+  useEffect(() => {
+    if (remoteFavIds.length > 0) {
+      setLocalFavs(new Set(remoteFavIds));
+    }
+  }, [remoteFavIds]);
+
+  const handleFavoriteToggle = useCallback((id: string) => {
+    const wasFavorited = localFavs.has(id);
+    setLocalFavs((prev) => {
+      const next = new Set(prev);
+      if (wasFavorited) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+    toggleFavMutation.mutate({ listingId: id, favorited: wasFavorited });
+  }, [localFavs, toggleFavMutation]);
+
+  // ── Render helpers ─────────────────────────────────────────────────────
+  const renderItem = useCallback(({ item }: { item: Listing }) => (
+    <ListingCard
+      listing={item}
+      onFavoriteToggle={handleFavoriteToggle}
+      isFavorited={localFavs.has(item.id)}
+    />
+  ), [handleFavoriteToggle, localFavs]);
+
+  const keyExtractor = useCallback((item: Listing) => item.id, []);
+
+  const ListHeader = useMemo(() => (
     <View>
-      {/* Header */}
+      {/* Screen Title */}
       <View style={styles.header}>
-        <Text style={styles.headerTitle}>İlanları Keşfet</Text>
-        <Text style={styles.headerSubtitle}>{listings.length} aktif ilan</Text>
-      </View>
-
-      {/* Search */}
-      <View style={styles.searchContainer}>
-        <Ionicons name="search-outline" size={20} color={COLORS.textMuted} style={styles.searchIcon} />
-        <TextInput
-          style={styles.searchInput}
-          placeholder="İlan ara..."
-          placeholderTextColor={COLORS.textMuted}
-          value={search}
-          onChangeText={setSearch}
-        />
-        {search ? (
-          <TouchableOpacity onPress={() => setSearch('')}>
-            <Ionicons name="close-circle" size={20} color={COLORS.textMuted} />
-          </TouchableOpacity>
-        ) : null}
-      </View>
-
-      {/* Categories */}
-      <FlatList
-        horizontal
-        data={CATEGORIES}
-        keyExtractor={(item) => item}
-        showsHorizontalScrollIndicator={false}
-        contentContainerStyle={styles.categoriesContainer}
-        renderItem={({ item }) => (
-          <TouchableOpacity
-            onPress={() => setSelectedCategory(item)}
-            style={[styles.categoryChip, selectedCategory === item && styles.categoryChipActive]}
-          >
-            <Text style={[styles.categoryChipText, selectedCategory === item && styles.categoryChipTextActive]}>
-              {item}
-            </Text>
-          </TouchableOpacity>
+        <Text style={styles.headerTitle}>{'\u0130'}lanlar{'\u0131'} Ke\u015ffet</Text>
+        {!isLoading && (
+          <Text style={styles.headerSubtitle}>{listings.length} aktif ilan</Text>
         )}
-      />
-    </View>
-  );
+      </View>
 
+      {/* Search Bar */}
+      <View style={styles.searchWrapper}>
+        <SearchBar
+          value={searchInput}
+          onChangeText={setSearchInput}
+          placeholder="\u0130lan ara..."
+        />
+      </View>
+
+      {/* Category Filter */}
+      <CategoryFilter
+        categories={CATEGORIES}
+        selected={selectedCategory}
+        onSelect={setSelectedCategory}
+      />
+
+      {/* Sort Button */}
+      <View style={styles.sortRow}>
+        <TouchableOpacity style={styles.sortButton} onPress={cycleSort} activeOpacity={0.7}>
+          <Ionicons name="swap-vertical-outline" size={16} color={colors.accent.DEFAULT} />
+          <Text style={styles.sortLabel}>{SORT_LABELS[currentSort]}</Text>
+        </TouchableOpacity>
+      </View>
+    </View>
+  ), [searchInput, selectedCategory, currentSort, isLoading, listings.length, cycleSort]);
+
+  // ── Loading state: show skeletons ──────────────────────────────────────
   if (isLoading) {
     return (
-      <SafeAreaView style={styles.safe}>
-        <View style={styles.center}>
-          <ActivityIndicator size="large" color={COLORS.primary} />
+      <SafeAreaView style={styles.safe} edges={['top']}>
+        {ListHeader}
+        <View style={styles.listPadding}>
+          {[1, 2, 3, 4].map((i) => (
+            <ListingCardSkeleton key={i} />
+          ))}
         </View>
       </SafeAreaView>
     );
   }
 
   return (
-    <SafeAreaView style={styles.safe}>
+    <SafeAreaView style={styles.safe} edges={['top']}>
       <FlatList
         data={listings}
-        keyExtractor={(item: any) => item.id}
-        renderItem={({ item }) => <ListingCard listing={item} />}
-        ListHeaderComponent={renderHeader}
-        contentContainerStyle={styles.list}
+        keyExtractor={keyExtractor}
+        renderItem={renderItem}
+        ListHeaderComponent={ListHeader}
+        contentContainerStyle={styles.listPadding}
         refreshControl={
           <RefreshControl
             refreshing={isRefetching}
             onRefresh={refetch}
-            tintColor={COLORS.primary}
-            colors={[COLORS.primary]}
+            tintColor={colors.accent.DEFAULT}
+            colors={[colors.accent.DEFAULT]}
           />
         }
         ListEmptyComponent={
-          <View style={styles.empty}>
-            <Ionicons name="search-outline" size={48} color={COLORS.textMuted} />
-            <Text style={styles.emptyText}>İlan bulunamadı</Text>
-            <Text style={styles.emptySubtext}>Farklı bir arama yapmayı deneyin</Text>
-          </View>
+          <EmptyState
+            icon="search-outline"
+            title="\u0130lan bulunamad\u0131"
+            subtitle="Farkl\u0131 bir arama veya kategori deneyin"
+          />
         }
+        showsVerticalScrollIndicator={false}
       />
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: COLORS.background },
-  header: { paddingHorizontal: SPACING.lg, paddingTop: SPACING.md, paddingBottom: SPACING.sm },
-  headerTitle: { fontSize: 24, fontWeight: '800', color: COLORS.text },
-  headerSubtitle: { fontSize: 13, color: COLORS.textMuted, marginTop: 2 },
-  searchContainer: {
+  safe: {
+    flex: 1,
+    backgroundColor: colors.background,
+  },
+  header: {
+    paddingHorizontal: space.lg,
+    paddingTop: space.md,
+    paddingBottom: space.sm,
+  },
+  headerTitle: {
+    fontSize: 24,
+    fontFamily: fontFamily.extraBold,
+    color: colors.textPrimary,
+  },
+  headerSubtitle: {
+    fontSize: 13,
+    fontFamily: fontFamily.regular,
+    color: colors.textSecondary,
+    marginTop: 2,
+  },
+  searchWrapper: {
+    paddingHorizontal: space.lg,
+    marginBottom: space.md,
+  },
+  sortRow: {
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    paddingHorizontal: space.lg,
+    marginBottom: space.sm,
+  },
+  sortButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: COLORS.surface,
-    borderRadius: RADIUS.lg,
-    marginHorizontal: SPACING.lg,
-    marginBottom: SPACING.md,
-    paddingHorizontal: SPACING.md,
+    gap: 4,
+    paddingVertical: space.xs,
+    paddingHorizontal: space.sm,
+    backgroundColor: colors.surface,
+    borderRadius: 999,
     borderWidth: 1,
-    borderColor: COLORS.border,
+    borderColor: colors.border,
   },
-  searchIcon: { marginRight: SPACING.sm },
-  searchInput: { flex: 1, paddingVertical: SPACING.sm + 4, fontSize: 15, color: COLORS.text },
-  categoriesContainer: { paddingHorizontal: SPACING.lg, paddingBottom: SPACING.md, gap: SPACING.sm },
-  categoryChip: {
-    paddingHorizontal: SPACING.md,
-    paddingVertical: SPACING.xs + 2,
-    borderRadius: RADIUS.full,
-    backgroundColor: COLORS.surface,
-    borderWidth: 1,
-    borderColor: COLORS.border,
+  sortLabel: {
+    fontSize: 12,
+    fontFamily: fontFamily.semiBold,
+    color: colors.accent.DEFAULT,
   },
-  categoryChipActive: { backgroundColor: COLORS.primary, borderColor: COLORS.primary },
-  categoryChipText: { fontSize: 13, fontWeight: '600', color: COLORS.textSecondary },
-  categoryChipTextActive: { color: COLORS.white },
-  list: { paddingHorizontal: SPACING.lg, paddingBottom: SPACING.xl },
-  center: { flex: 1, alignItems: 'center', justifyContent: 'center' },
-  empty: { alignItems: 'center', paddingVertical: SPACING.xxl },
-  emptyText: { fontSize: 18, fontWeight: '700', color: COLORS.text, marginTop: SPACING.md },
-  emptySubtext: { fontSize: 14, color: COLORS.textMuted, marginTop: SPACING.sm },
+  listPadding: {
+    paddingHorizontal: space.lg,
+    paddingBottom: space.xl,
+  },
 });

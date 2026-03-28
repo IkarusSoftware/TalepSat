@@ -1,54 +1,58 @@
 import React, { useState } from 'react';
 import {
-  View, Text, StyleSheet, ScrollView, TouchableOpacity,
-  KeyboardAvoidingView, Platform, Alert,
+  View,
+  Text,
+  StyleSheet,
+  KeyboardAvoidingView,
+  Platform,
+  ScrollView,
+  TouchableOpacity,
 } from 'react-native';
-import { useRouter } from 'expo-router';
+import { Link } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { useAuth } from '../../src/contexts/AuthContext';
-import { Button } from '../../src/components/Button';
-import { Input } from '../../src/components/Input';
-import { COLORS, RADIUS, SPACING } from '../../src/lib/constants';
+import { Button, Input } from '../../src/components/ui';
+import { colors, fontFamily, space, typeScale, borderRadius } from '../../src/theme';
 
-type Role = 'buyer' | 'seller' | 'both';
-
-const roles: { value: Role; label: string; desc: string; icon: keyof typeof Ionicons.glyphMap }[] = [
-  { value: 'buyer', label: 'Alıcı', desc: 'İlan oluştur, teklif al', icon: 'bag-outline' },
-  { value: 'seller', label: 'Satıcı', desc: 'Teklif ver, satış yap', icon: 'storefront-outline' },
-  { value: 'both', label: 'Her İkisi', desc: 'Hem al hem sat', icon: 'swap-horizontal-outline' },
+const roles = [
+  { key: 'buyer' as const, label: 'Alıcı', icon: 'cart-outline' as const, desc: 'Ürün/hizmet talep et' },
+  { key: 'seller' as const, label: 'Satıcı', icon: 'storefront-outline' as const, desc: 'Teklif ver' },
+  { key: 'both' as const, label: 'Her İkisi', icon: 'swap-horizontal-outline' as const, desc: 'Hem al hem sat' },
 ];
 
 export default function RegisterScreen() {
-  const router = useRouter();
   const { register } = useAuth();
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [phone, setPhone] = useState('');
   const [password, setPassword] = useState('');
-  const [role, setRole] = useState<Role>('both');
+  const [role, setRole] = useState<'buyer' | 'seller' | 'both'>('buyer');
   const [loading, setLoading] = useState(false);
-  const [errors, setErrors] = useState<Record<string, string>>({});
-
-  const validate = () => {
-    const e: Record<string, string> = {};
-    if (!name.trim()) e.name = 'Ad soyad gerekli';
-    if (!email) e.email = 'E-posta gerekli';
-    else if (!/\S+@\S+\.\S+/.test(email)) e.email = 'Geçerli bir e-posta girin';
-    if (!password) e.password = 'Şifre gerekli';
-    else if (password.length < 6) e.password = 'Şifre en az 6 karakter olmalı';
-    setErrors(e);
-    return Object.keys(e).length === 0;
-  };
+  const [error, setError] = useState('');
 
   const handleRegister = async () => {
-    if (!validate()) return;
+    if (!name.trim() || !email.trim() || !password.trim()) {
+      setError('Ad, e-posta ve şifre zorunlu');
+      return;
+    }
+    if (password.length < 8) {
+      setError('Şifre en az 8 karakter olmalı');
+      return;
+    }
+    setError('');
     setLoading(true);
     try {
-      await register({ name: name.trim(), email: email.trim(), password, phone: phone || undefined, role });
+      await register({
+        name: name.trim(),
+        email: email.trim(),
+        password,
+        phone: phone.trim() || undefined,
+        role,
+      });
     } catch (err: any) {
-      const msg = err?.response?.data?.error || 'Kayıt yapılamadı. Lütfen tekrar deneyin.';
-      Alert.alert('Hata', msg);
+      const msg = err?.response?.data?.error || 'Kayıt başarısız. Tekrar deneyin.';
+      setError(msg);
     } finally {
       setLoading(false);
     }
@@ -56,85 +60,108 @@ export default function RegisterScreen() {
 
   return (
     <SafeAreaView style={styles.safe}>
-      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex: 1 }}>
-        <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
-          {/* Header */}
+      <KeyboardAvoidingView
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        style={styles.flex}
+      >
+        <ScrollView
+          contentContainerStyle={styles.scroll}
+          keyboardShouldPersistTaps="handled"
+        >
           <View style={styles.header}>
-            <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
-              <Ionicons name="arrow-back" size={24} color={COLORS.text} />
-            </TouchableOpacity>
-            <View style={styles.logoIcon}>
-              <Text style={styles.logoLetter}>T</Text>
-            </View>
-            <Text style={styles.title}>Hesap Oluştur</Text>
-            <Text style={styles.subtitle}>TalepSat'a katıl, piyasayı keşfet</Text>
+            <Text style={styles.title}>Kayıt Ol</Text>
+            <Text style={styles.subtitle}>TalepSat'a katılın</Text>
           </View>
 
-          {/* Card */}
           <View style={styles.card}>
-            <Input
-              label="Ad Soyad"
-              value={name}
-              onChangeText={setName}
-              placeholder="Adınız Soyadınız"
-              leftIcon="person-outline"
-              error={errors.name}
-            />
-            <Input
-              label="E-posta"
-              value={email}
-              onChangeText={setEmail}
-              placeholder="ornek@mail.com"
-              keyboardType="email-address"
-              leftIcon="mail-outline"
-              error={errors.email}
-            />
-            <Input
-              label="Telefon (opsiyonel)"
-              value={phone}
-              onChangeText={setPhone}
-              placeholder="05XX XXX XX XX"
-              keyboardType="phone-pad"
-              leftIcon="call-outline"
-            />
-            <Input
-              label="Şifre"
-              value={password}
-              onChangeText={setPassword}
-              placeholder="En az 6 karakter"
-              isPassword
-              leftIcon="lock-closed-outline"
-              error={errors.password}
-            />
+            <View style={styles.form}>
+              <Input
+                label="Ad Soyad"
+                placeholder="Adınız Soyadınız"
+                value={name}
+                onChangeText={setName}
+                leftIcon={<Ionicons name="person-outline" size={18} color={colors.textSecondary} />}
+              />
 
-            {/* Role selection */}
-            <Text style={styles.roleLabel}>Hesap Türü</Text>
-            <View style={styles.roleRow}>
-              {roles.map((r) => (
-                <TouchableOpacity
-                  key={r.value}
-                  onPress={() => setRole(r.value)}
-                  style={[styles.roleCard, role === r.value && styles.roleCardActive]}
-                >
-                  <Ionicons
-                    name={r.icon}
-                    size={22}
-                    color={role === r.value ? COLORS.primary : COLORS.textMuted}
-                  />
-                  <Text style={[styles.roleCardTitle, role === r.value && styles.roleCardTitleActive]}>
-                    {r.label}
-                  </Text>
-                  <Text style={styles.roleCardDesc}>{r.desc}</Text>
-                </TouchableOpacity>
-              ))}
+              <Input
+                label="E-posta"
+                placeholder="ornek@email.com"
+                value={email}
+                onChangeText={setEmail}
+                keyboardType="email-address"
+                autoCapitalize="none"
+                leftIcon={<Ionicons name="mail-outline" size={18} color={colors.textSecondary} />}
+              />
+
+              <Input
+                label="Telefon (Opsiyonel)"
+                placeholder="05XX XXX XX XX"
+                value={phone}
+                onChangeText={setPhone}
+                keyboardType="phone-pad"
+                leftIcon={<Ionicons name="call-outline" size={18} color={colors.textSecondary} />}
+              />
+
+              <Input
+                label="Şifre"
+                placeholder="En az 8 karakter"
+                value={password}
+                onChangeText={setPassword}
+                isPassword
+                leftIcon={<Ionicons name="lock-closed-outline" size={18} color={colors.textSecondary} />}
+              />
+
+              {/* Role Selection */}
+              <View style={styles.roleSection}>
+                <Text style={styles.roleLabel}>Hesap Türü</Text>
+                <View style={styles.roleGrid}>
+                  {roles.map((r) => (
+                    <TouchableOpacity
+                      key={r.key}
+                      onPress={() => setRole(r.key)}
+                      style={[
+                        styles.roleCard,
+                        role === r.key && styles.roleCardSelected,
+                      ]}
+                    >
+                      <Ionicons
+                        name={r.icon}
+                        size={22}
+                        color={role === r.key ? colors.accent.DEFAULT : colors.textSecondary}
+                      />
+                      <Text
+                        style={[
+                          styles.roleCardTitle,
+                          role === r.key && styles.roleCardTitleSelected,
+                        ]}
+                      >
+                        {r.label}
+                      </Text>
+                      <Text style={styles.roleCardDesc}>{r.desc}</Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              </View>
+
+              {error ? <Text style={styles.error}>{error}</Text> : null}
+
+              <Button
+                title="Kayıt Ol"
+                onPress={handleRegister}
+                loading={loading}
+                fullWidth
+                size="lg"
+              />
             </View>
 
-            <Button title="Kayıt Ol" onPress={handleRegister} loading={loading} size="lg" style={styles.btn} />
-
-            <TouchableOpacity onPress={() => router.push('/(auth)/login')} style={styles.loginRow}>
-              <Text style={styles.loginText}>Zaten hesabın var mı? </Text>
-              <Text style={styles.loginLink}>Giriş Yap</Text>
-            </TouchableOpacity>
+            <View style={styles.footer}>
+              <Text style={styles.footerText}>Zaten hesabınız var mı? </Text>
+              <Link href="/(auth)/login" asChild>
+                <TouchableOpacity>
+                  <Text style={styles.footerLink}>Giriş Yap</Text>
+                </TouchableOpacity>
+              </Link>
+            </View>
           </View>
         </ScrollView>
       </KeyboardAvoidingView>
@@ -143,43 +170,99 @@ export default function RegisterScreen() {
 }
 
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: COLORS.background },
-  scroll: { flexGrow: 1, padding: SPACING.lg },
-  header: { alignItems: 'center', marginBottom: SPACING.xl, paddingTop: SPACING.md },
-  backBtn: { alignSelf: 'flex-start', marginBottom: SPACING.md },
-  logoIcon: {
-    width: 52, height: 52, borderRadius: RADIUS.md,
-    backgroundColor: COLORS.primary, alignItems: 'center', justifyContent: 'center',
-    marginBottom: SPACING.md,
+  safe: { flex: 1, backgroundColor: colors.background },
+  flex: { flex: 1 },
+  scroll: {
+    flexGrow: 1,
+    paddingHorizontal: space.lg,
+    paddingVertical: space.xl,
   },
-  logoLetter: { fontSize: 24, fontWeight: '900', color: COLORS.white },
-  title: { fontSize: 24, fontWeight: '800', color: COLORS.text },
-  subtitle: { fontSize: 14, color: COLORS.textMuted, marginTop: 4 },
+  header: {
+    marginBottom: space.lg,
+  },
+  title: {
+    ...typeScale.h2,
+    color: colors.textPrimary,
+  },
+  subtitle: {
+    ...typeScale.bodyMd,
+    color: colors.textSecondary,
+    marginTop: 4,
+  },
   card: {
-    backgroundColor: COLORS.surface,
-    borderRadius: RADIUS.xl,
-    padding: SPACING.lg,
+    backgroundColor: colors.surface,
+    borderRadius: 16,
     borderWidth: 1,
-    borderColor: COLORS.border,
+    borderColor: colors.border,
+    padding: space.lg,
   },
-  roleLabel: { fontSize: 14, fontWeight: '500', color: COLORS.textSecondary, marginBottom: SPACING.sm },
-  roleRow: { flexDirection: 'row', gap: SPACING.sm, marginBottom: SPACING.md },
+  form: {
+    gap: space.md,
+  },
+  roleSection: {
+    gap: 8,
+  },
+  roleLabel: {
+    fontSize: 14,
+    fontFamily: fontFamily.medium,
+    color: colors.textPrimary,
+  },
+  roleGrid: {
+    flexDirection: 'row',
+    gap: 8,
+  },
   roleCard: {
     flex: 1,
-    backgroundColor: COLORS.surfaceLight,
-    borderRadius: RADIUS.md,
-    padding: SPACING.sm,
     alignItems: 'center',
-    borderWidth: 1.5,
-    borderColor: COLORS.border,
+    paddingVertical: 12,
+    paddingHorizontal: 8,
+    borderRadius: borderRadius.lg,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.surfaceRaised,
     gap: 4,
   },
-  roleCardActive: { borderColor: COLORS.primary, backgroundColor: COLORS.primary + '15' },
-  roleCardTitle: { fontSize: 13, fontWeight: '700', color: COLORS.textSecondary },
-  roleCardTitleActive: { color: COLORS.primary },
-  roleCardDesc: { fontSize: 10, color: COLORS.textMuted, textAlign: 'center' },
-  btn: { marginTop: SPACING.sm },
-  loginRow: { flexDirection: 'row', justifyContent: 'center', marginTop: SPACING.lg },
-  loginText: { fontSize: 15, color: COLORS.textSecondary },
-  loginLink: { fontSize: 15, color: COLORS.primary, fontWeight: '700' },
+  roleCardSelected: {
+    borderColor: colors.accent.DEFAULT,
+    backgroundColor: colors.accent[900],
+  },
+  roleCardTitle: {
+    fontSize: 13,
+    fontFamily: fontFamily.semiBold,
+    color: colors.textPrimary,
+  },
+  roleCardTitleSelected: {
+    color: colors.accent.DEFAULT,
+  },
+  roleCardDesc: {
+    fontSize: 10,
+    fontFamily: fontFamily.regular,
+    color: colors.textSecondary,
+    textAlign: 'center',
+  },
+  error: {
+    fontSize: 13,
+    fontFamily: fontFamily.regular,
+    color: colors.error.DEFAULT,
+    textAlign: 'center',
+    backgroundColor: colors.error.light,
+    padding: space.sm,
+    borderRadius: 8,
+    overflow: 'hidden',
+  },
+  footer: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    marginTop: space.lg,
+  },
+  footerText: {
+    fontSize: 14,
+    fontFamily: fontFamily.regular,
+    color: colors.textSecondary,
+  },
+  footerLink: {
+    fontSize: 14,
+    fontFamily: fontFamily.semiBold,
+    color: colors.accent.DEFAULT,
+  },
 });

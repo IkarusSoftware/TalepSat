@@ -1,23 +1,40 @@
 import { Tabs } from 'expo-router';
 import Ionicons from '@expo/vector-icons/Ionicons';
-import { COLORS } from '../../src/lib/constants';
+import { View, Text, StyleSheet } from 'react-native';
+import { colors, fontFamily } from '../../src/theme';
+
+function TabBadge({ count }: { count: number }) {
+  if (count <= 0) return null;
+  const label = count > 99 ? '99+' : String(count);
+  return (
+    <View style={styles.badge}>
+      <Text style={styles.badgeText}>{label}</Text>
+    </View>
+  );
+}
 
 export default function TabsLayout() {
+  // TODO: Wire to NotificationContext for real counts
+  const unreadMessages = 0;
+
   return (
     <Tabs
       screenOptions={{
         headerShown: false,
         tabBarStyle: {
-          backgroundColor: COLORS.surface,
-          borderTopColor: COLORS.border,
+          backgroundColor: colors.surface,
+          borderTopColor: colors.border,
           borderTopWidth: 1,
-          height: 60,
+          height: 64,
           paddingBottom: 8,
-          paddingTop: 4,
+          paddingTop: 6,
         },
-        tabBarActiveTintColor: COLORS.primary,
-        tabBarInactiveTintColor: COLORS.textMuted,
-        tabBarLabelStyle: { fontSize: 11, fontWeight: '600' },
+        tabBarActiveTintColor: colors.accent.DEFAULT,
+        tabBarInactiveTintColor: colors.textSecondary,
+        tabBarLabelStyle: {
+          fontSize: 11,
+          fontFamily: fontFamily.semiBold,
+        },
       }}
     >
       <Tabs.Screen
@@ -39,11 +56,23 @@ export default function TabsLayout() {
         }}
       />
       <Tabs.Screen
+        name="offers"
+        options={{
+          title: 'Teklifler',
+          tabBarIcon: ({ color, size }) => (
+            <Ionicons name="pricetag-outline" size={size} color={color} />
+          ),
+        }}
+      />
+      <Tabs.Screen
         name="messages"
         options={{
           title: 'Mesajlar',
           tabBarIcon: ({ color, size }) => (
-            <Ionicons name="chatbubble-outline" size={size} color={color} />
+            <View>
+              <Ionicons name="chatbubble-outline" size={size} color={color} />
+              <TabBadge count={unreadMessages} />
+            </View>
           ),
         }}
       />
@@ -59,3 +88,23 @@ export default function TabsLayout() {
     </Tabs>
   );
 }
+
+const styles = StyleSheet.create({
+  badge: {
+    position: 'absolute',
+    top: -4,
+    right: -10,
+    backgroundColor: colors.error.DEFAULT,
+    borderRadius: 10,
+    minWidth: 18,
+    height: 18,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 4,
+  },
+  badgeText: {
+    color: colors.white,
+    fontSize: 10,
+    fontFamily: fontFamily.bold,
+  },
+});

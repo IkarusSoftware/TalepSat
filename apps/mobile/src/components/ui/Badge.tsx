@@ -1,0 +1,75 @@
+import React from 'react';
+import { View, Text, StyleSheet, ViewStyle } from 'react-native';
+import { colors, fontFamily, space, borderRadius } from '../../theme';
+
+type BadgeVariant = 'primary' | 'accent' | 'success' | 'warning' | 'error' | 'neutral';
+type BadgeSize = 'sm' | 'md';
+
+interface BadgeProps {
+  label: string;
+  variant?: BadgeVariant;
+  size?: BadgeSize;
+  style?: ViewStyle;
+}
+
+const variantStyles: Record<BadgeVariant, { bg: string; text: string }> = {
+  primary: { bg: colors.primary.lighter, text: colors.primary.DEFAULT },
+  accent: { bg: colors.accent[100], text: colors.accent.DEFAULT },
+  success: { bg: colors.success.light, text: colors.success.DEFAULT },
+  warning: { bg: colors.warning.light, text: colors.warning.DEFAULT },
+  error: { bg: colors.error.light, text: colors.error.DEFAULT },
+  neutral: { bg: colors.surfaceRaised, text: colors.textSecondary },
+};
+
+export function Badge({ label, variant = 'neutral', size = 'md', style }: BadgeProps) {
+  const v = variantStyles[variant];
+  const isSmall = size === 'sm';
+
+  return (
+    <View
+      style={[
+        styles.base,
+        { backgroundColor: v.bg },
+        isSmall ? styles.sm : styles.md,
+        style,
+      ]}
+    >
+      <Text
+        style={[
+          styles.text,
+          { color: v.text },
+          isSmall ? styles.textSm : styles.textMd,
+        ]}
+        numberOfLines={1}
+      >
+        {label}
+      </Text>
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  base: {
+    alignSelf: 'flex-start',
+    borderRadius: borderRadius.sm,
+  },
+  sm: {
+    paddingHorizontal: space.sm,
+    paddingVertical: 2,
+  },
+  md: {
+    paddingHorizontal: space.sm + 4,
+    paddingVertical: 4,
+  },
+  text: {
+    fontFamily: fontFamily.semiBold,
+  },
+  textSm: {
+    fontSize: 11,
+    lineHeight: 14,
+  },
+  textMd: {
+    fontSize: 12,
+    lineHeight: 16,
+  },
+});

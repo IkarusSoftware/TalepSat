@@ -1,24 +1,28 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { View, Text, StyleSheet, KeyboardAvoidingView, Platform, ScrollView } from 'react-native';
 import { useRouter } from 'expo-router';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import api from '../../src/lib/api';
-import { Button } from '../../src/components/Button';
-import { Input } from '../../src/components/Input';
-import { COLORS, RADIUS, SPACING } from '../../src/lib/constants';
+import { Button, Input } from '../../src/components/ui';
+import { colors, fontFamily, space, typeScale } from '../../src/theme';
 
 export default function ForgotPasswordScreen() {
   const router = useRouter();
   const [email, setEmail] = useState('');
   const [loading, setLoading] = useState(false);
   const [sent, setSent] = useState(false);
+  const [error, setError] = useState('');
 
-  const handleSend = async () => {
-    if (!email) { Alert.alert('Hata', 'E-posta adresinizi girin'); return; }
+  const handleSubmit = async () => {
+    if (!email.trim()) {
+      setError('E-posta adresi gerekli');
+      return;
+    }
+    setError('');
     setLoading(true);
     try {
-      await api.post('/api/forgot-password', { email });
+      await api.post('/api/forgot-password', { email: email.trim() });
       setSent(true);
     } catch {
       setSent(true); // Güvenlik için her zaman başarılı göster
@@ -29,66 +33,106 @@ export default function ForgotPasswordScreen() {
 
   return (
     <SafeAreaView style={styles.safe}>
-      <ScrollView contentContainerStyle={styles.scroll}>
-        <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
-          <Ionicons name="arrow-back" size={24} color={COLORS.text} />
-        </TouchableOpacity>
-
-        <View style={styles.iconWrap}>
-          <Ionicons name="lock-open-outline" size={40} color={COLORS.primary} />
-        </View>
-
-        <Text style={styles.title}>Şifremi Unuttum</Text>
-        <Text style={styles.subtitle}>
-          {sent
-            ? 'Eğer bu e-posta kayıtlıysa sıfırlama bağlantısı gönderildi.'
-            : 'Kayıtlı e-posta adresini gir, şifre sıfırlama bağlantısı gönderelim.'}
-        </Text>
-
-        {!sent ? (
+      <KeyboardAvoidingView
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        style={styles.flex}
+      >
+        <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
           <View style={styles.card}>
-            <Input
-              label="E-posta"
-              value={email}
-              onChangeText={setEmail}
-              placeholder="ornek@mail.com"
-              keyboardType="email-address"
-              leftIcon="mail-outline"
+            <View style={styles.iconWrapper}>
+              <Ionicons
+                name={sent ? 'checkmark-circle-outline' : 'key-outline'}
+                size={48}
+                color={sent ? colors.success.DEFAULT : colors.accent.DEFAULT}
+              />
+            </View>
+
+            <Text style={styles.title}>
+              {sent ? 'E-posta Gönderildi' : 'Şifremi Unuttum'}
+            </Text>
+            <Text style={styles.subtitle}>
+              {sent
+                ? 'Şifre sıfırlama bağlantısı e-posta adresinize gönderildi.'
+                : 'E-posta adresinizi girin, şifre sıfırlama bağlantısı göndereceğiz.'}
+            </Text>
+
+            {!sent ? (
+              <View style={styles.form}>
+                <Input
+                  label="E-posta"
+                  placeholder="ornek@email.com"
+                  value={email}
+                  onChangeText={setEmail}
+                  keyboardType="email-address"
+                  autoCapitalize="none"
+                  leftIcon={<Ionicons name="mail-outline" size={18} color={colors.textSecondary} />}
+                />
+                {error ? <Text style={styles.error}>{error}</Text> : null}
+                <Button
+                  title="Gönder"
+                  onPress={handleSubmit}
+                  loading={loading}
+                  fullWidth
+                  size="lg"
+                />
+              </View>
+            ) : null}
+
+            <Button
+              title={sent ? 'Giriş Sayfasına Dön' : 'Geri'}
+              onPress={() => router.back()}
+              variant="ghost"
+              fullWidth
+              style={{ marginTop: space.md }}
             />
-            <Button title="Bağlantı Gönder" onPress={handleSend} loading={loading} size="lg" />
           </View>
-        ) : (
-          <View style={styles.successCard}>
-            <Ionicons name="checkmark-circle" size={48} color={COLORS.success} />
-            <Text style={styles.successText}>Kontrol edin</Text>
-            <Button title="Giriş Yap" onPress={() => router.replace('/(auth)/login')} variant="outline" />
-          </View>
-        )}
-      </ScrollView>
+        </ScrollView>
+      </KeyboardAvoidingView>
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: COLORS.background },
-  scroll: { flexGrow: 1, padding: SPACING.lg },
-  backBtn: { marginBottom: SPACING.lg },
-  iconWrap: {
-    width: 72, height: 72, borderRadius: RADIUS.xl,
-    backgroundColor: COLORS.primary + '20',
-    alignItems: 'center', justifyContent: 'center',
-    marginBottom: SPACING.lg,
+  safe: { flex: 1, backgroundColor: colors.background },
+  flex: { flex: 1 },
+  scroll: {
+    flexGrow: 1,
+    justifyContent: 'center',
+    paddingHorizontal: space.lg,
+    paddingVertical: space.xl,
   },
-  title: { fontSize: 26, fontWeight: '800', color: COLORS.text, marginBottom: SPACING.sm },
-  subtitle: { fontSize: 15, color: COLORS.textSecondary, lineHeight: 22, marginBottom: SPACING.xl },
   card: {
-    backgroundColor: COLORS.surface, borderRadius: RADIUS.xl,
-    padding: SPACING.lg, borderWidth: 1, borderColor: COLORS.border,
+    backgroundColor: colors.surface,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: colors.border,
+    padding: space.lg,
+    alignItems: 'center',
   },
-  successCard: {
-    backgroundColor: COLORS.surface, borderRadius: RADIUS.xl,
-    padding: SPACING.xl, borderWidth: 1, borderColor: COLORS.border,
-    alignItems: 'center', gap: SPACING.md,
+  iconWrapper: {
+    marginBottom: space.md,
   },
-  successText: { fontSize: 16, color: COLORS.textSecondary, textAlign: 'center' },
+  title: {
+    ...typeScale.h3,
+    color: colors.textPrimary,
+    textAlign: 'center',
+  },
+  subtitle: {
+    ...typeScale.bodyMd,
+    color: colors.textSecondary,
+    textAlign: 'center',
+    marginTop: 8,
+    marginBottom: space.lg,
+    lineHeight: 20,
+  },
+  form: {
+    width: '100%',
+    gap: space.md,
+  },
+  error: {
+    fontSize: 13,
+    fontFamily: fontFamily.regular,
+    color: colors.error.DEFAULT,
+    textAlign: 'center',
+  },
 });
