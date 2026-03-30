@@ -1,89 +1,71 @@
 /**
  * TalepSat Mobile Color Tokens
- * Mirrored from @talepsat/tokens - DO NOT import from packages/tokens (Metro monorepo issues)
+ * Matches the web design system (indigo-based dark theme)
  */
 
 export const colors = {
-  // ── Dark Mode Surfaces (default theme) ──────────────────────────────────
-  background: '#121212',
-  surface: '#1C1C1A',
-  surfaceRaised: '#2A2A28',
-  border: '#3A3A37',
-  textPrimary: '#F0EFEB',
-  textSecondary: '#9A9790',
-  textTertiary: '#6A6760',
+  // ── Dark Surfaces ──────────────────────────────────────────────────────
+  background:    '#0f0f1a',
+  surface:       '#1a1a2e',
+  surfaceRaised: '#252540',
+  border:        '#2d2d4e',
 
-  // ── Primary (Navy Blue) ─────────────────────────────────────────────────
+  // ── Text ──────────────────────────────────────────────────────────────
+  textPrimary:   '#f1f1f3',
+  textSecondary: '#9898b3',
+  textTertiary:  '#6666a0',
+
+  // ── Primary / Accent (Indigo — matches web) ───────────────────────────
   primary: {
-    DEFAULT: '#1B2B4B',
-    light: '#2D4A7A',
-    lighter: '#E8EDF4',
-    50: '#F0F3F8',
-    100: '#D6DEE9',
-    200: '#ADBDD4',
-    300: '#849CBE',
-    400: '#5B7BA9',
-    500: '#3D5F8F',
-    600: '#2D4A7A',
-    700: '#1B2B4B',
-    800: '#142038',
-    900: '#0D1525',
+    DEFAULT: '#6366f1',
+    light:   '#818cf8',
+    lighter: '#6366f122',
+    dark:    '#4f46e5',
   },
-
-  // ── Accent (Burnt Orange — CTA color) ───────────────────────────────────
   accent: {
-    DEFAULT: '#E8683A',
-    light: '#FCEEE8',
-    lighter: '#FEF7F4',
-    50: '#FEF7F4',
-    100: '#FCEEE8',
-    200: '#F9D5C6',
-    300: '#F4B49A',
-    400: '#EE8E63',
-    500: '#E8683A',
-    600: '#D4521F',
-    700: '#A93F18',
-    800: '#7E2F12',
-    900: '#531F0C',
+    DEFAULT: '#6366f1',
+    light:   '#818cf8',
+    lighter: '#6366f122',
+    dark:    '#4f46e5',
   },
 
-  // ── Semantic ────────────────────────────────────────────────────────────
+  // ── Semantic ──────────────────────────────────────────────────────────
   success: {
-    DEFAULT: '#1A8754',
-    light: '#E6F5ED',
-    dark: '#126B42',
+    DEFAULT: '#22c55e',
+    light:   '#22c55e22',
+    dark:    '#16a34a',
   },
   warning: {
-    DEFAULT: '#D4940A',
-    light: '#FDF4E0',
-    dark: '#A87608',
+    DEFAULT: '#f59e0b',
+    light:   '#f59e0b22',
+    dark:    '#d97706',
   },
   error: {
-    DEFAULT: '#C93B3B',
-    light: '#FCEAEA',
-    dark: '#A12F2F',
+    DEFAULT: '#ef4444',
+    light:   '#ef444422',
+    dark:    '#dc2626',
   },
 
-  // ── Neutral (Warm Grays) ────────────────────────────────────────────────
+  // ── Neutral ───────────────────────────────────────────────────────────
   neutral: {
-    0: '#FFFFFF',
-    50: '#FAFAF8',
-    100: '#F3F2EF',
-    200: '#E5E3DE',
-    300: '#C8C5BD',
-    400: '#A8A59C',
-    500: '#7A7668',
-    600: '#5C584C',
-    700: '#3D3A33',
-    800: '#28261F',
-    900: '#1A1815',
+    0:   '#ffffff',
+    50:  '#fafafa',
+    100: '#f4f4f5',
+    200: '#e4e4e7',
+    300: '#d4d4d8',
+    400: '#a1a1aa',
+    500: '#71717a',
+    600: '#52525b',
+    700: '#3f3f46',
+    800: '#27272a',
+    900: '#18181b',
   },
 
-  // ── Utility ─────────────────────────────────────────────────────────────
+  // ── Utility ───────────────────────────────────────────────────────────
   transparent: 'transparent',
-  white: '#FFFFFF',
-  black: '#000000',
-  overlay: 'rgba(0, 0, 0, 0.5)',
+  white:       '#ffffff',
+  black:       '#000000',
+  overlay:     'rgba(0,0,0,0.6)',
 } as const;
 
 export type Colors = typeof colors;

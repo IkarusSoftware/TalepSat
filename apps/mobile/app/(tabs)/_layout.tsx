@@ -1,6 +1,6 @@
 import { Tabs } from 'expo-router';
 import Ionicons from '@expo/vector-icons/Ionicons';
-import { View, Text, StyleSheet } from 'react-native';
+import { View, Text, StyleSheet, Platform } from 'react-native';
 import { colors, fontFamily } from '../../src/theme';
 
 function TabBadge({ count }: { count: number }) {
@@ -14,7 +14,6 @@ function TabBadge({ count }: { count: number }) {
 }
 
 export default function TabsLayout() {
-  // TODO: Wire to NotificationContext for real counts
   const unreadMessages = 0;
 
   return (
@@ -22,18 +21,36 @@ export default function TabsLayout() {
       screenOptions={{
         headerShown: false,
         tabBarStyle: {
+          position: 'absolute',
+          bottom: Platform.OS === 'ios' ? 24 : 16,
+          left: 20,
+          right: 20,
           backgroundColor: colors.surface,
-          borderTopColor: colors.border,
-          borderTopWidth: 1,
-          height: 64,
-          paddingBottom: 8,
-          paddingTop: 6,
+          borderTopWidth: 0,
+          borderRadius: 28,
+          height: 68,
+          paddingBottom: 10,
+          paddingTop: 10,
+          paddingHorizontal: 8,
+          // Shadow
+          shadowColor: '#000',
+          shadowOffset: { width: 0, height: 8 },
+          shadowOpacity: 0.35,
+          shadowRadius: 24,
+          elevation: 16,
+          // Subtle glow
+          borderWidth: 1,
+          borderColor: colors.border,
         },
         tabBarActiveTintColor: colors.accent.DEFAULT,
-        tabBarInactiveTintColor: colors.textSecondary,
+        tabBarInactiveTintColor: colors.textTertiary,
         tabBarLabelStyle: {
-          fontSize: 11,
+          fontSize: 10,
           fontFamily: fontFamily.semiBold,
+          marginTop: 2,
+        },
+        tabBarItemStyle: {
+          borderRadius: 20,
         },
       }}
     >
@@ -41,17 +58,21 @@ export default function TabsLayout() {
         name="index"
         options={{
           title: 'Keşfet',
-          tabBarIcon: ({ color, size }) => (
-            <Ionicons name="search-outline" size={size} color={color} />
+          tabBarIcon: ({ color, focused }) => (
+            <View style={[styles.iconWrap, focused && styles.iconWrapActive]}>
+              <Ionicons name={focused ? 'search' : 'search-outline'} size={22} color={color} />
+            </View>
           ),
         }}
       />
       <Tabs.Screen
         name="create"
         options={{
-          title: 'İlan Oluştur',
-          tabBarIcon: ({ color, size }) => (
-            <Ionicons name="add-circle-outline" size={size} color={color} />
+          title: 'İlan',
+          tabBarIcon: ({ color, focused }) => (
+            <View style={[styles.iconWrap, focused && styles.iconWrapActive]}>
+              <Ionicons name={focused ? 'add-circle' : 'add-circle-outline'} size={22} color={color} />
+            </View>
           ),
         }}
       />
@@ -59,8 +80,10 @@ export default function TabsLayout() {
         name="offers"
         options={{
           title: 'Teklifler',
-          tabBarIcon: ({ color, size }) => (
-            <Ionicons name="pricetag-outline" size={size} color={color} />
+          tabBarIcon: ({ color, focused }) => (
+            <View style={[styles.iconWrap, focused && styles.iconWrapActive]}>
+              <Ionicons name={focused ? 'pricetag' : 'pricetag-outline'} size={22} color={color} />
+            </View>
           ),
         }}
       />
@@ -68,9 +91,9 @@ export default function TabsLayout() {
         name="messages"
         options={{
           title: 'Mesajlar',
-          tabBarIcon: ({ color, size }) => (
-            <View>
-              <Ionicons name="chatbubble-outline" size={size} color={color} />
+          tabBarIcon: ({ color, focused }) => (
+            <View style={[styles.iconWrap, focused && styles.iconWrapActive]}>
+              <Ionicons name={focused ? 'chatbubble' : 'chatbubble-outline'} size={22} color={color} />
               <TabBadge count={unreadMessages} />
             </View>
           ),
@@ -80,8 +103,10 @@ export default function TabsLayout() {
         name="profile"
         options={{
           title: 'Profil',
-          tabBarIcon: ({ color, size }) => (
-            <Ionicons name="person-outline" size={size} color={color} />
+          tabBarIcon: ({ color, focused }) => (
+            <View style={[styles.iconWrap, focused && styles.iconWrapActive]}>
+              <Ionicons name={focused ? 'person' : 'person-outline'} size={22} color={color} />
+            </View>
           ),
         }}
       />
@@ -90,10 +115,20 @@ export default function TabsLayout() {
 }
 
 const styles = StyleSheet.create({
+  iconWrap: {
+    width: 40,
+    height: 32,
+    borderRadius: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  iconWrapActive: {
+    backgroundColor: colors.accent.lighter,
+  },
   badge: {
     position: 'absolute',
     top: -4,
-    right: -10,
+    right: -8,
     backgroundColor: colors.error.DEFAULT,
     borderRadius: 10,
     minWidth: 18,

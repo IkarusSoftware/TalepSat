@@ -224,7 +224,7 @@ const styles = StyleSheet.create({
   },
   roleCardSelected: {
     borderColor: colors.accent.DEFAULT,
-    backgroundColor: colors.accent[900],
+    backgroundColor: colors.accent.lighter,
   },
   roleCardTitle: {
     fontSize: 13,

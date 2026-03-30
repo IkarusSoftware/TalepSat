@@ -1,12 +1,12 @@
 import React, { useState } from 'react';
 import {
-  View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert, Switch,
+  View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { useAuth } from '../../src/contexts/AuthContext';
-import { Button } from '../../src/components/Button';
-import { COLORS, RADIUS, SPACING } from '../../src/lib/constants';
+import { Button } from '../../src/components/ui';
+import { colors, fontFamily, space, borderRadius } from '../../src/theme';
 
 const roleLabels: Record<string, string> = {
   buyer: 'Alıcı',
@@ -49,8 +49,8 @@ export default function ProfileScreen() {
   const initials = user.name.split(' ').map((n) => n[0]).join('').toUpperCase().slice(0, 2);
 
   return (
-    <SafeAreaView style={styles.safe}>
-      <ScrollView contentContainerStyle={styles.scroll}>
+    <SafeAreaView style={styles.safe} edges={['top']}>
+      <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
         {/* Header */}
         <View style={styles.header}>
           <Text style={styles.headerTitle}>Profil</Text>
@@ -64,7 +64,7 @@ export default function ProfileScreen() {
             </View>
             {user.verified && (
               <View style={styles.verifiedBadge}>
-                <Ionicons name="checkmark" size={12} color={COLORS.white} />
+                <Ionicons name="checkmark" size={12} color={colors.white} />
               </View>
             )}
           </View>
@@ -87,12 +87,12 @@ export default function ProfileScreen() {
           {/* Stats */}
           <View style={styles.statsRow}>
             <View style={styles.statItem}>
-              <Text style={styles.statValue}>{user.score.toFixed(1)}</Text>
+              <Text style={styles.statValue}>{user.score?.toFixed(1) ?? '0.0'}</Text>
               <Text style={styles.statLabel}>Puan</Text>
             </View>
             <View style={styles.statDivider} />
             <View style={styles.statItem}>
-              <Text style={styles.statValue}>{user.completedDeals}</Text>
+              <Text style={styles.statValue}>{user.completedDeals ?? 0}</Text>
               <Text style={styles.statLabel}>Tamamlanan</Text>
             </View>
             {user.city && (
@@ -114,7 +114,7 @@ export default function ProfileScreen() {
           <MenuItem icon="notifications-outline" label="Bildirimler" onPress={() => {}} />
           <MenuItem icon="help-circle-outline" label="Yardım & Destek" onPress={() => {}} />
           <MenuItem icon="document-text-outline" label="Kullanım Şartları" onPress={() => {}} />
-          <MenuItem icon="shield-outline" label="Gizlilik Politikası" onPress={() => {}} />
+          <MenuItem icon="shield-outline" label="Gizlilik Politikası" onPress={() => {}} last />
         </View>
 
         {/* App Version */}
@@ -123,111 +123,175 @@ export default function ProfileScreen() {
         {/* Logout */}
         <Button
           title="Çıkış Yap"
-          variant="danger"
+          variant="destructive"
           onPress={handleLogout}
           loading={loggingOut}
-          style={styles.logoutBtn}
+          fullWidth
         />
       </ScrollView>
     </SafeAreaView>
   );
 }
 
-function MenuItem({ icon, label, onPress }: {
+function MenuItem({ icon, label, onPress, last }: {
   icon: keyof typeof Ionicons.glyphMap;
   label: string;
   onPress: () => void;
+  last?: boolean;
 }) {
   return (
-    <TouchableOpacity style={styles.menuItem} onPress={onPress} activeOpacity={0.7}>
+    <TouchableOpacity
+      style={[styles.menuItem, last && styles.menuItemLast]}
+      onPress={onPress}
+      activeOpacity={0.7}
+    >
       <View style={styles.menuIconWrap}>
-        <Ionicons name={icon} size={20} color={COLORS.primary} />
+        <Ionicons name={icon} size={20} color={colors.primary.DEFAULT} />
       </View>
       <Text style={styles.menuLabel}>{label}</Text>
-      <Ionicons name="chevron-forward" size={18} color={COLORS.textMuted} />
+      <Ionicons name="chevron-forward" size={18} color={colors.textTertiary} />
     </TouchableOpacity>
   );
 }
 
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: COLORS.background },
-  scroll: { padding: SPACING.lg, paddingBottom: SPACING.xxl },
-  header: { marginBottom: SPACING.lg },
-  headerTitle: { fontSize: 24, fontWeight: '800', color: COLORS.text },
+  safe: { flex: 1, backgroundColor: colors.background },
+  scroll: { paddingHorizontal: space.lg, paddingBottom: 100, paddingTop: space.md },
+  header: { marginBottom: space.lg },
+  headerTitle: {
+    fontSize: 24,
+    fontFamily: fontFamily.extraBold,
+    color: colors.textPrimary,
+  },
   profileCard: {
-    backgroundColor: COLORS.surface,
-    borderRadius: RADIUS.xl,
-    padding: SPACING.lg,
+    backgroundColor: colors.surface,
+    borderRadius: borderRadius.xl,
+    padding: space.lg,
     alignItems: 'center',
     borderWidth: 1,
-    borderColor: COLORS.border,
-    marginBottom: SPACING.lg,
+    borderColor: colors.border,
+    marginBottom: space.lg,
   },
-  avatarContainer: { position: 'relative', marginBottom: SPACING.md },
+  avatarContainer: { position: 'relative', marginBottom: space.md },
   avatar: {
-    width: 80, height: 80, borderRadius: 40,
-    backgroundColor: COLORS.primary,
-    alignItems: 'center', justifyContent: 'center',
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    backgroundColor: colors.primary.DEFAULT,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
-  avatarText: { fontSize: 30, fontWeight: '800', color: COLORS.white },
+  avatarText: {
+    fontSize: 30,
+    fontFamily: fontFamily.extraBold,
+    color: colors.white,
+  },
   verifiedBadge: {
-    position: 'absolute', bottom: 0, right: 0,
-    width: 24, height: 24, borderRadius: 12,
-    backgroundColor: COLORS.success,
-    alignItems: 'center', justifyContent: 'center',
-    borderWidth: 2, borderColor: COLORS.surface,
+    position: 'absolute',
+    bottom: 0,
+    right: 0,
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    backgroundColor: colors.success.DEFAULT,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 2,
+    borderColor: colors.surface,
   },
-  name: { fontSize: 20, fontWeight: '800', color: COLORS.text, marginBottom: 4 },
-  email: { fontSize: 14, color: COLORS.textSecondary, marginBottom: SPACING.md },
-  badgesRow: { flexDirection: 'row', gap: SPACING.sm, marginBottom: SPACING.lg },
+  name: {
+    fontSize: 20,
+    fontFamily: fontFamily.extraBold,
+    color: colors.textPrimary,
+    marginBottom: 4,
+  },
+  email: {
+    fontSize: 14,
+    fontFamily: fontFamily.regular,
+    color: colors.textSecondary,
+    marginBottom: space.md,
+  },
+  badgesRow: { flexDirection: 'row', gap: space.sm, marginBottom: space.lg },
   roleBadge: {
-    backgroundColor: COLORS.primary + '20',
-    paddingHorizontal: SPACING.sm,
+    backgroundColor: colors.primary.lighter,
+    paddingHorizontal: space.sm,
     paddingVertical: 4,
-    borderRadius: RADIUS.full,
+    borderRadius: borderRadius.full,
   },
-  roleBadgeText: { fontSize: 12, fontWeight: '600', color: COLORS.primary },
+  roleBadgeText: {
+    fontSize: 12,
+    fontFamily: fontFamily.semiBold,
+    color: colors.primary.light,
+  },
   planBadge: {
-    paddingHorizontal: SPACING.sm,
+    paddingHorizontal: space.sm,
     paddingVertical: 4,
-    borderRadius: RADIUS.full,
+    borderRadius: borderRadius.full,
   },
-  planBadgeText: { fontSize: 12, fontWeight: '700' },
+  planBadgeText: {
+    fontSize: 12,
+    fontFamily: fontFamily.bold,
+  },
   statsRow: {
     flexDirection: 'row',
     alignItems: 'center',
     width: '100%',
-    backgroundColor: COLORS.surfaceLight,
-    borderRadius: RADIUS.md,
-    padding: SPACING.md,
+    backgroundColor: colors.surfaceRaised,
+    borderRadius: borderRadius.md,
+    padding: space.md,
   },
   statItem: { flex: 1, alignItems: 'center' },
-  statValue: { fontSize: 18, fontWeight: '800', color: COLORS.text },
-  statLabel: { fontSize: 11, color: COLORS.textMuted, marginTop: 2 },
-  statDivider: { width: 1, height: 32, backgroundColor: COLORS.border },
+  statValue: {
+    fontSize: 18,
+    fontFamily: fontFamily.extraBold,
+    color: colors.textPrimary,
+  },
+  statLabel: {
+    fontSize: 11,
+    fontFamily: fontFamily.regular,
+    color: colors.textTertiary,
+    marginTop: 2,
+  },
+  statDivider: { width: 1, height: 32, backgroundColor: colors.border },
   menuSection: {
-    backgroundColor: COLORS.surface,
-    borderRadius: RADIUS.xl,
+    backgroundColor: colors.surface,
+    borderRadius: borderRadius.xl,
     borderWidth: 1,
-    borderColor: COLORS.border,
+    borderColor: colors.border,
     overflow: 'hidden',
-    marginBottom: SPACING.lg,
+    marginBottom: space.lg,
   },
   menuItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: SPACING.lg,
-    paddingVertical: SPACING.md,
+    paddingHorizontal: space.lg,
+    paddingVertical: space.md,
     borderBottomWidth: 1,
-    borderBottomColor: COLORS.border,
-    gap: SPACING.md,
+    borderBottomColor: colors.border,
+    gap: space.md,
+  },
+  menuItemLast: {
+    borderBottomWidth: 0,
   },
   menuIconWrap: {
-    width: 36, height: 36, borderRadius: RADIUS.sm,
-    backgroundColor: COLORS.primary + '15',
-    alignItems: 'center', justifyContent: 'center',
+    width: 36,
+    height: 36,
+    borderRadius: borderRadius.sm,
+    backgroundColor: colors.primary.lighter,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
-  menuLabel: { flex: 1, fontSize: 15, fontWeight: '500', color: COLORS.text },
-  version: { textAlign: 'center', fontSize: 12, color: COLORS.textMuted, marginBottom: SPACING.lg },
-  logoutBtn: { marginHorizontal: 0 },
+  menuLabel: {
+    flex: 1,
+    fontSize: 15,
+    fontFamily: fontFamily.medium,
+    color: colors.textPrimary,
+  },
+  version: {
+    textAlign: 'center',
+    fontSize: 12,
+    fontFamily: fontFamily.regular,
+    color: colors.textTertiary,
+    marginBottom: space.lg,
+  },
 });

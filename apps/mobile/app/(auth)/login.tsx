@@ -42,6 +42,12 @@ export default function LoginScreen() {
 
   return (
     <SafeAreaView style={styles.safe}>
+      {/* Decorative background orbs */}
+      <View style={StyleSheet.absoluteFill} pointerEvents="none">
+        <View style={styles.orb1} />
+        <View style={styles.orb2} />
+        <View style={styles.orb3} />
+      </View>
       <KeyboardAvoidingView
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         style={styles.flex}
@@ -201,5 +207,32 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontFamily: fontFamily.semiBold,
     color: colors.accent.DEFAULT,
+  },
+  orb1: {
+    position: 'absolute',
+    width: 320,
+    height: 320,
+    borderRadius: 160,
+    backgroundColor: '#6366f114',
+    top: -100,
+    right: -80,
+  },
+  orb2: {
+    position: 'absolute',
+    width: 220,
+    height: 220,
+    borderRadius: 110,
+    backgroundColor: '#6366f10e',
+    bottom: 80,
+    left: -70,
+  },
+  orb3: {
+    position: 'absolute',
+    width: 140,
+    height: 140,
+    borderRadius: 70,
+    backgroundColor: '#818cf80a',
+    top: '45%',
+    right: '5%',
   },
 });

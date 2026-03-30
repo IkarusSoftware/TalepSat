@@ -9,7 +9,7 @@ import Ionicons from '@expo/vector-icons/Ionicons';
 import { useQuery } from '@tanstack/react-query';
 import api from '../../src/lib/api';
 import { useAuth } from '../../src/contexts/AuthContext';
-import { COLORS, RADIUS, SPACING } from '../../src/lib/constants';
+import { colors, fontFamily, space, borderRadius } from '../../src/theme';
 
 function timeAgo(dateStr: string) {
   const diff = Date.now() - new Date(dateStr).getTime();
@@ -77,30 +77,40 @@ export default function MessagesScreen() {
   };
 
   return (
-    <SafeAreaView style={styles.safe}>
+    <SafeAreaView style={styles.safe} edges={['top']}>
       <View style={styles.header}>
         <Text style={styles.headerTitle}>Mesajlar</Text>
       </View>
 
       {isLoading ? (
         <View style={styles.center}>
-          <ActivityIndicator size="large" color={COLORS.primary} />
+          <ActivityIndicator size="large" color={colors.primary.DEFAULT} />
         </View>
       ) : (
         <FlatList
           data={conversations}
           keyExtractor={(item: any) => item.id}
           renderItem={renderItem}
+          contentContainerStyle={styles.listContent}
           refreshControl={
-            <RefreshControl refreshing={isRefetching} onRefresh={refetch} tintColor={COLORS.primary} />
+            <RefreshControl
+              refreshing={isRefetching}
+              onRefresh={refetch}
+              tintColor={colors.primary.DEFAULT}
+            />
           }
           ListEmptyComponent={
             <View style={styles.empty}>
-              <Ionicons name="chatbubble-outline" size={48} color={COLORS.textMuted} />
+              <View style={styles.emptyIcon}>
+                <Ionicons name="chatbubble-outline" size={32} color={colors.primary.DEFAULT} />
+              </View>
               <Text style={styles.emptyText}>Henüz mesajın yok</Text>
-              <Text style={styles.emptySubtext}>İlanlara teklif ver veya alıcılarla iletişime geç</Text>
+              <Text style={styles.emptySubtext}>
+                İlanlara teklif ver veya alıcılarla iletişime geç
+              </Text>
             </View>
           }
+          showsVerticalScrollIndicator={false}
         />
       )}
     </SafeAreaView>
@@ -108,41 +118,109 @@ export default function MessagesScreen() {
 }
 
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: COLORS.background },
-  header: { paddingHorizontal: SPACING.lg, paddingTop: SPACING.md, paddingBottom: SPACING.md },
-  headerTitle: { fontSize: 24, fontWeight: '800', color: COLORS.text },
+  safe: { flex: 1, backgroundColor: colors.background },
+  header: {
+    paddingHorizontal: space.lg,
+    paddingTop: space.md,
+    paddingBottom: space.md,
+  },
+  headerTitle: {
+    fontSize: 24,
+    fontFamily: fontFamily.extraBold,
+    color: colors.textPrimary,
+  },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center' },
+  listContent: { paddingBottom: 100 },
   convRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: SPACING.lg,
-    paddingVertical: SPACING.md,
+    paddingHorizontal: space.lg,
+    paddingVertical: space.md,
     borderBottomWidth: 1,
-    borderBottomColor: COLORS.border,
-    gap: SPACING.md,
+    borderBottomColor: colors.border,
+    gap: space.md,
   },
   avatar: {
-    width: 48, height: 48, borderRadius: 24,
-    backgroundColor: COLORS.primary + '30',
-    alignItems: 'center', justifyContent: 'center',
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: colors.primary.lighter,
+    alignItems: 'center',
+    justifyContent: 'center',
     flexShrink: 0,
   },
-  avatarText: { fontSize: 16, fontWeight: '700', color: COLORS.primary },
+  avatarText: {
+    fontSize: 16,
+    fontFamily: fontFamily.bold,
+    color: colors.primary.light,
+  },
   convContent: { flex: 1 },
   convHeader: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 2 },
-  convName: { fontSize: 15, fontWeight: '700', color: COLORS.text, flex: 1 },
-  convTime: { fontSize: 12, color: COLORS.textMuted },
-  convListing: { fontSize: 12, color: COLORS.primary, marginBottom: 2 },
-  convLast: { fontSize: 13, color: COLORS.textSecondary },
-  convLastUnread: { color: COLORS.text, fontWeight: '600' },
+  convName: {
+    fontSize: 15,
+    fontFamily: fontFamily.bold,
+    color: colors.textPrimary,
+    flex: 1,
+  },
+  convTime: {
+    fontSize: 12,
+    fontFamily: fontFamily.regular,
+    color: colors.textTertiary,
+  },
+  convListing: {
+    fontSize: 12,
+    fontFamily: fontFamily.regular,
+    color: colors.primary.DEFAULT,
+    marginBottom: 2,
+  },
+  convLast: {
+    fontSize: 13,
+    fontFamily: fontFamily.regular,
+    color: colors.textSecondary,
+  },
+  convLastUnread: {
+    color: colors.textPrimary,
+    fontFamily: fontFamily.semiBold,
+  },
   unreadBadge: {
-    minWidth: 22, height: 22, borderRadius: 11,
-    backgroundColor: COLORS.primary,
-    alignItems: 'center', justifyContent: 'center',
+    minWidth: 22,
+    height: 22,
+    borderRadius: 11,
+    backgroundColor: colors.primary.DEFAULT,
+    alignItems: 'center',
+    justifyContent: 'center',
     paddingHorizontal: 4,
   },
-  unreadText: { fontSize: 11, fontWeight: '700', color: COLORS.white },
-  empty: { alignItems: 'center', paddingVertical: SPACING.xxl, paddingHorizontal: SPACING.xl },
-  emptyText: { fontSize: 18, fontWeight: '700', color: COLORS.text, marginTop: SPACING.md },
-  emptySubtext: { fontSize: 14, color: COLORS.textMuted, marginTop: SPACING.sm, textAlign: 'center' },
+  unreadText: {
+    fontSize: 11,
+    fontFamily: fontFamily.bold,
+    color: colors.white,
+  },
+  empty: {
+    alignItems: 'center',
+    paddingVertical: space.xxl,
+    paddingHorizontal: space.xl,
+  },
+  emptyIcon: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    backgroundColor: colors.primary.lighter,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: space.md,
+  },
+  emptyText: {
+    fontSize: 18,
+    fontFamily: fontFamily.bold,
+    color: colors.textPrimary,
+    marginBottom: space.sm,
+  },
+  emptySubtext: {
+    fontSize: 14,
+    fontFamily: fontFamily.regular,
+    color: colors.textSecondary,
+    textAlign: 'center',
+    lineHeight: 20,
+  },
 });

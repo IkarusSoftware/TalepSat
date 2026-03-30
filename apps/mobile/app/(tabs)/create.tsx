@@ -1,16 +1,15 @@
 import React, { useState } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity,
-  KeyboardAvoidingView, Platform, Alert,
+  KeyboardAvoidingView, Platform, Alert, TextInput,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { useAuth } from '../../src/contexts/AuthContext';
-import { Button } from '../../src/components/Button';
-import { Input } from '../../src/components/Input';
+import { Button, Input } from '../../src/components/ui';
 import api from '../../src/lib/api';
-import { COLORS, RADIUS, SPACING } from '../../src/lib/constants';
+import { colors, fontFamily, space, borderRadius } from '../../src/theme';
 
 const CATEGORIES = [
   'Elektronik', 'Tekstil', 'Gıda & İçecek', 'İnşaat & Yapı',
@@ -68,7 +67,7 @@ export default function CreateListingScreen() {
     if (!validate()) return;
     setLoading(true);
     try {
-      const res = await api.post('/api/listings', {
+      await api.post('/api/listings', {
         title: title.trim(),
         description: description.trim(),
         category,
@@ -90,9 +89,9 @@ export default function CreateListingScreen() {
   };
 
   return (
-    <SafeAreaView style={styles.safe}>
-      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex: 1 }}>
-        <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
+    <SafeAreaView style={styles.safe} edges={['top']}>
+      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={styles.flex}>
+        <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
           <View style={styles.header}>
             <Text style={styles.headerTitle}>İlan Oluştur</Text>
             <Text style={styles.headerSubtitle}>İhtiyacını belirt, teklifler gelsin</Text>
@@ -104,36 +103,50 @@ export default function CreateListingScreen() {
               value={title}
               onChangeText={setTitle}
               placeholder="Örn: 500 adet beyaz t-shirt"
-              leftIcon="document-text-outline"
+              leftIcon={<Ionicons name="document-text-outline" size={18} color={colors.textSecondary} />}
               error={errors.title}
             />
 
-            <Input
-              label="Açıklama"
-              value={description}
-              onChangeText={setDescription}
-              placeholder="Detayları belirt: miktar, özellikler, teslimat koşulları..."
-              multiline
-              numberOfLines={4}
-              style={{ minHeight: 100, textAlignVertical: 'top' }}
-              leftIcon="list-outline"
-              error={errors.description}
-            />
+            {/* Description — manual textarea */}
+            <View style={styles.textareaWrapper}>
+              <Text style={styles.inputLabel}>
+                Açıklama
+                {errors.description ? <Text style={styles.errorInline}> — {errors.description}</Text> : null}
+              </Text>
+              <View style={[styles.textarea, errors.description ? styles.textareaError : null]}>
+                <TextInput
+                  value={description}
+                  onChangeText={setDescription}
+                  placeholder="Detayları belirt: miktar, özellikler, teslimat koşulları..."
+                  placeholderTextColor={colors.textTertiary}
+                  multiline
+                  numberOfLines={4}
+                  style={styles.textareaInput}
+                  textAlignVertical="top"
+                  selectionColor={colors.accent.DEFAULT}
+                />
+              </View>
+            </View>
 
             {/* Category */}
-            <Text style={styles.fieldLabel}>Kategori {errors.category ? <Text style={styles.errorInline}>— {errors.category}</Text> : null}</Text>
-            <View style={styles.categoryGrid}>
-              {CATEGORIES.map((cat) => (
-                <TouchableOpacity
-                  key={cat}
-                  onPress={() => setCategory(cat)}
-                  style={[styles.categoryItem, category === cat && styles.categoryItemActive]}
-                >
-                  <Text style={[styles.categoryItemText, category === cat && styles.categoryItemTextActive]}>
-                    {cat}
-                  </Text>
-                </TouchableOpacity>
-              ))}
+            <View>
+              <Text style={styles.inputLabel}>
+                Kategori
+                {errors.category ? <Text style={styles.errorInline}> — {errors.category}</Text> : null}
+              </Text>
+              <View style={styles.categoryGrid}>
+                {CATEGORIES.map((cat) => (
+                  <TouchableOpacity
+                    key={cat}
+                    onPress={() => setCategory(cat)}
+                    style={[styles.categoryItem, category === cat && styles.categoryItemActive]}
+                  >
+                    <Text style={[styles.categoryItemText, category === cat && styles.categoryItemTextActive]}>
+                      {cat}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
             </View>
 
             <Input
@@ -141,54 +154,60 @@ export default function CreateListingScreen() {
               value={city}
               onChangeText={setCity}
               placeholder="İstanbul, Ankara..."
-              leftIcon="location-outline"
+              leftIcon={<Ionicons name="location-outline" size={18} color={colors.textSecondary} />}
               error={errors.city}
             />
 
             <View style={styles.budgetRow}>
-              <View style={{ flex: 1 }}>
+              <View style={styles.budgetField}>
                 <Input
                   label="Min Bütçe (₺)"
                   value={budgetMin}
                   onChangeText={setBudgetMin}
                   placeholder="1000"
                   keyboardType="numeric"
-                  leftIcon="trending-down-outline"
+                  leftIcon={<Ionicons name="trending-down-outline" size={18} color={colors.textSecondary} />}
                   error={errors.budgetMin}
                 />
               </View>
-              <View style={{ width: SPACING.md }} />
-              <View style={{ flex: 1 }}>
+              <View style={styles.budgetSpacer} />
+              <View style={styles.budgetField}>
                 <Input
                   label="Max Bütçe (₺)"
                   value={budgetMax}
                   onChangeText={setBudgetMax}
                   placeholder="5000"
                   keyboardType="numeric"
-                  leftIcon="trending-up-outline"
+                  leftIcon={<Ionicons name="trending-up-outline" size={18} color={colors.textSecondary} />}
                   error={errors.budgetMax}
                 />
               </View>
             </View>
 
             {/* Urgency */}
-            <Text style={styles.fieldLabel}>Teslimat Aciliyeti</Text>
-            <View style={styles.urgencyRow}>
-              {URGENCY.map((u) => (
-                <TouchableOpacity
-                  key={u.value}
-                  onPress={() => setUrgency(u.value)}
-                  style={[styles.urgencyItem, urgency === u.value && styles.urgencyItemActive]}
-                >
-                  <Ionicons name={u.icon} size={20} color={urgency === u.value ? COLORS.primary : COLORS.textMuted} />
-                  <Text style={[styles.urgencyLabel, urgency === u.value && styles.urgencyLabelActive]}>
-                    {u.label}
-                  </Text>
-                </TouchableOpacity>
-              ))}
+            <View>
+              <Text style={styles.inputLabel}>Teslimat Aciliyeti</Text>
+              <View style={styles.urgencyRow}>
+                {URGENCY.map((u) => (
+                  <TouchableOpacity
+                    key={u.value}
+                    onPress={() => setUrgency(u.value)}
+                    style={[styles.urgencyItem, urgency === u.value && styles.urgencyItemActive]}
+                  >
+                    <Ionicons
+                      name={u.icon}
+                      size={20}
+                      color={urgency === u.value ? colors.primary.DEFAULT : colors.textTertiary}
+                    />
+                    <Text style={[styles.urgencyLabel, urgency === u.value && styles.urgencyLabelActive]}>
+                      {u.label}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
             </View>
 
-            <Button title="İlanı Yayınla" onPress={handleCreate} loading={loading} size="lg" style={styles.btn} />
+            <Button title="İlanı Yayınla" onPress={handleCreate} loading={loading} size="lg" fullWidth />
           </View>
         </ScrollView>
       </KeyboardAvoidingView>
@@ -197,47 +216,107 @@ export default function CreateListingScreen() {
 }
 
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: COLORS.background },
-  scroll: { padding: SPACING.lg, paddingBottom: SPACING.xxl },
-  header: { marginBottom: SPACING.lg },
-  headerTitle: { fontSize: 24, fontWeight: '800', color: COLORS.text },
-  headerSubtitle: { fontSize: 14, color: COLORS.textMuted, marginTop: 2 },
+  safe: { flex: 1, backgroundColor: colors.background },
+  flex: { flex: 1 },
+  scroll: { padding: space.lg, paddingBottom: 100 },
+  header: { marginBottom: space.lg },
+  headerTitle: {
+    fontSize: 24,
+    fontFamily: fontFamily.extraBold,
+    color: colors.textPrimary,
+  },
+  headerSubtitle: {
+    fontSize: 14,
+    fontFamily: fontFamily.regular,
+    color: colors.textSecondary,
+    marginTop: 2,
+  },
   card: {
-    backgroundColor: COLORS.surface,
-    borderRadius: RADIUS.xl,
-    padding: SPACING.lg,
+    backgroundColor: colors.surface,
+    borderRadius: borderRadius.xl,
+    padding: space.lg,
     borderWidth: 1,
-    borderColor: COLORS.border,
+    borderColor: colors.border,
+    gap: space.md,
   },
-  fieldLabel: { fontSize: 14, fontWeight: '500', color: COLORS.textSecondary, marginBottom: SPACING.sm },
-  errorInline: { color: COLORS.error, fontWeight: '400', fontSize: 12 },
-  categoryGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: SPACING.sm, marginBottom: SPACING.md },
+  inputLabel: {
+    fontSize: 14,
+    fontFamily: fontFamily.medium,
+    color: colors.textPrimary,
+    marginBottom: 6,
+  },
+  errorInline: {
+    fontFamily: fontFamily.regular,
+    color: colors.error.DEFAULT,
+    fontSize: 12,
+  },
+  textareaWrapper: { gap: 6 },
+  textarea: {
+    backgroundColor: colors.surfaceRaised,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: borderRadius.md,
+    padding: space.md,
+    minHeight: 100,
+  },
+  textareaError: {
+    borderColor: colors.error.DEFAULT,
+  },
+  textareaInput: {
+    fontSize: 15,
+    fontFamily: fontFamily.regular,
+    color: colors.textPrimary,
+    minHeight: 80,
+  },
+  categoryGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: space.sm,
+  },
   categoryItem: {
-    paddingHorizontal: SPACING.sm + 4,
-    paddingVertical: SPACING.xs + 2,
-    borderRadius: RADIUS.full,
-    backgroundColor: COLORS.surfaceLight,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: borderRadius.full,
+    backgroundColor: colors.surfaceRaised,
     borderWidth: 1.5,
-    borderColor: COLORS.border,
+    borderColor: colors.border,
   },
-  categoryItemActive: { backgroundColor: COLORS.primary + '20', borderColor: COLORS.primary },
-  categoryItemText: { fontSize: 13, fontWeight: '600', color: COLORS.textSecondary },
-  categoryItemTextActive: { color: COLORS.primary },
+  categoryItemActive: {
+    backgroundColor: colors.primary.lighter,
+    borderColor: colors.primary.DEFAULT,
+  },
+  categoryItemText: {
+    fontSize: 13,
+    fontFamily: fontFamily.semiBold,
+    color: colors.textSecondary,
+  },
+  categoryItemTextActive: {
+    color: colors.primary.light,
+  },
   budgetRow: { flexDirection: 'row', alignItems: 'flex-start' },
-  urgencyRow: { flexDirection: 'row', gap: SPACING.sm, marginBottom: SPACING.lg },
+  budgetField: { flex: 1 },
+  budgetSpacer: { width: space.md },
+  urgencyRow: { flexDirection: 'row', gap: space.sm },
   urgencyItem: {
     flex: 1,
-    flexDirection: 'column',
     alignItems: 'center',
-    paddingVertical: SPACING.sm,
-    borderRadius: RADIUS.md,
-    backgroundColor: COLORS.surfaceLight,
+    paddingVertical: space.sm,
+    borderRadius: borderRadius.md,
+    backgroundColor: colors.surfaceRaised,
     borderWidth: 1.5,
-    borderColor: COLORS.border,
+    borderColor: colors.border,
     gap: 4,
   },
-  urgencyItemActive: { backgroundColor: COLORS.primary + '15', borderColor: COLORS.primary },
-  urgencyLabel: { fontSize: 13, fontWeight: '600', color: COLORS.textMuted },
-  urgencyLabelActive: { color: COLORS.primary },
-  btn: {},
+  urgencyItemActive: {
+    backgroundColor: colors.primary.lighter,
+    borderColor: colors.primary.DEFAULT,
+  },
+  urgencyLabel: {
+    fontSize: 13,
+    fontFamily: fontFamily.semiBold,
+    color: colors.textTertiary,
+  },
+  urgencyLabelActive: {
+    color: colors.primary.light,
+  },
 });
