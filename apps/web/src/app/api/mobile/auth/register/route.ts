@@ -28,8 +28,34 @@ export async function POST(req: NextRequest) {
 
     const hashedPassword = await bcrypt.hash(password, 12);
     const user = await prisma.user.create({
-      data: { name, email, hashedPassword, phone: phone || null, role },
+      data: {
+        name,
+        email,
+        hashedPassword,
+        phone: phone || null,
+        role,
+        verified: !settings.email_verification_required,
+      },
     });
+
+    if (settings.email_verification_required) {
+      return NextResponse.json({
+        requiresVerification: true,
+        message: 'Hesabınız oluşturuldu. Giriş yapmadan önce hesabınızın doğrulanması gerekiyor.',
+        user: {
+          id: user.id,
+          name: user.name,
+          email: user.email,
+          role: user.role,
+          badge: user.badge,
+          verified: user.verified,
+          image: user.image,
+          city: user.city,
+          score: user.score,
+          completedDeals: user.completedDeals,
+        },
+      }, { status: 201 });
+    }
 
     const token = signMobileToken({
       sub: user.id,

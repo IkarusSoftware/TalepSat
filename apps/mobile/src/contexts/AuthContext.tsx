@@ -21,7 +21,7 @@ type AuthContextType = {
   token: string | null;
   loading: boolean;
   login: (email: string, password: string) => Promise<void>;
-  register: (data: RegisterData) => Promise<void>;
+  register: (data: RegisterData) => Promise<RegisterResult>;
   logout: () => Promise<void>;
   refreshUser: () => Promise<void>;
 };
@@ -32,6 +32,11 @@ type RegisterData = {
   password: string;
   phone?: string;
   role: 'buyer' | 'seller' | 'both';
+};
+
+type RegisterResult = {
+  requiresVerification: boolean;
+  message?: string;
 };
 
 const AuthContext = createContext<AuthContextType | null>(null);
@@ -68,11 +73,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const register = useCallback(async (data: RegisterData) => {
     const res = await api.post('/api/mobile/auth/register', data);
-    const { token: newToken, user: newUser } = res.data;
+    const { token: newToken, user: newUser, requiresVerification, message } = res.data;
+
+    if (!newToken || !newUser) {
+      return {
+        requiresVerification: Boolean(requiresVerification),
+        message,
+      };
+    }
+
     await SecureStore.setItemAsync('auth_token', newToken);
     await SecureStore.setItemAsync('auth_user', JSON.stringify(newUser));
     setToken(newToken);
     setUser(newUser);
+    return { requiresVerification: false };
   }, []);
 
   const logout = useCallback(async () => {

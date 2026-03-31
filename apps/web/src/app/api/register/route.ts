@@ -47,8 +47,25 @@ export async function POST(req: NextRequest) {
         hashedPassword,
         phone: phone || null,
         role,
+        verified: !settings.email_verification_required,
       },
     });
+
+    if (settings.email_verification_required) {
+      return NextResponse.json(
+        {
+          requiresVerification: true,
+          message: 'Hesabınız oluşturuldu. Giriş yapmadan önce hesabınızın doğrulanması gerekiyor.',
+          user: {
+            id: user.id,
+            name: user.name,
+            email: user.email,
+            role: user.role,
+          },
+        },
+        { status: 201 }
+      );
+    }
 
     return NextResponse.json(
       {

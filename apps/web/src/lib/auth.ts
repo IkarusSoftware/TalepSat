@@ -4,10 +4,12 @@ import Google from 'next-auth/providers/google';
 import { PrismaAdapter } from '@auth/prisma-adapter';
 import bcrypt from 'bcryptjs';
 import { prisma } from './prisma';
+import { getSettingsDirect } from './site-settings';
 
 // Only use PrismaAdapter when Google OAuth is configured
 // Adapter + Credentials + JWT can conflict — adapter tries to create sessions
-const useAdapter = !!(process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET);
+const googleProviderConfigured = !!(process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET);
+const useAdapter = googleProviderConfigured;
 
 export const { handlers, signIn, signOut, auth } = NextAuth({
   ...(useAdapter ? { adapter: PrismaAdapter(prisma) } : {}),
@@ -27,11 +29,22 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
           return null;
         }
 
-        const user = await prisma.user.findUnique({
-          where: { email: credentials.email as string },
-        });
+        const [settings, user] = await Promise.all([
+          getSettingsDirect(),
+          prisma.user.findUnique({
+            where: { email: credentials.email as string },
+          }),
+        ]);
 
         if (!user || !user.hashedPassword) {
+          return null;
+        }
+
+        if (user.status === 'banned' || user.status === 'suspended') {
+          return null;
+        }
+
+        if (settings.email_verification_required && user.role !== 'admin' && !user.verified) {
           return null;
         }
 
@@ -52,7 +65,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
         };
       },
     }),
-    ...(process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET
+    ...(googleProviderConfigured
       ? [Google({
           clientId: process.env.GOOGLE_CLIENT_ID,
           clientSecret: process.env.GOOGLE_CLIENT_SECRET,
@@ -60,6 +73,34 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
       : []),
   ],
   callbacks: {
+    async signIn({ user, account }) {
+      const settings = await getSettingsDirect();
+
+      if (account?.provider === 'google') {
+        if (!googleProviderConfigured || !settings.google_login_enabled) {
+          return false;
+        }
+
+        if (!user.email) {
+          return false;
+        }
+
+        const existingUser = await prisma.user.findUnique({
+          where: { email: user.email },
+          select: { id: true, status: true },
+        });
+
+        if (!existingUser && !settings.registration_open) {
+          return false;
+        }
+
+        if (existingUser?.status === 'banned' || existingUser?.status === 'suspended') {
+          return false;
+        }
+      }
+
+      return true;
+    },
     async jwt({ token, user, trigger }) {
       if (user) {
         // Login — encode user data into JWT once

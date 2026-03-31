@@ -10,13 +10,21 @@ import { fontFamily } from '../../src/theme';
 function TabBadge({ count }: { count: number }) {
   const { colors } = useTheme();
   if (count <= 0) return null;
+
   return (
     <View style={{
-      position: 'absolute', top: -4, right: -8,
+      position: 'absolute',
+      top: -4,
+      right: -8,
       backgroundColor: colors.error.DEFAULT,
-      borderRadius: 10, minWidth: 18, height: 18,
-      justifyContent: 'center', alignItems: 'center', paddingHorizontal: 4,
-    }}>
+      borderRadius: 10,
+      minWidth: 18,
+      height: 18,
+      justifyContent: 'center',
+      alignItems: 'center',
+      paddingHorizontal: 4,
+    }}
+    >
       <Text style={{ color: colors.white, fontSize: 10, fontFamily: fontFamily.bold }}>
         {count > 99 ? '99+' : String(count)}
       </Text>
@@ -47,12 +55,15 @@ export default function TabsLayout() {
         tabBarStyle: {
           position: 'absolute',
           bottom: Platform.OS === 'ios' ? 24 : 16,
-          left: 20, right: 20,
+          left: 20,
+          right: 20,
           backgroundColor: colors.surface,
           borderTopWidth: 0,
           borderRadius: 28,
           height: 68,
-          paddingBottom: 10, paddingTop: 10, paddingHorizontal: 8,
+          paddingBottom: 10,
+          paddingTop: 10,
+          paddingHorizontal: 8,
           shadowColor: '#000',
           shadowOffset: { width: 0, height: 8 },
           shadowOpacity: 0.25,
@@ -74,7 +85,7 @@ export default function TabsLayout() {
       <Tabs.Screen
         name="index"
         options={{
-          title: 'Keşfet',
+          title: 'Kesfet',
           tabBarIcon: ({ color, focused }) => (
             <View style={[styles.iconWrap, focused && { backgroundColor: colors.accent.lighter }]}>
               <Ionicons name={focused ? 'search' : 'search-outline'} size={22} color={color} />
@@ -85,7 +96,7 @@ export default function TabsLayout() {
       <Tabs.Screen
         name="create"
         options={{
-          title: 'İlan',
+          title: 'Ilan',
           tabBarIcon: ({ color, focused }) => (
             <View style={[styles.iconWrap, focused && { backgroundColor: colors.accent.lighter }]}>
               <Ionicons name={focused ? 'add-circle' : 'add-circle-outline'} size={22} color={color} />
@@ -133,7 +144,10 @@ export default function TabsLayout() {
 
 const styles = StyleSheet.create({
   iconWrap: {
-    width: 40, height: 32, borderRadius: 16,
-    alignItems: 'center', justifyContent: 'center',
+    width: 40,
+    height: 32,
+    borderRadius: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
 });

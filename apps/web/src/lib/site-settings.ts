@@ -1,45 +1,53 @@
 import { prisma } from '@/lib/prisma';
 
 export type SiteSettings = {
-  // Genel
   site_name: string;
   site_tagline: string;
   site_url: string;
   contact_email: string;
   support_phone: string;
-  // Görünüm
   logo_url: string;
   favicon_url: string;
   primary_color: string;
-  // Kayıt & Giriş
   registration_open: boolean;
   email_verification_required: boolean;
   google_login_enabled: boolean;
-  // İlan
   listing_default_days: number;
   listing_max_images: number;
   listing_requires_approval: boolean;
   listing_max_budget: number;
-  // Teklif
   offer_min_amount: number;
   offer_max_revisions: number;
   commission_rate: number;
-  // Bildirimler
   email_notifications_enabled: boolean;
   admin_notification_email: string;
-  // SEO
   seo_title: string;
   seo_description: string;
   seo_og_image: string;
-  // Bakım
   maintenance_mode: boolean;
   maintenance_message: string;
 };
 
-const DEFAULTS: SiteSettings = {
+export type PublicSiteSettings = Pick<
+  SiteSettings,
+  | 'site_name'
+  | 'site_tagline'
+  | 'site_url'
+  | 'contact_email'
+  | 'support_phone'
+  | 'registration_open'
+  | 'email_verification_required'
+  | 'google_login_enabled'
+  | 'maintenance_mode'
+  | 'maintenance_message'
+> & {
+  google_login_available: boolean;
+};
+
+export const DEFAULT_SITE_SETTINGS: SiteSettings = {
   site_name: 'TalepSat',
   site_tagline: 'İhtiyacını Yaz, Satıcılar Yarışsın',
-  site_url: 'http://localhost:3001',
+  site_url: 'http://localhost:3000',
   contact_email: '',
   support_phone: '',
   logo_url: '',
@@ -64,54 +72,92 @@ const DEFAULTS: SiteSettings = {
   maintenance_message: 'Sitemiz şu an bakımda. Lütfen daha sonra tekrar deneyin.',
 };
 
-function parse(map: Record<string, string>): SiteSettings {
-  const bool = (key: keyof SiteSettings) =>
-    key in map ? map[key as string] === 'true' : DEFAULTS[key] as boolean;
-  const num = (key: keyof SiteSettings) =>
-    key in map ? parseFloat(map[key as string]) || (DEFAULTS[key] as number) : DEFAULTS[key] as number;
-  const str = (key: keyof SiteSettings) =>
-    key in map ? map[key as string] : DEFAULTS[key] as string;
+const SITE_SETTING_KEYS = Object.keys(DEFAULT_SITE_SETTINGS) as (keyof SiteSettings)[];
+
+function parseSettingValue<K extends keyof SiteSettings>(key: K, rawValue?: string): SiteSettings[K] {
+  const fallback = DEFAULT_SITE_SETTINGS[key];
+  const normalizedValue = rawValue?.trim();
+
+  if (rawValue == null) {
+    return fallback;
+  }
+
+  if (typeof fallback === 'boolean') {
+    if (!normalizedValue) {
+      return fallback;
+    }
+
+    return (normalizedValue === 'true') as SiteSettings[K];
+  }
+
+  if (typeof fallback === 'number') {
+    if (!normalizedValue) {
+      return fallback;
+    }
+
+    const parsed = Number(normalizedValue);
+    return (Number.isFinite(parsed) ? parsed : fallback) as SiteSettings[K];
+  }
+
+  return rawValue as SiteSettings[K];
+}
+
+function parseSiteSettings(map: Record<string, string>): SiteSettings {
+  const settings = { ...DEFAULT_SITE_SETTINGS } as SiteSettings;
+  const mutableSettings = settings as Record<string, SiteSettings[keyof SiteSettings]>;
+
+  for (const key of SITE_SETTING_KEYS) {
+    mutableSettings[key as string] = parseSettingValue(key, map[key as string]);
+  }
+
+  return settings;
+}
+
+function serializeSettingValue(value: SiteSettings[keyof SiteSettings]): string {
+  return typeof value === 'string' ? value : String(value);
+}
+
+export function siteSettingsToRecord(settings: SiteSettings): Record<string, string> {
+  const record: Record<string, string> = {};
+
+  for (const key of SITE_SETTING_KEYS) {
+    record[key as string] = serializeSettingValue(settings[key]);
+  }
+
+  return record;
+}
+
+export function toPublicSiteSettings(settings: SiteSettings): PublicSiteSettings {
+  const googleConfigured = Boolean(process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET);
 
   return {
-    site_name: str('site_name'),
-    site_tagline: str('site_tagline'),
-    site_url: str('site_url'),
-    contact_email: str('contact_email'),
-    support_phone: str('support_phone'),
-    logo_url: str('logo_url'),
-    favicon_url: str('favicon_url'),
-    primary_color: str('primary_color'),
-    registration_open: bool('registration_open'),
-    email_verification_required: bool('email_verification_required'),
-    google_login_enabled: bool('google_login_enabled'),
-    listing_default_days: num('listing_default_days'),
-    listing_max_images: num('listing_max_images'),
-    listing_requires_approval: bool('listing_requires_approval'),
-    listing_max_budget: num('listing_max_budget'),
-    offer_min_amount: num('offer_min_amount'),
-    offer_max_revisions: num('offer_max_revisions'),
-    commission_rate: num('commission_rate'),
-    email_notifications_enabled: bool('email_notifications_enabled'),
-    admin_notification_email: str('admin_notification_email'),
-    seo_title: str('seo_title'),
-    seo_description: str('seo_description'),
-    seo_og_image: str('seo_og_image'),
-    maintenance_mode: bool('maintenance_mode'),
-    maintenance_message: str('maintenance_message'),
+    site_name: settings.site_name,
+    site_tagline: settings.site_tagline,
+    site_url: settings.site_url,
+    contact_email: settings.contact_email,
+    support_phone: settings.support_phone,
+    registration_open: settings.registration_open,
+    email_verification_required: settings.email_verification_required,
+    google_login_enabled: settings.google_login_enabled,
+    google_login_available: settings.google_login_enabled && googleConfigured,
+    maintenance_mode: settings.maintenance_mode,
+    maintenance_message: settings.maintenance_message,
   };
 }
 
-// Her zaman DB'den taze veri okur — cache yok
 export async function getSiteSettings(): Promise<SiteSettings> {
   try {
     const rows = await prisma.siteSetting.findMany();
     const map: Record<string, string> = {};
-    for (const row of rows) map[row.key] = row.value;
-    return parse(map);
+
+    for (const row of rows) {
+      map[row.key] = row.value;
+    }
+
+    return parseSiteSettings(map);
   } catch {
-    return DEFAULTS;
+    return DEFAULT_SITE_SETTINGS;
   }
 }
 
-// API route'ları için alias (aynı fonksiyon)
 export const getSettingsDirect = getSiteSettings;

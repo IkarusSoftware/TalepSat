@@ -1,9 +1,10 @@
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useRef, useState } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity, KeyboardAvoidingView,
   Platform, Alert, TextInput, LayoutAnimation, UIManager,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useBottomTabBarHeight } from '@react-navigation/bottom-tabs';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import api from '../../src/lib/api';
 import { useThemeColors } from '../../src/contexts/ThemeContext';
@@ -59,6 +60,9 @@ function formatPreviewPrice(value?: string) {
 export default function CreateListingScreen() {
   const colors = useThemeColors();
   const styles = useMemo(() => makeStyles(colors), [colors]);
+  const insets = useSafeAreaInsets();
+  const tabBarHeight = useBottomTabBarHeight();
+  const scrollRef = useRef<ScrollView>(null);
   const [currentStep, setCurrentStep] = useState(0);
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
@@ -83,6 +87,9 @@ export default function CreateListingScreen() {
   function animateStepChange(nextStep: number) {
     LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
     setCurrentStep(nextStep);
+    requestAnimationFrame(() => {
+      scrollRef.current?.scrollTo({ y: 0, animated: false });
+    });
   }
 
   function validateStep(stepIndex: number) {
@@ -450,12 +457,16 @@ export default function CreateListingScreen() {
   }
 
   const currentStepKey = STEPS[currentStep].key;
+  const tabBarGap = Platform.OS === 'ios' ? 24 : 16;
+  const footerBottomSpacing = tabBarHeight + tabBarGap + Math.max(insets.bottom - 4, 0) + space.md;
+  const scrollBottomPadding = footerBottomSpacing;
 
   return (
     <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
       <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={styles.flex}>
         <ScrollView
-          contentContainerStyle={styles.scroll}
+          ref={scrollRef}
+          contentContainerStyle={[styles.scroll, { paddingBottom: scrollBottomPadding }]}
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
         >
@@ -511,34 +522,35 @@ export default function CreateListingScreen() {
             {currentStepKey === 'budget' && renderBudgetStep()}
             {currentStepKey === 'preview' && renderPreviewStep()}
           </View>
+
+          <View style={[styles.footer, { marginBottom: footerBottomSpacing }]}>
+            <Button
+              title="Geri"
+              variant="secondary"
+              onPress={handleBack}
+              disabled={currentStep === 0 || loading}
+              style={{ flex: 1 }}
+            />
+
+            {currentStep < STEPS.length - 1 ? (
+              <Button
+                title="Ileri"
+                onPress={handleNext}
+                iconRight={<Ionicons name="arrow-forward" size={16} color={colors.white} />}
+                style={{ flex: 1 }}
+              />
+            ) : (
+              <Button
+                title="Ilani Yayinla"
+                onPress={handlePublish}
+                loading={loading}
+                icon={<Ionicons name="checkmark-circle-outline" size={16} color={colors.white} />}
+                style={{ flex: 1 }}
+              />
+            )}
+          </View>
         </ScrollView>
 
-        <View style={styles.footer}>
-          <Button
-            title="Geri"
-            variant="secondary"
-            onPress={handleBack}
-            disabled={currentStep === 0 || loading}
-            style={{ flex: 1 }}
-          />
-
-          {currentStep < STEPS.length - 1 ? (
-            <Button
-              title="Ileri"
-              onPress={handleNext}
-              iconRight={<Ionicons name="arrow-forward" size={16} color={colors.white} />}
-              style={{ flex: 1 }}
-            />
-          ) : (
-            <Button
-              title="Ilani Yayinla"
-              onPress={handlePublish}
-              loading={loading}
-              icon={<Ionicons name="checkmark-circle-outline" size={16} color={colors.white} />}
-              style={{ flex: 1 }}
-            />
-          )}
-        </View>
       </KeyboardAvoidingView>
     </SafeAreaView>
   );
@@ -547,7 +559,7 @@ export default function CreateListingScreen() {
 const makeStyles = (colors: any) => StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.background },
   flex: { flex: 1 },
-  scroll: { paddingHorizontal: space.lg, paddingTop: space.md, paddingBottom: 140 },
+  scroll: { paddingHorizontal: space.lg, paddingTop: space.md },
   header: { marginBottom: space.lg },
   headerTitle: { fontSize: 28, fontFamily: fontFamily.extraBold, color: colors.textPrimary },
   headerSubtitle: { fontSize: 14, lineHeight: 20, fontFamily: fontFamily.regular, color: colors.textSecondary, marginTop: 4 },
@@ -730,17 +742,8 @@ const makeStyles = (colors: any) => StyleSheet.create({
   previewInfoLabel: { fontSize: 12, fontFamily: fontFamily.medium, color: colors.textTertiary, marginBottom: 4 },
   previewInfoValue: { fontSize: 14, fontFamily: fontFamily.semiBold, color: colors.textPrimary },
   footer: {
-    position: 'absolute',
-    left: 0,
-    right: 0,
-    bottom: 0,
     flexDirection: 'row',
     gap: space.sm,
-    paddingHorizontal: space.lg,
-    paddingTop: space.md,
-    paddingBottom: Platform.OS === 'ios' ? space.lg : space.md,
-    backgroundColor: colors.surface,
-    borderTopWidth: 1,
-    borderTopColor: colors.border,
+    marginTop: space.md,
   },
 });

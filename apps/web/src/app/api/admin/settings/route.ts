@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { auth } from '@/lib/auth';
+import { getSettingsDirect, siteSettingsToRecord } from '@/lib/site-settings';
 import type { Session } from 'next-auth';
 
 function isAdmin(session: Session | null) {
@@ -11,10 +12,8 @@ export async function GET() {
   const session = await auth();
   if (!isAdmin(session)) return NextResponse.json({ error: 'Yetkisiz' }, { status: 401 });
 
-  const rows = await prisma.siteSetting.findMany();
-  const settings: Record<string, string> = {};
-  for (const row of rows) settings[row.key] = row.value;
-  return NextResponse.json(settings);
+  const settings = await getSettingsDirect();
+  return NextResponse.json(siteSettingsToRecord(settings));
 }
 
 export async function PATCH(req: NextRequest) {
@@ -34,5 +33,10 @@ export async function PATCH(req: NextRequest) {
     )
   );
 
-  return NextResponse.json({ success: true });
+  const updatedSettings = await getSettingsDirect();
+
+  return NextResponse.json({
+    success: true,
+    settings: siteSettingsToRecord(updatedSettings),
+  });
 }

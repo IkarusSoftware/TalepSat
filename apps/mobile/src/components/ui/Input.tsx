@@ -33,7 +33,7 @@ export function Input({ label, error, hint, leftIcon, isPassword, style, ...rest
       <View style={[styles.inputWrapper, { borderColor }]}>
         {leftIcon && <View style={styles.leftIcon}>{leftIcon}</View>}
         <TextInput
-          style={[styles.input, leftIcon && styles.inputWithIcon, style]}
+          style={[styles.input, leftIcon ? styles.inputWithIcon : undefined, style]}
           placeholderTextColor={colors.textTertiary}
           selectionColor={colors.accent.DEFAULT}
           secureTextEntry={isPassword && !showPassword}

@@ -58,12 +58,12 @@ const styles = StyleSheet.create({
     backgroundColor: colors.surfaceRaised,
   },
   placeholder: {
-    backgroundColor: colors.accent[200],
+    backgroundColor: colors.accent.lighter,
     alignItems: 'center',
     justifyContent: 'center',
   },
   initials: {
-    color: colors.accent[800],
+    color: colors.accent.light,
     fontFamily: fontFamily.bold,
   },
   verifiedBadge: {
