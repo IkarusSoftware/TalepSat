@@ -1,15 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { auth } from '@/lib/auth';
+import { getApiSession } from '@/lib/api-session';
 import { prisma } from '@/lib/prisma';
 
 // GET /api/conversations
-export async function GET() {
-  const session = await auth();
-  if (!session?.user?.id) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+export async function GET(req: NextRequest) {
+  const session = await getApiSession(req);
+  if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  const userId = session.userId;
 
   const conversations = await prisma.conversation.findMany({
     where: {
-      participants: { some: { userId: session.user.id } },
+      participants: { some: { userId } },
     },
     include: {
       participants: {
@@ -35,10 +36,14 @@ export async function GET() {
     : [];
 
   const result = conversations.map((c) => {
-    const otherParticipant = c.participants.find((p) => p.userId !== session.user!.id);
-    const myParticipant = c.participants.find((p) => p.userId === session.user!.id);
+    const otherParticipant = c.participants.find((p) => p.userId !== userId);
+    const myParticipant = c.participants.find((p) => p.userId === userId);
     const lastMsg = c.messages[0];
     const relatedOffer = c.listingId ? acceptedOffers.find((o) => o.listingId === c.listingId) : null;
+    const lastAttachments = lastMsg?.attachments ? JSON.parse(lastMsg.attachments) as { name?: string }[] : [];
+    const lastMessagePreview =
+      lastMsg?.text ||
+      (lastAttachments.length > 0 ? `📎 ${lastAttachments[0].name || 'Dosya'}` : '');
 
     return {
       id: c.id,
@@ -49,7 +54,7 @@ export async function GET() {
       participantInitials: (otherParticipant?.user.name ?? 'K').split(' ').map((n: string) => n[0]).join('').toUpperCase().slice(0, 2),
       participantVerified: otherParticipant?.user.verified ?? false,
       participantLastSeen: otherParticipant?.user.lastSeen ?? null,
-      lastMessage: lastMsg?.text ?? '',
+      lastMessage: lastMessagePreview,
       lastMessageAt: lastMsg?.createdAt ?? c.createdAt,
       unreadCount: myParticipant?.unreadCount ?? 0,
       muted: myParticipant?.muted ?? false,
@@ -65,8 +70,9 @@ export async function GET() {
 
 // POST /api/conversations — start a new conversation
 export async function POST(req: NextRequest) {
-  const session = await auth();
-  if (!session?.user?.id) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  const session = await getApiSession(req);
+  if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  const userId = session.userId;
 
   const body = await req.json();
   const { participantId, listingId, listingTitle, message } = body;
@@ -80,7 +86,7 @@ export async function POST(req: NextRequest) {
     where: {
       listingId: listingId || null,
       AND: [
-        { participants: { some: { userId: session.user.id } } },
+        { participants: { some: { userId } } },
         { participants: { some: { userId: participantId } } },
       ],
     },
@@ -89,7 +95,7 @@ export async function POST(req: NextRequest) {
   if (existing) {
     // Add message to existing conversation
     await prisma.message.create({
-      data: { conversationId: existing.id, senderId: session.user.id, text: message },
+      data: { conversationId: existing.id, senderId: userId, text: message },
     });
     await prisma.conversationParticipant.updateMany({
       where: { conversationId: existing.id, userId: participantId },
@@ -105,12 +111,12 @@ export async function POST(req: NextRequest) {
       listingTitle,
       participants: {
         create: [
-          { userId: session.user.id },
+          { userId },
           { userId: participantId, unreadCount: 1 },
         ],
       },
       messages: {
-        create: { senderId: session.user.id, text: message },
+        create: { senderId: userId, text: message },
       },
     },
   });

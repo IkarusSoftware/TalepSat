@@ -1,9 +1,10 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { useRouter } from 'expo-router';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { Badge, Avatar } from '../ui';
-import { colors, fontFamily, space, borderRadius, shadows } from '../../theme';
+import { useThemeColors } from '../../contexts/ThemeContext';
+import { fontFamily, space, borderRadius, shadows } from '../../theme';
 import { formatPrice, urgencyLabel, daysRemaining } from '../../lib/formatters';
 import type { Listing } from '../../types';
 
@@ -15,6 +16,8 @@ interface ListingCardProps {
 
 export function ListingCard({ listing, onFavoriteToggle, isFavorited }: ListingCardProps) {
   const router = useRouter();
+  const colors = useThemeColors();
+  const styles = useMemo(() => makeStyles(colors), [colors]);
   const days = daysRemaining(listing.expiresAt);
 
   return (
@@ -23,11 +26,10 @@ export function ListingCard({ listing, onFavoriteToggle, isFavorited }: ListingC
       onPress={() => router.push(`/listing/${listing.id}` as any)}
       style={styles.card}
     >
-      {/* Top Row: Category + City + Urgency */}
       <View style={styles.topRow}>
         <View style={styles.tags}>
           <Badge label={listing.category} variant="accent" size="sm" />
-          <Text style={styles.city}>{'\u{1F4CD}'} {listing.city}</Text>
+          <Text style={styles.city}>📍 {listing.city}</Text>
           {listing.deliveryUrgency === 'urgent' && (
             <Badge label={urgencyLabel(listing.deliveryUrgency)} variant="error" size="sm" />
           )}
@@ -43,15 +45,12 @@ export function ListingCard({ listing, onFavoriteToggle, isFavorited }: ListingC
         )}
       </View>
 
-      {/* Title */}
       <Text style={styles.title} numberOfLines={2}>{listing.title}</Text>
 
-      {/* Budget */}
       <Text style={styles.budget}>
-        {formatPrice(listing.budgetMin)} {'\u2014'} {formatPrice(listing.budgetMax)}
+        {formatPrice(listing.budgetMin)} — {formatPrice(listing.budgetMax)}
       </Text>
 
-      {/* Bottom Row */}
       <View style={styles.bottomRow}>
         <View style={styles.buyerInfo}>
           <Avatar
@@ -68,7 +67,7 @@ export function ListingCard({ listing, onFavoriteToggle, isFavorited }: ListingC
           )}
           {days !== null && (
             <Text style={[styles.daysText, days <= 3 && { color: colors.error.DEFAULT }]}>
-              {days} g\u00FCn
+              {days} gün
             </Text>
           )}
         </View>
@@ -77,7 +76,7 @@ export function ListingCard({ listing, onFavoriteToggle, isFavorited }: ListingC
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (colors: any) => StyleSheet.create({
   card: {
     backgroundColor: colors.surface,
     borderWidth: 1,
@@ -88,59 +87,16 @@ const styles = StyleSheet.create({
     ...shadows.sm,
   },
   topRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: space.sm,
+    flexDirection: 'row', justifyContent: 'space-between',
+    alignItems: 'center', marginBottom: space.sm,
   },
-  tags: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: space.sm,
-    flexShrink: 1,
-  },
-  city: {
-    fontSize: 12,
-    fontFamily: fontFamily.regular,
-    color: colors.textSecondary,
-  },
-  title: {
-    fontSize: 16,
-    fontFamily: fontFamily.semiBold,
-    color: colors.textPrimary,
-    marginBottom: space.xs,
-  },
-  budget: {
-    fontSize: 15,
-    fontFamily: fontFamily.bold,
-    color: colors.accent.DEFAULT,
-    marginBottom: space.sm + 4,
-  },
-  bottomRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  buyerInfo: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: space.sm,
-    flexShrink: 1,
-  },
-  buyerName: {
-    fontSize: 13,
-    fontFamily: fontFamily.medium,
-    color: colors.textSecondary,
-    maxWidth: 120,
-  },
-  meta: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: space.sm,
-  },
-  daysText: {
-    fontSize: 12,
-    fontFamily: fontFamily.medium,
-    color: colors.textSecondary,
-  },
+  tags: { flexDirection: 'row', alignItems: 'center', gap: space.sm, flexShrink: 1 },
+  city: { fontSize: 12, fontFamily: fontFamily.regular, color: colors.textSecondary },
+  title: { fontSize: 16, fontFamily: fontFamily.semiBold, color: colors.textPrimary, marginBottom: space.xs },
+  budget: { fontSize: 15, fontFamily: fontFamily.bold, color: colors.accent.DEFAULT, marginBottom: space.sm + 4 },
+  bottomRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  buyerInfo: { flexDirection: 'row', alignItems: 'center', gap: space.sm, flexShrink: 1 },
+  buyerName: { fontSize: 13, fontFamily: fontFamily.medium, color: colors.textSecondary, maxWidth: 120 },
+  meta: { flexDirection: 'row', alignItems: 'center', gap: space.sm },
+  daysText: { fontSize: 12, fontFamily: fontFamily.medium, color: colors.textSecondary },
 });

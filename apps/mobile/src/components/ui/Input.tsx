@@ -1,14 +1,10 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import {
-  View,
-  TextInput,
-  Text,
-  StyleSheet,
-  TouchableOpacity,
-  TextInputProps,
+  View, TextInput, Text, StyleSheet, TouchableOpacity, TextInputProps,
 } from 'react-native';
 import Ionicons from '@expo/vector-icons/Ionicons';
-import { colors, borderRadius, fontFamily, space } from '../../theme';
+import { useThemeColors } from '../../contexts/ThemeContext';
+import { borderRadius, fontFamily, space } from '../../theme';
 
 interface InputProps extends TextInputProps {
   label?: string;
@@ -18,15 +14,8 @@ interface InputProps extends TextInputProps {
   isPassword?: boolean;
 }
 
-export function Input({
-  label,
-  error,
-  hint,
-  leftIcon,
-  isPassword,
-  style,
-  ...rest
-}: InputProps) {
+export function Input({ label, error, hint, leftIcon, isPassword, style, ...rest }: InputProps) {
+  const colors = useThemeColors();
   const [focused, setFocused] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
 
@@ -35,6 +24,8 @@ export function Input({
     : focused
       ? colors.accent.DEFAULT
       : colors.border;
+
+  const styles = useMemo(() => makeStyles(colors), [colors]);
 
   return (
     <View style={styles.container}>
@@ -51,10 +42,7 @@ export function Input({
           {...rest}
         />
         {isPassword && (
-          <TouchableOpacity
-            onPress={() => setShowPassword(!showPassword)}
-            style={styles.eyeButton}
-          >
+          <TouchableOpacity onPress={() => setShowPassword(!showPassword)} style={styles.eyeButton}>
             <Ionicons
               name={showPassword ? 'eye-off-outline' : 'eye-outline'}
               size={20}
@@ -69,49 +57,21 @@ export function Input({
   );
 }
 
-const styles = StyleSheet.create({
-  container: {
-    gap: 6,
-  },
-  label: {
-    fontSize: 14,
-    fontFamily: fontFamily.medium,
-    color: colors.textPrimary,
-  },
+const makeStyles = (colors: any) => StyleSheet.create({
+  container: { gap: 6 },
+  label: { fontSize: 14, fontFamily: fontFamily.medium, color: colors.textPrimary },
   inputWrapper: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: 'row', alignItems: 'center',
     backgroundColor: colors.surfaceRaised,
-    borderWidth: 1,
-    borderRadius: borderRadius.md,
-    height: 48,
+    borderWidth: 1, borderRadius: borderRadius.md, height: 48,
   },
-  leftIcon: {
-    paddingLeft: space.md,
-  },
+  leftIcon: { paddingLeft: space.md },
   input: {
-    flex: 1,
-    height: '100%',
-    paddingHorizontal: space.md,
-    fontSize: 15,
-    fontFamily: fontFamily.regular,
-    color: colors.textPrimary,
+    flex: 1, height: '100%', paddingHorizontal: space.md,
+    fontSize: 15, fontFamily: fontFamily.regular, color: colors.textPrimary,
   },
-  inputWithIcon: {
-    paddingLeft: space.sm,
-  },
-  eyeButton: {
-    paddingRight: space.md,
-    paddingLeft: space.sm,
-  },
-  error: {
-    fontSize: 12,
-    fontFamily: fontFamily.regular,
-    color: colors.error.DEFAULT,
-  },
-  hint: {
-    fontSize: 12,
-    fontFamily: fontFamily.regular,
-    color: colors.textSecondary,
-  },
+  inputWithIcon: { paddingLeft: space.sm },
+  eyeButton: { paddingRight: space.md, paddingLeft: space.sm },
+  error: { fontSize: 12, fontFamily: fontFamily.regular, color: colors.error.DEFAULT },
+  hint: { fontSize: 12, fontFamily: fontFamily.regular, color: colors.textSecondary },
 });

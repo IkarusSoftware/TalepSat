@@ -14,7 +14,8 @@ import {
   PlusJakartaSans_800ExtraBold,
 } from '@expo-google-fonts/plus-jakarta-sans';
 import { AuthProvider, useAuth } from '../src/contexts/AuthContext';
-import { colors } from '../src/theme';
+import { ThemeProvider, useTheme } from '../src/contexts/ThemeContext';
+import { fontFamily } from '../src/theme';
 
 SplashScreen.preventAutoHideAsync();
 
@@ -26,6 +27,7 @@ const queryClient = new QueryClient({
 
 function RootNavigator() {
   const { user, loading } = useAuth();
+  const { colors, isDark } = useTheme();
   const router = useRouter();
   const segments = useSegments();
 
@@ -40,88 +42,89 @@ function RootNavigator() {
   }, [user, loading, segments]);
 
   return (
-    <Stack
-      screenOptions={{
-        headerShown: false,
-        contentStyle: { backgroundColor: colors.background },
-        headerStyle: { backgroundColor: colors.surface },
-        headerTintColor: colors.textPrimary,
-        headerTitleStyle: { fontFamily: 'PlusJakartaSans_600SemiBold' },
-        animation: 'slide_from_right',
-      }}
-    >
-      <Stack.Screen name="(auth)" />
-      <Stack.Screen name="(tabs)" />
-      <Stack.Screen
-        name="listing/[id]"
-        options={{
-          headerShown: true,
-          headerTitle: 'İlan Detayı',
-          headerBackTitle: 'Geri',
+    <>
+      <StatusBar style={isDark ? 'light' : 'dark'} backgroundColor={colors.background} />
+      <Stack
+        screenOptions={{
+          headerShown: false,
+          contentStyle: { backgroundColor: colors.background },
+          headerStyle: { backgroundColor: colors.surface },
+          headerTintColor: colors.textPrimary,
+          headerTitleStyle: { fontFamily: fontFamily.semiBold },
+          animation: 'slide_from_right',
         }}
-      />
-      <Stack.Screen
-        name="offer/[id]"
-        options={{
-          headerShown: true,
-          headerTitle: 'Teklif Detayı',
-          headerBackTitle: 'Geri',
-        }}
-      />
-      <Stack.Screen
-        name="conversation/[id]"
-        options={{
-          headerShown: true,
-          headerTitle: 'Mesaj',
-          headerBackTitle: 'Geri',
-        }}
-      />
-      <Stack.Screen
-        name="notifications"
-        options={{
-          headerShown: true,
-          headerTitle: 'Bildirimler',
-          headerBackTitle: 'Geri',
-        }}
-      />
-      <Stack.Screen
-        name="saved"
-        options={{
-          headerShown: true,
-          headerTitle: 'Favorilerim',
-          headerBackTitle: 'Geri',
-        }}
-      />
-      <Stack.Screen
-        name="orders"
-        options={{
-          headerShown: true,
-          headerTitle: 'Siparişlerim',
-          headerBackTitle: 'Geri',
-        }}
-      />
-      <Stack.Screen
-        name="plans"
-        options={{
-          headerShown: true,
-          headerTitle: 'Planlar',
-          headerBackTitle: 'Geri',
-        }}
-      />
-      <Stack.Screen
-        name="user/[id]"
-        options={{
-          headerShown: true,
-          headerTitle: 'Profil',
-          headerBackTitle: 'Geri',
-        }}
-      />
-      <Stack.Screen name="settings" options={{ headerShown: false }} />
-    </Stack>
+      >
+        <Stack.Screen name="(auth)" />
+        <Stack.Screen name="(tabs)" />
+        <Stack.Screen
+          name="listing/[id]"
+          options={{
+            headerShown: true,
+            headerTitle: 'İlan Detayı',
+            headerBackTitle: 'Geri',
+          }}
+        />
+        <Stack.Screen
+          name="offer/[id]"
+          options={{
+            headerShown: true,
+            headerTitle: 'Teklif Detayı',
+            headerBackTitle: 'Geri',
+          }}
+        />
+        <Stack.Screen
+          name="conversation/[id]"
+          options={{
+            headerShown: false,
+          }}
+        />
+        <Stack.Screen
+          name="notifications"
+          options={{
+            headerShown: true,
+            headerTitle: 'Bildirimler',
+            headerBackTitle: 'Geri',
+          }}
+        />
+        <Stack.Screen
+          name="saved"
+          options={{
+            headerShown: true,
+            headerTitle: 'Favorilerim',
+            headerBackTitle: 'Geri',
+          }}
+        />
+        <Stack.Screen
+          name="orders"
+          options={{
+            headerShown: true,
+            headerTitle: 'Siparişlerim',
+            headerBackTitle: 'Geri',
+          }}
+        />
+        <Stack.Screen
+          name="plans"
+          options={{
+            headerShown: true,
+            headerTitle: 'Planlar',
+            headerBackTitle: 'Geri',
+          }}
+        />
+        <Stack.Screen
+          name="user/[id]"
+          options={{
+            headerShown: true,
+            headerTitle: 'Profil',
+            headerBackTitle: 'Geri',
+          }}
+        />
+        <Stack.Screen name="settings" options={{ headerShown: false }} />
+      </Stack>
+    </>
   );
 }
 
-export default function RootLayout() {
+function AppContent() {
   const [fontsLoaded, fontError] = useFonts({
     PlusJakartaSans_400Regular,
     PlusJakartaSans_500Medium,
@@ -140,18 +143,23 @@ export default function RootLayout() {
     onLayoutRootView();
   }, [onLayoutRootView]);
 
-  if (!fontsLoaded && !fontError) {
-    return null;
-  }
+  if (!fontsLoaded && !fontError) return null;
 
   return (
-    <GestureHandlerRootView style={{ flex: 1, backgroundColor: colors.background }}>
+    <AuthProvider>
+      <RootNavigator />
+    </AuthProvider>
+  );
+}
+
+export default function RootLayout() {
+  return (
+    <GestureHandlerRootView style={{ flex: 1 }}>
       <SafeAreaProvider>
         <QueryClientProvider client={queryClient}>
-          <AuthProvider>
-            <StatusBar style="light" backgroundColor={colors.background} />
-            <RootNavigator />
-          </AuthProvider>
+          <ThemeProvider>
+            <AppContent />
+          </ThemeProvider>
         </QueryClientProvider>
       </SafeAreaProvider>
     </GestureHandlerRootView>

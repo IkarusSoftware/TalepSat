@@ -1,6 +1,7 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { TouchableOpacity, Text, StyleSheet } from 'react-native';
-import { colors, fontFamily, space, borderRadius } from '../../theme';
+import { useThemeColors } from '../../contexts/ThemeContext';
+import { fontFamily, space, borderRadius } from '../../theme';
 
 interface ChipProps {
   label: string;
@@ -9,6 +10,9 @@ interface ChipProps {
 }
 
 export function Chip({ label, selected, onPress }: ChipProps) {
+  const colors = useThemeColors();
+  const styles = useMemo(() => makeStyles(colors), [colors]);
+
   return (
     <TouchableOpacity
       activeOpacity={0.7}
@@ -20,7 +24,7 @@ export function Chip({ label, selected, onPress }: ChipProps) {
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (colors: any) => StyleSheet.create({
   chip: {
     paddingHorizontal: space.md,
     paddingVertical: space.sm,

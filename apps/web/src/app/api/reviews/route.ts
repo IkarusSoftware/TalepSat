@@ -1,11 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { auth } from '@/lib/auth';
+import { getApiSession } from '@/lib/api-session';
 import { prisma } from '@/lib/prisma';
 
 // POST /api/reviews — submit a review for a completed offer (both buyer and seller can review)
 export async function POST(req: NextRequest) {
-  const session = await auth();
-  if (!session?.user?.id) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  const session = await getApiSession(req);
+  if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
   const body = await req.json();
   const { offerId, rating, comment } = body;
@@ -24,8 +24,8 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Sadece tamamlanmış siparişlere puan verebilirsiniz' }, { status: 400 });
   }
 
-  const isBuyer = offer.listing.buyerId === session.user.id;
-  const isSeller = offer.sellerId === session.user.id;
+  const isBuyer = offer.listing.buyerId === session.userId;
+  const isSeller = offer.sellerId === session.userId;
 
   if (!isBuyer && !isSeller) {
     return NextResponse.json({ error: 'Bu siparişe puan veremezsiniz' }, { status: 403 });
@@ -33,7 +33,7 @@ export async function POST(req: NextRequest) {
 
   // Check if already reviewed by this user
   const existing = await prisma.review.findUnique({
-    where: { offerId_reviewerId: { offerId, reviewerId: session.user.id } },
+    where: { offerId_reviewerId: { offerId, reviewerId: session.userId } },
   });
   if (existing) {
     return NextResponse.json({ error: 'Bu sipariş için zaten puan verdiniz' }, { status: 400 });
@@ -45,7 +45,7 @@ export async function POST(req: NextRequest) {
   const review = await prisma.review.create({
     data: {
       offerId,
-      reviewerId: session.user.id,
+      reviewerId: session.userId,
       revieweeId,
       rating: Math.round(rating),
       comment: comment?.trim() || null,

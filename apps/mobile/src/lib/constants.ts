@@ -8,5 +8,5 @@ import Constants from 'expo-constants';
 const debuggerHost = Constants.expoConfig?.hostUri?.split(':').shift();
 
 export const API_URL = debuggerHost
-  ? `http://${debuggerHost}:3001`
-  : 'http://10.0.2.2:3001'; // Android emülatör fallback
+  ? `http://${debuggerHost}:3000`
+  : 'http://10.0.2.2:3000'; // Android emülatör fallback

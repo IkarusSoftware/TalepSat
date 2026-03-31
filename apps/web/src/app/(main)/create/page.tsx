@@ -8,7 +8,7 @@ import {
   Banknote, Image as ImageIcon, Eye, X, Upload, Loader2,
   Sofa, Monitor, Shirt, Wrench, Utensils, Building2,
   Package, Truck, Palette, Stethoscope, GraduationCap, Leaf,
-  Sparkles, PartyPopper,
+  Sparkles, PartyPopper, AlertCircle, Crown, Clock,
 } from 'lucide-react';
 
 const categories = [
@@ -45,8 +45,14 @@ const deliveryOptions = [
 export default function CreateListingPage() {
   const router = useRouter();
   const [currentStep, setCurrentStep] = useState(0);
-  const [isPublished, setIsPublished] = useState(false);
+  const [publishResult, setPublishResult] = useState<{ requiresApproval: boolean } | null>(null);
   const [publishing, setPublishing] = useState(false);
+  const [publishError, setPublishError] = useState<{
+    message: string;
+    limitReached?: boolean;
+    limit?: number;
+    used?: number;
+  } | null>(null);
   const imageInputRef = useRef<HTMLInputElement>(null);
   const docInputRef = useRef<HTMLInputElement>(null);
 
@@ -145,6 +151,7 @@ export default function CreateListingPage() {
   const stripDots = (v: string) => v.replace(/\./g, '');
 
   const handlePublish = async () => {
+    setPublishError(null);
     setPublishing(true);
     const selectedCat = categories.find((c) => c.id === form.categoryId);
     const budgetMin = stripDots(form.budgetType === 'range' ? form.budgetMin : form.budgetType === 'fixed' ? form.budgetFixed : '0');
@@ -169,10 +176,16 @@ export default function CreateListingPage() {
 
     setPublishing(false);
     if (res.ok) {
-      setIsPublished(true);
+      const data = await res.json();
+      setPublishResult({ requiresApproval: data.requiresApproval ?? false });
     } else {
       const err = await res.json();
-      alert(err.error || 'İlan oluşturulamadı');
+      setPublishError({
+        message: err.error || 'İlan oluşturulamadı. Lütfen tekrar deneyin.',
+        limitReached: err.limitReached ?? false,
+        limit: err.limit,
+        used: err.used,
+      });
     }
   };
 
@@ -180,7 +193,8 @@ export default function CreateListingPage() {
 
   const selectedCategory = categories.find((c) => c.id === form.categoryId);
 
-  if (isPublished) {
+  if (publishResult) {
+    const isPending = publishResult.requiresApproval;
     return (
       <div className="max-w-lg mx-auto px-6 py-24 text-center">
         <motion.div
@@ -188,20 +202,47 @@ export default function CreateListingPage() {
           animate={{ scale: 1, opacity: 1 }}
           transition={{ type: 'spring', stiffness: 200, damping: 20 }}
         >
-          <div className="w-20 h-20 mx-auto mb-6 rounded-full bg-success-light flex items-center justify-center">
-            <PartyPopper size={36} className="text-success" />
-          </div>
+          {isPending ? (
+            <div className="w-20 h-20 mx-auto mb-6 rounded-full bg-amber-100 dark:bg-amber-500/20 flex items-center justify-center">
+              <Clock size={36} className="text-amber-500" />
+            </div>
+          ) : (
+            <div className="w-20 h-20 mx-auto mb-6 rounded-full bg-success-light flex items-center justify-center">
+              <PartyPopper size={36} className="text-success" />
+            </div>
+          )}
+
           <h1 className="text-h1 font-bold text-neutral-900 dark:text-dark-textPrimary mb-3">
-            İlanınız Yayında!
+            {isPending ? 'İlanınız Onaya Gönderildi!' : 'İlanınız Yayında!'}
           </h1>
-          <p className="text-body-lg text-neutral-500 mb-8">
-            Tebrikler! İlanınız başarıyla oluşturuldu. Satıcılar tekliflerini göndermeye başladığında sizi bilgilendireceğiz.
+          <p className="text-body-lg text-neutral-500 mb-6">
+            {isPending
+              ? 'İlanınız ekibimiz tarafından inceleniyor. Onaylandıktan sonra yayına alınacak ve sizi e-posta ile bilgilendireceğiz.'
+              : 'Tebrikler! İlanınız başarıyla oluşturuldu. Satıcılar tekliflerini göndermeye başladığında sizi bilgilendireceğiz.'}
           </p>
+
+          {isPending && (
+            <div className="mb-8 p-4 rounded-xl bg-amber-50 dark:bg-amber-500/10 border border-amber-200 dark:border-amber-500/20 text-left space-y-2">
+              <p className="text-body-sm font-semibold text-amber-800 dark:text-amber-300">Süreç nasıl işler?</p>
+              <ul className="text-body-sm text-amber-700 dark:text-amber-400 space-y-1">
+                <li>• İlanınız genellikle <strong>24 saat</strong> içinde incelenir</li>
+                <li>• Onaylandığında yayına alınır ve satıcılar teklif gönderebilir</li>
+                <li>• Durumu <strong>İlanlarım</strong> sayfasından takip edebilirsiniz</li>
+              </ul>
+            </div>
+          )}
+
           <div className="flex flex-col sm:flex-row gap-3 justify-center">
-            <a href="/explore" className="h-12 px-6 bg-accent text-white text-body-lg font-semibold rounded-lg hover:bg-accent-600 transition-colors flex items-center justify-center gap-2">
-              İlanları Keşfet
+            <a
+              href="/dashboard"
+              className="h-12 px-6 bg-accent text-white text-body-lg font-semibold rounded-lg hover:bg-accent-600 transition-colors flex items-center justify-center gap-2"
+            >
+              İlanlarıma Git
             </a>
-            <a href="/create" className="h-12 px-6 border border-neutral-200 text-body-lg font-medium text-neutral-700 rounded-lg hover:bg-neutral-50 transition-colors flex items-center justify-center gap-2">
+            <a
+              href="/create"
+              className="h-12 px-6 border border-neutral-200 dark:border-dark-border text-body-lg font-medium text-neutral-700 dark:text-dark-textSecondary rounded-lg hover:bg-neutral-50 dark:hover:bg-dark-surfaceRaised transition-colors flex items-center justify-center gap-2"
+            >
               Yeni İlan Oluştur
             </a>
           </div>
@@ -626,6 +667,54 @@ export default function CreateListingPage() {
           )}
         </motion.div>
       </AnimatePresence>
+
+      {/* Publish Error Banner */}
+      {publishError && (
+        <div className={`mt-6 rounded-xl border p-4 flex gap-3 ${
+          publishError.limitReached
+            ? 'bg-amber-50 dark:bg-amber-950/30 border-amber-200 dark:border-amber-800'
+            : 'bg-red-50 dark:bg-red-950/30 border-red-200 dark:border-red-800'
+        }`}>
+          {publishError.limitReached ? (
+            <Crown size={20} className="text-amber-500 shrink-0 mt-0.5" />
+          ) : (
+            <AlertCircle size={20} className="text-red-500 shrink-0 mt-0.5" />
+          )}
+          <div className="flex-1 min-w-0">
+            <p className={`text-sm font-semibold mb-1 ${
+              publishError.limitReached ? 'text-amber-800 dark:text-amber-300' : 'text-red-800 dark:text-red-300'
+            }`}>
+              {publishError.limitReached ? 'İlan Limitine Ulaştınız' : 'İlan Oluşturulamadı'}
+            </p>
+            <p className={`text-sm ${
+              publishError.limitReached ? 'text-amber-700 dark:text-amber-400' : 'text-red-700 dark:text-red-400'
+            }`}>
+              {publishError.message}
+            </p>
+            {publishError.limitReached && (
+              <div className="mt-3 flex gap-2">
+                <a
+                  href="/subscription"
+                  className="inline-flex items-center gap-1.5 h-8 px-4 rounded-lg bg-amber-500 hover:bg-amber-600 text-white text-xs font-semibold transition-colors"
+                >
+                  <Crown size={13} /> Planı Yükselt
+                </a>
+                <button
+                  onClick={() => setPublishError(null)}
+                  className="h-8 px-3 rounded-lg border border-amber-300 dark:border-amber-700 text-amber-700 dark:text-amber-400 text-xs font-medium hover:bg-amber-100 dark:hover:bg-amber-900/40 transition-colors"
+                >
+                  Kapat
+                </button>
+              </div>
+            )}
+          </div>
+          {!publishError.limitReached && (
+            <button onClick={() => setPublishError(null)} className="text-red-400 hover:text-red-600 shrink-0">
+              <X size={16} />
+            </button>
+          )}
+        </div>
+      )}
 
       {/* Navigation buttons */}
       <div className="flex items-center justify-between mt-8 pt-6 border-t border-neutral-200 dark:border-dark-border">

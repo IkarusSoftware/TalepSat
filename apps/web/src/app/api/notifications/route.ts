@@ -1,14 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { auth } from '@/lib/auth';
+import { getApiSession } from '@/lib/api-session';
 import { prisma } from '@/lib/prisma';
 
 // GET /api/notifications
-export async function GET() {
-  const session = await auth();
-  if (!session?.user?.id) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+export async function GET(req: NextRequest) {
+  const session = await getApiSession(req);
+  if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
   const notifications = await prisma.notification.findMany({
-    where: { userId: session.user.id },
+    where: { userId: session.userId },
     orderBy: { createdAt: 'desc' },
     take: 50,
   });
@@ -16,28 +16,33 @@ export async function GET() {
   return NextResponse.json(notifications);
 }
 
-// PATCH /api/notifications — mark all as read
+// PATCH /api/notifications - mark notifications as read
 export async function PATCH(req: NextRequest) {
-  const session = await auth();
-  if (!session?.user?.id) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  const session = await getApiSession(req);
+  if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
   const body = await req.json();
 
   if (body.markAllRead) {
     await prisma.notification.updateMany({
-      where: { userId: session.user.id, read: false },
+      where: { userId: session.userId, read: false },
       data: { read: true },
     });
     return NextResponse.json({ success: true });
   }
 
   if (body.id) {
-    await prisma.notification.update({
-      where: { id: body.id },
+    const result = await prisma.notification.updateMany({
+      where: { id: body.id, userId: session.userId, read: false },
       data: { read: true },
     });
+
+    if (result.count === 0) {
+      return NextResponse.json({ error: 'Bildirim bulunamadi' }, { status: 404 });
+    }
+
     return NextResponse.json({ success: true });
   }
 
-  return NextResponse.json({ error: 'Geçersiz istek' }, { status: 400 });
+  return NextResponse.json({ error: 'Gecersiz istek' }, { status: 400 });
 }

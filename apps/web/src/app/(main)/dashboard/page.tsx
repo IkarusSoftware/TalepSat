@@ -6,7 +6,7 @@ import Link from 'next/link';
 import { useSession } from 'next-auth/react';
 import {
   Clock, MessageSquare, MapPin, Eye, Plus, ArrowRight,
-  Calendar, FileText, Loader2,
+  Calendar, FileText, Loader2, XCircle, AlertCircle,
 } from 'lucide-react';
 
 function formatCurrency(n: number) {
@@ -21,15 +21,19 @@ function getTimeLeft(expiresAt: string) {
 }
 
 const tabs = [
-  { value: 'active', label: 'Aktif' },
+  { value: 'active',    label: 'Aktif' },
+  { value: 'pending',   label: 'Onay Bekliyor' },
+  { value: 'rejected',  label: 'Reddedildi' },
   { value: 'completed', label: 'Tamamlanan' },
-  { value: 'expired', label: 'Süresi Dolan' },
+  { value: 'expired',   label: 'Süresi Dolan' },
 ];
 
 const statusConfig: Record<string, { label: string; bg: string; text: string }> = {
-  active: { label: 'Aktif', bg: 'bg-emerald-50 dark:bg-emerald-500/10', text: 'text-emerald-600 dark:text-emerald-400' },
-  completed: { label: 'Tamamlandı', bg: 'bg-blue-50 dark:bg-blue-500/10', text: 'text-blue-600 dark:text-blue-400' },
-  expired: { label: 'Süresi Doldu', bg: 'bg-neutral-100 dark:bg-neutral-500/10', text: 'text-neutral-500 dark:text-neutral-400' },
+  active:    { label: 'Aktif',          bg: 'bg-emerald-50 dark:bg-emerald-500/10',  text: 'text-emerald-600 dark:text-emerald-400' },
+  pending:   { label: 'Onay Bekliyor',  bg: 'bg-amber-50 dark:bg-amber-500/10',      text: 'text-amber-600 dark:text-amber-400'     },
+  rejected:  { label: 'Reddedildi',     bg: 'bg-red-50 dark:bg-red-500/10',          text: 'text-red-600 dark:text-red-400'         },
+  completed: { label: 'Tamamlandı',     bg: 'bg-blue-50 dark:bg-blue-500/10',        text: 'text-blue-600 dark:text-blue-400'       },
+  expired:   { label: 'Süresi Doldu',   bg: 'bg-neutral-100 dark:bg-neutral-500/10', text: 'text-neutral-500 dark:text-neutral-400' },
 };
 
 interface Listing {
@@ -85,9 +89,11 @@ export default function DashboardPage() {
   }, [offers]);
 
   const tabCounts = {
-    active: listings.filter((l) => l.status === 'active').length,
+    active:    listings.filter((l) => l.status === 'active').length,
+    pending:   listings.filter((l) => l.status === 'pending').length,
+    rejected:  listings.filter((l) => l.status === 'rejected').length,
     completed: listings.filter((l) => l.status === 'completed').length,
-    expired: listings.filter((l) => l.status === 'expired').length,
+    expired:   listings.filter((l) => l.status === 'expired').length,
   };
 
   const totalOffers = offers.length;
@@ -207,15 +213,42 @@ export default function DashboardPage() {
                   </div>
                 </div>
 
+                {/* Pending info banner */}
+                {listing.status === 'pending' && (
+                  <div className="mt-3 flex items-start gap-2 p-3 rounded-lg bg-amber-50 dark:bg-amber-500/10 border border-amber-200 dark:border-amber-500/20">
+                    <Clock size={15} className="text-amber-500 shrink-0 mt-0.5" />
+                    <p className="text-body-sm text-amber-700 dark:text-amber-400">
+                      İlanınız admin onayı bekliyor. Onaylandıktan sonra yayına alınacak ve satıcılar teklif gönderebilecek.
+                    </p>
+                  </div>
+                )}
+
+                {/* Rejected info banner */}
+                {listing.status === 'rejected' && (
+                  <div className="mt-3 flex items-start gap-2 p-3 rounded-lg bg-red-50 dark:bg-red-500/10 border border-red-200 dark:border-red-500/20">
+                    <XCircle size={15} className="text-red-500 shrink-0 mt-0.5" />
+                    <p className="text-body-sm text-red-700 dark:text-red-400">
+                      İlanınız reddedildi. Destek için <a href="mailto:destek@talepsat.com" className="underline font-medium">bizimle iletişime geçin</a> veya ilanı düzenleyerek tekrar gönderin.
+                    </p>
+                  </div>
+                )}
+
                 <div className="mt-4 pt-4 border-t border-neutral-100 dark:border-dark-border flex items-center justify-between">
-                  <span className="flex items-center gap-1.5 text-body-md font-semibold text-accent">
-                    <MessageSquare size={16} /> {listing.offerCount} teklif
-                    {pendingCount > 0 && (
-                      <span className="ml-1 w-5 h-5 rounded-full bg-accent text-white text-[11px] font-bold flex items-center justify-center">
-                        {pendingCount}
-                      </span>
-                    )}
-                  </span>
+                  {listing.status === 'active' ? (
+                    <span className="flex items-center gap-1.5 text-body-md font-semibold text-accent">
+                      <MessageSquare size={16} /> {listing.offerCount} teklif
+                      {pendingCount > 0 && (
+                        <span className="ml-1 w-5 h-5 rounded-full bg-accent text-white text-[11px] font-bold flex items-center justify-center">
+                          {pendingCount}
+                        </span>
+                      )}
+                    </span>
+                  ) : (
+                    <span className="flex items-center gap-1.5 text-body-sm text-neutral-400">
+                      <AlertCircle size={14} />
+                      {listing.status === 'pending' ? 'İnceleme süreci 24 saate kadar sürebilir' : listing.status === 'rejected' ? 'İlan yayınlanamadı' : ''}
+                    </span>
+                  )}
                   <div className="flex items-center gap-3">
                     {listing.offerCount > 1 && listing.status === 'active' && (
                       <Link
@@ -225,12 +258,22 @@ export default function DashboardPage() {
                         Karşılaştır
                       </Link>
                     )}
-                    <Link
-                      href={`/listing/${listing.id}`}
-                      className="h-9 px-4 rounded-lg bg-accent/10 text-accent text-body-sm font-semibold hover:bg-accent/20 transition-colors flex items-center gap-2"
-                    >
-                      Teklifleri Gör <ArrowRight size={14} />
-                    </Link>
+                    {listing.status === 'active' && (
+                      <Link
+                        href={`/listing/${listing.id}`}
+                        className="h-9 px-4 rounded-lg bg-accent/10 text-accent text-body-sm font-semibold hover:bg-accent/20 transition-colors flex items-center gap-2"
+                      >
+                        Teklifleri Gör <ArrowRight size={14} />
+                      </Link>
+                    )}
+                    {listing.status === 'rejected' && (
+                      <Link
+                        href="/create"
+                        className="h-9 px-4 rounded-lg bg-red-50 dark:bg-red-500/10 text-red-600 dark:text-red-400 text-body-sm font-semibold hover:bg-red-100 dark:hover:bg-red-500/20 transition-colors flex items-center gap-2"
+                      >
+                        Yeni İlan Oluştur <ArrowRight size={14} />
+                      </Link>
+                    )}
                   </div>
                 </div>
               </motion.div>
@@ -243,7 +286,7 @@ export default function DashboardPage() {
             <FileText size={28} className="text-neutral-400" />
           </div>
           <h3 className="text-h3 font-semibold text-neutral-700 dark:text-dark-textPrimary mb-2">
-            {activeTab === 'active' ? 'Henüz aktif ilanın yok' : activeTab === 'completed' ? 'Tamamlanan ilan yok' : 'Süresi dolan ilan yok'}
+            {activeTab === 'active' ? 'Henüz aktif ilanın yok' : activeTab === 'pending' ? 'Onay bekleyen ilan yok' : activeTab === 'rejected' ? 'Reddedilen ilan yok' : activeTab === 'completed' ? 'Tamamlanan ilan yok' : 'Süresi dolan ilan yok'}
           </h3>
           <p className="text-body-lg text-neutral-500 mb-6">
             İlk ilanını oluştur ve tedarikçilerden teklif almaya başla!

@@ -17,7 +17,7 @@ export function CategoryFilter({ categories, selected, onSelect }: CategoryFilte
       contentContainerStyle={styles.container}
     >
       <Chip
-        label="T\u00FCm\u00FC"
+        label="Tümü"
         selected={selected === null}
         onPress={() => onSelect(null)}
       />

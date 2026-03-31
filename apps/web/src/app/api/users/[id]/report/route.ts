@@ -1,16 +1,17 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { auth } from '@/lib/auth';
+import { getApiSession } from '@/lib/api-session';
 import { prisma } from '@/lib/prisma';
 
 // POST /api/users/[id]/report — report user
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  const session = await auth();
-  if (!session?.user?.id) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  const session = await getApiSession(req);
+  if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  const userId = session.userId;
 
   const { id: reportedId } = await params;
   const body = await req.json();
 
-  if (reportedId === session.user.id) {
+  if (reportedId === userId) {
     return NextResponse.json({ error: 'Kendini şikayet edemezsin' }, { status: 400 });
   }
 
@@ -21,7 +22,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
 
   await prisma.userReport.create({
     data: {
-      reporterId: session.user.id,
+      reporterId: userId,
       reportedId,
       reason: body.reason,
       detail: body.detail || null,

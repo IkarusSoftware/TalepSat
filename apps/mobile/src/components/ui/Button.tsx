@@ -1,14 +1,10 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import {
-  TouchableOpacity,
-  Text,
-  StyleSheet,
-  ActivityIndicator,
-  ViewStyle,
-  TextStyle,
-  View,
+  TouchableOpacity, Text, StyleSheet, ActivityIndicator,
+  ViewStyle, TextStyle, View,
 } from 'react-native';
-import { colors, borderRadius, fontFamily, space } from '../../theme';
+import { useThemeColors } from '../../contexts/ThemeContext';
+import { borderRadius, fontFamily, space } from '../../theme';
 
 type ButtonVariant = 'primary' | 'secondary' | 'ghost' | 'destructive';
 type ButtonSize = 'sm' | 'md' | 'lg';
@@ -28,58 +24,38 @@ interface ButtonProps {
   textStyle?: TextStyle;
 }
 
-const variantStyles: Record<ButtonVariant, { container: ViewStyle; text: TextStyle }> = {
-  primary: {
-    container: { backgroundColor: colors.accent.DEFAULT },
-    text: { color: colors.white },
-  },
-  secondary: {
-    container: {
-      backgroundColor: 'transparent',
-      borderWidth: 1.5,
-      borderColor: colors.primary.DEFAULT,
-    },
-    text: { color: colors.primary[200] },
-  },
-  ghost: {
-    container: { backgroundColor: 'transparent' },
-    text: { color: colors.textSecondary },
-  },
-  destructive: {
-    container: { backgroundColor: colors.error.DEFAULT },
-    text: { color: colors.white },
-  },
-};
-
-const sizeStyles: Record<ButtonSize, { container: ViewStyle; text: TextStyle }> = {
-  sm: {
-    container: { height: 36, paddingHorizontal: space.md },
-    text: { fontSize: 13, fontFamily: fontFamily.medium },
-  },
-  md: {
-    container: { height: 44, paddingHorizontal: space.lg },
-    text: { fontSize: 15, fontFamily: fontFamily.semiBold },
-  },
-  lg: {
-    container: { height: 52, paddingHorizontal: space.xl },
-    text: { fontSize: 16, fontFamily: fontFamily.semiBold },
-  },
-};
-
 export function Button({
-  title,
-  onPress,
-  variant = 'primary',
-  size = 'md',
-  disabled = false,
-  loading = false,
-  icon,
-  iconRight,
-  fullWidth = false,
-  pill = false,
-  style,
-  textStyle,
+  title, onPress, variant = 'primary', size = 'md',
+  disabled = false, loading = false, icon, iconRight,
+  fullWidth = false, pill = false, style, textStyle,
 }: ButtonProps) {
+  const colors = useThemeColors();
+
+  const variantStyles: Record<ButtonVariant, { container: ViewStyle; text: TextStyle }> = {
+    primary: {
+      container: { backgroundColor: colors.accent.DEFAULT },
+      text: { color: colors.white },
+    },
+    secondary: {
+      container: { backgroundColor: 'transparent', borderWidth: 1.5, borderColor: colors.primary.DEFAULT },
+      text: { color: colors.primary.DEFAULT },
+    },
+    ghost: {
+      container: { backgroundColor: 'transparent' },
+      text: { color: colors.textSecondary },
+    },
+    destructive: {
+      container: { backgroundColor: colors.error.DEFAULT },
+      text: { color: colors.white },
+    },
+  };
+
+  const sizeStyles: Record<ButtonSize, { container: ViewStyle; text: TextStyle }> = {
+    sm: { container: { height: 36, paddingHorizontal: space.md }, text: { fontSize: 13, fontFamily: fontFamily.medium } },
+    md: { container: { height: 44, paddingHorizontal: space.lg }, text: { fontSize: 15, fontFamily: fontFamily.semiBold } },
+    lg: { container: { height: 52, paddingHorizontal: space.xl }, text: { fontSize: 16, fontFamily: fontFamily.semiBold } },
+  };
+
   const vs = variantStyles[variant];
   const ss = sizeStyles[size];
 
@@ -101,7 +77,7 @@ export function Button({
       {loading ? (
         <ActivityIndicator
           size="small"
-          color={variant === 'ghost' ? colors.textSecondary : colors.white}
+          color={variant === 'ghost' || variant === 'secondary' ? colors.primary.DEFAULT : colors.white}
         />
       ) : (
         <View style={styles.content}>
@@ -121,24 +97,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  pill: {
-    borderRadius: borderRadius.full,
-  },
-  fullWidth: {
-    width: '100%',
-  },
-  disabled: {
-    opacity: 0.5,
-  },
-  content: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  iconLeft: {
-    marginRight: 2,
-  },
-  iconRight: {
-    marginLeft: 2,
-  },
+  pill: { borderRadius: borderRadius.full },
+  fullWidth: { width: '100%' },
+  disabled: { opacity: 0.5 },
+  content: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  iconLeft: { marginRight: 2 },
+  iconRight: { marginLeft: 2 },
 });

@@ -1,12 +1,14 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import {
-  View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert,
+  View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert, Switch,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useRouter } from 'expo-router';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { useAuth } from '../../src/contexts/AuthContext';
+import { useTheme } from '../../src/contexts/ThemeContext';
 import { Button } from '../../src/components/ui';
-import { colors, fontFamily, space, borderRadius } from '../../src/theme';
+import { fontFamily, space, borderRadius } from '../../src/theme';
 
 const roleLabels: Record<string, string> = {
   buyer: 'Alıcı',
@@ -27,8 +29,12 @@ const badgeLabels: Record<string, string> = {
 };
 
 export default function ProfileScreen() {
+  const router = useRouter();
   const { user, logout } = useAuth();
+  const { colors, isDark, toggleTheme } = useTheme();
   const [loggingOut, setLoggingOut] = useState(false);
+
+  const styles = useMemo(() => makeStyles(colors), [colors]);
 
   const handleLogout = () => {
     Alert.alert('Çıkış Yap', 'Hesabından çıkmak istediğine emin misin?', [
@@ -107,14 +113,43 @@ export default function ProfileScreen() {
           </View>
         </View>
 
-        {/* Menu Items */}
+        {/* Hesap Menüsü */}
+        <Text style={styles.sectionLabel}>Hesap</Text>
         <View style={styles.menuSection}>
-          <MenuItem icon="person-outline" label="Profili Düzenle" onPress={() => {}} />
-          <MenuItem icon="lock-closed-outline" label="Şifre Değiştir" onPress={() => {}} />
-          <MenuItem icon="notifications-outline" label="Bildirimler" onPress={() => {}} />
-          <MenuItem icon="help-circle-outline" label="Yardım & Destek" onPress={() => {}} />
-          <MenuItem icon="document-text-outline" label="Kullanım Şartları" onPress={() => {}} />
-          <MenuItem icon="shield-outline" label="Gizlilik Politikası" onPress={() => {}} last />
+          <MenuItem icon="cube-outline" label="Siparişlerim" onPress={() => router.push('/orders' as any)} colors={colors} />
+          <MenuItem icon="person-outline" label="Profili Düzenle" onPress={() => {}} colors={colors} />
+          <MenuItem icon="lock-closed-outline" label="Şifre Değiştir" onPress={() => {}} colors={colors} />
+          <MenuItem icon="notifications-outline" label="Bildirimler" onPress={() => router.push('/notifications' as any)} colors={colors} last />
+        </View>
+
+        {/* Ayarlar */}
+        <Text style={styles.sectionLabel}>Ayarlar</Text>
+        <View style={styles.menuSection}>
+          {/* Tema Toggle */}
+          <View style={styles.menuItem}>
+            <View style={styles.menuIconWrap}>
+              <Ionicons
+                name={isDark ? 'moon-outline' : 'sunny-outline'}
+                size={20}
+                color={colors.primary.DEFAULT}
+              />
+            </View>
+            <View style={styles.menuItemCenter}>
+              <Text style={styles.menuLabel}>Karanlık Mod</Text>
+              <Text style={styles.menuSub}>{isDark ? 'Açık' : 'Kapalı'}</Text>
+            </View>
+            <Switch
+              value={isDark}
+              onValueChange={toggleTheme}
+              trackColor={{ false: colors.border, true: colors.primary.DEFAULT }}
+              thumbColor={colors.white}
+              ios_backgroundColor={colors.border}
+            />
+          </View>
+
+          <MenuItem icon="help-circle-outline" label="Yardım & Destek" onPress={() => {}} colors={colors} />
+          <MenuItem icon="document-text-outline" label="Kullanım Şartları" onPress={() => {}} colors={colors} />
+          <MenuItem icon="shield-outline" label="Gizlilik Politikası" onPress={() => {}} colors={colors} last />
         </View>
 
         {/* App Version */}
@@ -133,28 +168,45 @@ export default function ProfileScreen() {
   );
 }
 
-function MenuItem({ icon, label, onPress, last }: {
+function MenuItem({ icon, label, onPress, last, colors }: {
   icon: keyof typeof Ionicons.glyphMap;
   label: string;
   onPress: () => void;
   last?: boolean;
+  colors: any;
 }) {
   return (
     <TouchableOpacity
-      style={[styles.menuItem, last && styles.menuItemLast]}
+      style={[
+        {
+          flexDirection: 'row' as const,
+          alignItems: 'center' as const,
+          paddingHorizontal: space.lg,
+          paddingVertical: space.md,
+          borderBottomWidth: last ? 0 : 1,
+          borderBottomColor: colors.border,
+          gap: space.md,
+        },
+      ]}
       onPress={onPress}
       activeOpacity={0.7}
     >
-      <View style={styles.menuIconWrap}>
+      <View style={{
+        width: 36, height: 36, borderRadius: borderRadius.sm,
+        backgroundColor: colors.primary.lighter,
+        alignItems: 'center' as const, justifyContent: 'center' as const,
+      }}>
         <Ionicons name={icon} size={20} color={colors.primary.DEFAULT} />
       </View>
-      <Text style={styles.menuLabel}>{label}</Text>
+      <Text style={{ flex: 1, fontSize: 15, fontFamily: fontFamily.medium, color: colors.textPrimary }}>
+        {label}
+      </Text>
       <Ionicons name="chevron-forward" size={18} color={colors.textTertiary} />
     </TouchableOpacity>
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (colors: any) => StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.background },
   scroll: { paddingHorizontal: space.lg, paddingBottom: 100, paddingTop: space.md },
   header: { marginBottom: space.lg },
@@ -174,92 +226,53 @@ const styles = StyleSheet.create({
   },
   avatarContainer: { position: 'relative', marginBottom: space.md },
   avatar: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
+    width: 80, height: 80, borderRadius: 40,
     backgroundColor: colors.primary.DEFAULT,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: 'center', justifyContent: 'center',
   },
-  avatarText: {
-    fontSize: 30,
-    fontFamily: fontFamily.extraBold,
-    color: colors.white,
-  },
+  avatarText: { fontSize: 30, fontFamily: fontFamily.extraBold, color: colors.white },
   verifiedBadge: {
-    position: 'absolute',
-    bottom: 0,
-    right: 0,
-    width: 24,
-    height: 24,
-    borderRadius: 12,
+    position: 'absolute', bottom: 0, right: 0,
+    width: 24, height: 24, borderRadius: 12,
     backgroundColor: colors.success.DEFAULT,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderWidth: 2,
-    borderColor: colors.surface,
+    alignItems: 'center', justifyContent: 'center',
+    borderWidth: 2, borderColor: colors.surface,
   },
-  name: {
-    fontSize: 20,
-    fontFamily: fontFamily.extraBold,
-    color: colors.textPrimary,
-    marginBottom: 4,
-  },
-  email: {
-    fontSize: 14,
-    fontFamily: fontFamily.regular,
-    color: colors.textSecondary,
-    marginBottom: space.md,
-  },
+  name: { fontSize: 20, fontFamily: fontFamily.extraBold, color: colors.textPrimary, marginBottom: 4 },
+  email: { fontSize: 14, fontFamily: fontFamily.regular, color: colors.textSecondary, marginBottom: space.md },
   badgesRow: { flexDirection: 'row', gap: space.sm, marginBottom: space.lg },
   roleBadge: {
     backgroundColor: colors.primary.lighter,
-    paddingHorizontal: space.sm,
-    paddingVertical: 4,
-    borderRadius: borderRadius.full,
+    paddingHorizontal: space.sm, paddingVertical: 4, borderRadius: borderRadius.full,
   },
-  roleBadgeText: {
-    fontSize: 12,
-    fontFamily: fontFamily.semiBold,
-    color: colors.primary.light,
-  },
-  planBadge: {
-    paddingHorizontal: space.sm,
-    paddingVertical: 4,
-    borderRadius: borderRadius.full,
-  },
-  planBadgeText: {
-    fontSize: 12,
-    fontFamily: fontFamily.bold,
-  },
+  roleBadgeText: { fontSize: 12, fontFamily: fontFamily.semiBold, color: colors.primary.light },
+  planBadge: { paddingHorizontal: space.sm, paddingVertical: 4, borderRadius: borderRadius.full },
+  planBadgeText: { fontSize: 12, fontFamily: fontFamily.bold },
   statsRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    width: '100%',
-    backgroundColor: colors.surfaceRaised,
-    borderRadius: borderRadius.md,
-    padding: space.md,
+    flexDirection: 'row', alignItems: 'center', width: '100%',
+    backgroundColor: colors.surfaceRaised, borderRadius: borderRadius.md, padding: space.md,
   },
   statItem: { flex: 1, alignItems: 'center' },
-  statValue: {
-    fontSize: 18,
-    fontFamily: fontFamily.extraBold,
-    color: colors.textPrimary,
-  },
-  statLabel: {
-    fontSize: 11,
-    fontFamily: fontFamily.regular,
-    color: colors.textTertiary,
-    marginTop: 2,
-  },
+  statValue: { fontSize: 18, fontFamily: fontFamily.extraBold, color: colors.textPrimary },
+  statLabel: { fontSize: 11, fontFamily: fontFamily.regular, color: colors.textTertiary, marginTop: 2 },
   statDivider: { width: 1, height: 32, backgroundColor: colors.border },
+  sectionLabel: {
+    fontSize: 12,
+    fontFamily: fontFamily.semiBold,
+    color: colors.textTertiary,
+    textTransform: 'uppercase',
+    letterSpacing: 0.8,
+    marginBottom: space.sm,
+    marginTop: space.md,
+    paddingHorizontal: 2,
+  },
   menuSection: {
     backgroundColor: colors.surface,
     borderRadius: borderRadius.xl,
     borderWidth: 1,
     borderColor: colors.border,
     overflow: 'hidden',
-    marginBottom: space.lg,
+    marginBottom: space.sm,
   },
   menuItem: {
     flexDirection: 'row',
@@ -270,9 +283,6 @@ const styles = StyleSheet.create({
     borderBottomColor: colors.border,
     gap: space.md,
   },
-  menuItemLast: {
-    borderBottomWidth: 0,
-  },
   menuIconWrap: {
     width: 36,
     height: 36,
@@ -281,17 +291,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  menuLabel: {
-    flex: 1,
-    fontSize: 15,
-    fontFamily: fontFamily.medium,
-    color: colors.textPrimary,
-  },
+  menuItemCenter: { flex: 1 },
+  menuLabel: { fontSize: 15, fontFamily: fontFamily.medium, color: colors.textPrimary },
+  menuSub: { fontSize: 12, fontFamily: fontFamily.regular, color: colors.textTertiary, marginTop: 1 },
   version: {
-    textAlign: 'center',
-    fontSize: 12,
-    fontFamily: fontFamily.regular,
-    color: colors.textTertiary,
-    marginBottom: space.lg,
+    textAlign: 'center', fontSize: 12, fontFamily: fontFamily.regular,
+    color: colors.textTertiary, marginVertical: space.lg,
   },
 });

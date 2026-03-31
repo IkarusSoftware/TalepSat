@@ -1,12 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { auth } from '@/lib/auth';
+import { getApiSession } from '@/lib/api-session';
 import { prisma } from '@/lib/prisma';
 import { getSettingsDirect } from '@/lib/site-settings';
 
 // GET /api/offers — list offers for current user (as buyer or seller)
 export async function GET(req: NextRequest) {
-  const session = await auth();
-  if (!session?.user?.id) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  const session = await getApiSession(req);
+  if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
   const { searchParams } = new URL(req.url);
   const role = searchParams.get('role'); // 'buyer' or 'seller'
@@ -18,21 +18,30 @@ export async function GET(req: NextRequest) {
   if (listingId) where.listingId = listingId;
 
   if (role === 'seller') {
-    where.sellerId = session.user.id;
+    where.sellerId = session.userId;
   } else if (role === 'buyer') {
-    where.listing = { buyerId: session.user.id };
+    where.listing = { buyerId: session.userId };
   } else {
     // All offers related to user
     where.OR = [
-      { sellerId: session.user.id },
-      { listing: { buyerId: session.user.id } },
+      { sellerId: session.userId },
+      { listing: { buyerId: session.userId } },
     ];
   }
 
   const offers = await prisma.offer.findMany({
     where,
     include: {
-      listing: { select: { id: true, title: true, category: true, city: true, buyerId: true } },
+      listing: {
+        select: {
+          id: true,
+          title: true,
+          category: true,
+          city: true,
+          buyerId: true,
+          buyer: { select: { id: true, name: true, verified: true } },
+        },
+      },
       seller: { select: { id: true, name: true, score: true, verified: true, badge: true, completedDeals: true, createdAt: true } },
     },
     orderBy: { createdAt: 'desc' },
@@ -50,6 +59,8 @@ export async function GET(req: NextRequest) {
     sellerBadge: o.seller.badge,
     sellerCompletedDeals: o.seller.completedDeals,
     sellerMemberSince: o.seller.createdAt.toISOString(),
+    buyerName: o.listing.buyer.name,
+    buyerVerified: o.listing.buyer.verified,
   }));
 
   return NextResponse.json(result);
@@ -57,8 +68,8 @@ export async function GET(req: NextRequest) {
 
 // POST /api/offers — create offer
 export async function POST(req: NextRequest) {
-  const session = await auth();
-  if (!session?.user?.id) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  const session = await getApiSession(req);
+  if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
   const body = await req.json();
   const { listingId, price, deliveryDays, note } = body;
@@ -78,13 +89,13 @@ export async function POST(req: NextRequest) {
 
   const listing = await prisma.listing.findUnique({ where: { id: listingId } });
   if (!listing) return NextResponse.json({ error: 'İlan bulunamadı' }, { status: 404 });
-  if (listing.buyerId === session.user.id) {
+  if (listing.buyerId === session.userId) {
     return NextResponse.json({ error: 'Kendi ilanınıza teklif veremezsiniz' }, { status: 400 });
   }
 
   // Check for existing pending offer from this seller
   const existingOffer = await prisma.offer.findFirst({
-    where: { listingId, sellerId: session.user.id, status: 'pending' },
+    where: { listingId, sellerId: session.userId, status: 'pending' },
   });
   if (existingOffer) {
     return NextResponse.json({ error: 'Bu ilana zaten bekleyen bir teklifiniz var' }, { status: 400 });
@@ -92,7 +103,7 @@ export async function POST(req: NextRequest) {
 
   // ── Plan limit check (offersPerMonth) ──────────────────────────────────────
   const seller = await prisma.user.findUnique({
-    where: { id: session.user.id },
+    where: { id: session.userId },
     select: { badge: true },
   });
   const planSlug = seller?.badge || 'free';
@@ -104,7 +115,7 @@ export async function POST(req: NextRequest) {
     startOfMonth.setHours(0, 0, 0, 0);
 
     const monthlyOfferCount = await prisma.offer.count({
-      where: { sellerId: session.user.id, createdAt: { gte: startOfMonth } },
+      where: { sellerId: session.userId, createdAt: { gte: startOfMonth } },
     });
 
     if (monthlyOfferCount >= plan.offersPerMonth) {
@@ -121,7 +132,7 @@ export async function POST(req: NextRequest) {
   const offer = await prisma.offer.create({
     data: {
       listingId,
-      sellerId: session.user.id,
+      sellerId: session.userId,
       price: parseFloat(price),
       deliveryDays: parseInt(deliveryDays),
       note: note || null,

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { auth } from '@/lib/auth';
+import { getApiSession } from '@/lib/api-session';
 import { prisma } from '@/lib/prisma';
 import { getSettingsDirect } from '@/lib/site-settings';
 
@@ -42,8 +42,8 @@ export async function GET(req: NextRequest) {
 
 // POST /api/listings — create listing
 export async function POST(req: NextRequest) {
-  const session = await auth();
-  if (!session?.user?.id) {
+  const session = await getApiSession(req);
+  if (!session) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
@@ -74,7 +74,7 @@ export async function POST(req: NextRequest) {
 
   // ── Plan limit check (maxListings) ─────────────────────────────────────────
   const buyer = await prisma.user.findUnique({
-    where: { id: session.user.id },
+    where: { id: session.userId },
     select: { badge: true },
   });
   const planSlug = buyer?.badge || 'free';
@@ -82,7 +82,7 @@ export async function POST(req: NextRequest) {
 
   if (plan && plan.maxListings !== null) {
     const activeListingCount = await prisma.listing.count({
-      where: { buyerId: session.user.id, status: { in: ['active', 'pending'] } },
+      where: { buyerId: session.userId, status: { in: ['active', 'pending'] } },
     });
 
     if (activeListingCount >= plan.maxListings) {
@@ -117,7 +117,7 @@ export async function POST(req: NextRequest) {
       images: images ? JSON.stringify(images) : null,
       expiresAt,
       status: initialStatus,
-      buyerId: session.user.id,
+      buyerId: session.userId,
     },
   });
 
@@ -125,7 +125,7 @@ export async function POST(req: NextRequest) {
   if (settings.listing_requires_approval) {
     await prisma.notification.create({
       data: {
-        userId: session.user.id,
+        userId: session.userId,
         type: 'listing_pending',
         title: 'İlanınız İnceleniyor',
         description: `"${title}" ilanınız admin onayı bekliyor.`,

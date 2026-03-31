@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { auth } from '@/lib/auth';
+import { getApiSession } from '@/lib/api-session';
 import { prisma } from '@/lib/prisma';
 
 // GET /api/offers/[id]
@@ -29,8 +29,8 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
 
 // PATCH /api/offers/[id] — accept, reject, counter, withdraw
 export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  const session = await auth();
-  if (!session?.user?.id) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  const session = await getApiSession(req);
+  if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
   const { id } = await params;
   const offer = await prisma.offer.findUnique({
@@ -43,13 +43,13 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   const { action, rejectedReason, counterPrice, counterDays, counterNote } = body;
 
   // Seller can withdraw their own offer
-  if (action === 'withdraw' && offer.sellerId === session.user.id) {
+  if (action === 'withdraw' && offer.sellerId === session.userId) {
     const updated = await prisma.offer.update({ where: { id }, data: { status: 'withdrawn' } });
     return NextResponse.json(updated);
   }
 
   // Seller can edit their pending offer
-  if (action === 'edit' && offer.sellerId === session.user.id && offer.status === 'pending') {
+  if (action === 'edit' && offer.sellerId === session.userId && offer.status === 'pending') {
     const updateData: Record<string, unknown> = {};
     if (body.price) updateData.price = parseFloat(body.price);
     if (body.deliveryDays) updateData.deliveryDays = parseInt(body.deliveryDays);
@@ -75,8 +75,8 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
       return NextResponse.json({ error: 'Sadece kabul edilmiş siparişler onaylanabilir' }, { status: 400 });
     }
 
-    const isBuyerOfOffer = offer.listing.buyerId === session.user.id;
-    const isSellerOfOffer = offer.sellerId === session.user.id;
+    const isBuyerOfOffer = offer.listing.buyerId === session.userId;
+    const isSellerOfOffer = offer.sellerId === session.userId;
 
     if (!isBuyerOfOffer && !isSellerOfOffer) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
@@ -158,8 +158,8 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     return NextResponse.json(updated);
   }
 
-  const isBuyerOfListing = offer.listing.buyerId === session.user.id;
-  const isSellerOfOffer = offer.sellerId === session.user.id;
+  const isBuyerOfListing = offer.listing.buyerId === session.userId;
+  const isSellerOfOffer = offer.sellerId === session.userId;
 
   // Seller can accept/reject counter-offer from buyer
   if (isSellerOfOffer && offer.status === 'counter_offered') {

@@ -1,23 +1,21 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import {
-  View,
-  Text,
-  StyleSheet,
-  KeyboardAvoidingView,
-  Platform,
-  ScrollView,
-  TouchableOpacity,
+  View, Text, StyleSheet, KeyboardAvoidingView, Platform, ScrollView, TouchableOpacity,
 } from 'react-native';
 import { useRouter, Link } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { useAuth } from '../../src/contexts/AuthContext';
+import { useThemeColors } from '../../src/contexts/ThemeContext';
 import { Button, Input, Divider } from '../../src/components/ui';
-import { colors, fontFamily, space, typeScale } from '../../src/theme';
+import { fontFamily, space } from '../../src/theme';
 
 export default function LoginScreen() {
   const { login } = useAuth();
   const router = useRouter();
+  const colors = useThemeColors();
+  const styles = useMemo(() => makeStyles(colors), [colors]);
+
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
@@ -33,8 +31,7 @@ export default function LoginScreen() {
     try {
       await login(email.trim(), password);
     } catch (err: any) {
-      const msg = err?.response?.data?.error || 'Giriş başarısız. Tekrar deneyin.';
-      setError(msg);
+      setError(err?.response?.data?.error || 'Giriş başarısız. Tekrar deneyin.');
     } finally {
       setLoading(false);
     }
@@ -48,15 +45,9 @@ export default function LoginScreen() {
         <View style={styles.orb2} />
         <View style={styles.orb3} />
       </View>
-      <KeyboardAvoidingView
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-        style={styles.flex}
-      >
-        <ScrollView
-          contentContainerStyle={styles.scroll}
-          keyboardShouldPersistTaps="handled"
-        >
-          {/* Logo / Brand */}
+      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={styles.flex}>
+        <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
+          {/* Brand */}
           <View style={styles.brand}>
             <View style={styles.logoCircle}>
               <Ionicons name="swap-horizontal" size={28} color={colors.white} />
@@ -74,39 +65,22 @@ export default function LoginScreen() {
               <Input
                 label="E-posta"
                 placeholder="ornek@email.com"
-                value={email}
-                onChangeText={setEmail}
-                keyboardType="email-address"
-                autoCapitalize="none"
-                leftIcon={
-                  <Ionicons name="mail-outline" size={18} color={colors.textSecondary} />
-                }
+                value={email} onChangeText={setEmail}
+                keyboardType="email-address" autoCapitalize="none"
+                leftIcon={<Ionicons name="mail-outline" size={18} color={colors.textSecondary} />}
               />
-
               <Input
                 label="Şifre"
                 placeholder="••••••••"
-                value={password}
-                onChangeText={setPassword}
+                value={password} onChangeText={setPassword}
                 isPassword
-                leftIcon={
-                  <Ionicons name="lock-closed-outline" size={18} color={colors.textSecondary} />
-                }
+                leftIcon={<Ionicons name="lock-closed-outline" size={18} color={colors.textSecondary} />}
               />
-
               <TouchableOpacity onPress={() => router.push('/(auth)/forgot-password' as any)}>
                 <Text style={styles.forgotLink}>Şifremi unuttum</Text>
               </TouchableOpacity>
-
               {error ? <Text style={styles.error}>{error}</Text> : null}
-
-              <Button
-                title="Giriş Yap"
-                onPress={handleLogin}
-                loading={loading}
-                fullWidth
-                size="lg"
-              />
+              <Button title="Giriş Yap" onPress={handleLogin} loading={loading} fullWidth size="lg" />
             </View>
 
             <Divider label="veya" />
@@ -126,113 +100,47 @@ export default function LoginScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (colors: any) => StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.background },
   flex: { flex: 1 },
   scroll: {
-    flexGrow: 1,
-    justifyContent: 'center',
-    paddingHorizontal: space.lg,
-    paddingVertical: space.xl,
+    flexGrow: 1, justifyContent: 'center',
+    paddingHorizontal: space.lg, paddingVertical: space.xl,
   },
-  brand: {
-    alignItems: 'center',
-    marginBottom: space.xl,
-  },
+  brand: { alignItems: 'center', marginBottom: space.xl },
   logoCircle: {
-    width: 56,
-    height: 56,
-    borderRadius: 28,
+    width: 56, height: 56, borderRadius: 28,
     backgroundColor: colors.accent.DEFAULT,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: space.md,
+    alignItems: 'center', justifyContent: 'center', marginBottom: space.md,
   },
-  brandName: {
-    ...typeScale.h2,
-    color: colors.textPrimary,
-  },
-  brandTag: {
-    ...typeScale.bodySm,
-    color: colors.textSecondary,
-    marginTop: 4,
-  },
+  brandName: { fontSize: 26, fontFamily: fontFamily.extraBold, color: colors.textPrimary },
+  brandTag: { fontSize: 13, fontFamily: fontFamily.regular, color: colors.textSecondary, marginTop: 4 },
   card: {
-    backgroundColor: colors.surface,
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: colors.border,
-    padding: space.lg,
+    backgroundColor: colors.surface, borderRadius: 16,
+    borderWidth: 1, borderColor: colors.border, padding: space.lg,
   },
-  title: {
-    ...typeScale.h3,
-    color: colors.textPrimary,
-  },
-  subtitle: {
-    ...typeScale.bodyMd,
-    color: colors.textSecondary,
-    marginTop: 4,
-    marginBottom: space.lg,
-  },
-  form: {
-    gap: space.md,
-  },
-  forgotLink: {
-    fontSize: 13,
-    fontFamily: fontFamily.medium,
-    color: colors.accent.DEFAULT,
-    textAlign: 'right',
-  },
+  title: { fontSize: 22, fontFamily: fontFamily.extraBold, color: colors.textPrimary },
+  subtitle: { fontSize: 14, fontFamily: fontFamily.regular, color: colors.textSecondary, marginTop: 4, marginBottom: space.lg },
+  form: { gap: space.md },
+  forgotLink: { fontSize: 13, fontFamily: fontFamily.medium, color: colors.accent.DEFAULT, textAlign: 'right' },
   error: {
-    fontSize: 13,
-    fontFamily: fontFamily.regular,
-    color: colors.error.DEFAULT,
-    textAlign: 'center',
-    backgroundColor: colors.error.light,
-    padding: space.sm,
-    borderRadius: 8,
-    overflow: 'hidden',
+    fontSize: 13, fontFamily: fontFamily.regular, color: colors.error.DEFAULT,
+    textAlign: 'center', backgroundColor: colors.error.light,
+    padding: space.sm, borderRadius: 8, overflow: 'hidden',
   },
-  footer: {
-    flexDirection: 'row',
-    justifyContent: 'center',
-    marginTop: space.md,
-  },
-  footerText: {
-    fontSize: 14,
-    fontFamily: fontFamily.regular,
-    color: colors.textSecondary,
-  },
-  footerLink: {
-    fontSize: 14,
-    fontFamily: fontFamily.semiBold,
-    color: colors.accent.DEFAULT,
-  },
+  footer: { flexDirection: 'row', justifyContent: 'center', marginTop: space.md },
+  footerText: { fontSize: 14, fontFamily: fontFamily.regular, color: colors.textSecondary },
+  footerLink: { fontSize: 14, fontFamily: fontFamily.semiBold, color: colors.accent.DEFAULT },
   orb1: {
-    position: 'absolute',
-    width: 320,
-    height: 320,
-    borderRadius: 160,
-    backgroundColor: '#6366f114',
-    top: -100,
-    right: -80,
+    position: 'absolute', width: 320, height: 320, borderRadius: 160,
+    backgroundColor: '#6366f114', top: -100, right: -80,
   },
   orb2: {
-    position: 'absolute',
-    width: 220,
-    height: 220,
-    borderRadius: 110,
-    backgroundColor: '#6366f10e',
-    bottom: 80,
-    left: -70,
+    position: 'absolute', width: 220, height: 220, borderRadius: 110,
+    backgroundColor: '#6366f10e', bottom: 80, left: -70,
   },
   orb3: {
-    position: 'absolute',
-    width: 140,
-    height: 140,
-    borderRadius: 70,
-    backgroundColor: '#818cf80a',
-    top: '45%',
-    right: '5%',
+    position: 'absolute', width: 140, height: 140, borderRadius: 70,
+    backgroundColor: '#818cf80a', top: '45%', right: '5%',
   },
 });

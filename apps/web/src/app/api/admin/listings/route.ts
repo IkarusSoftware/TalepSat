@@ -81,12 +81,32 @@ export async function PATCH(req: NextRequest) {
   }
 
   switch (action) {
-    case 'approve':
-      await prisma.listing.update({ where: { id: listingId }, data: { status: 'active' } });
+    case 'approve': {
+      const approved = await prisma.listing.update({ where: { id: listingId }, data: { status: 'active' } });
+      await prisma.notification.create({
+        data: {
+          userId: approved.buyerId,
+          type: 'listing_approved',
+          title: 'İlanınız Onaylandı 🎉',
+          description: `"${approved.title}" ilanınız onaylandı ve yayına alındı. Satıcılar artık teklif gönderebilir.`,
+          link: `/listing/${approved.id}`,
+        },
+      });
       break;
-    case 'reject':
-      await prisma.listing.update({ where: { id: listingId }, data: { status: 'rejected' } });
+    }
+    case 'reject': {
+      const rejected = await prisma.listing.update({ where: { id: listingId }, data: { status: 'rejected' } });
+      await prisma.notification.create({
+        data: {
+          userId: rejected.buyerId,
+          type: 'listing_rejected',
+          title: 'İlanınız Reddedildi',
+          description: `"${rejected.title}" ilanınız inceleme sonucunda yayınlanamadı. Detaylar için destek ekibiyle iletişime geçin.`,
+          link: `/dashboard`,
+        },
+      });
       break;
+    }
     case 'expire':
       await prisma.listing.update({ where: { id: listingId }, data: { status: 'expired' } });
       break;

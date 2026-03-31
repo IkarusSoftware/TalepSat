@@ -92,14 +92,25 @@ export interface Conversation {
   lastMessageAt: string | null;
   unreadCount: number;
   muted: boolean;
+  acceptedOfferId?: string | null;
+  acceptedOfferStatus?: string | null;
+  isBuyerInOffer?: boolean;
+}
+
+export interface MessageAttachment {
+  url: string;
+  name: string;
+  type: string;
+  size: number;
 }
 
 export interface Message {
   id: string;
   text: string;
   senderId: string;
-  senderName: string;
-  attachments: string[];
+  senderName?: string;
+  sender?: { id: string; name: string };
+  attachments: MessageAttachment[] | null;
   createdAt: string;
 }
 
@@ -130,13 +141,23 @@ export interface Order {
   buyerConfirmed: boolean;
   sellerConfirmed: boolean;
   completedAt: string | null;
+  createdAt?: string;
+  updatedAt?: string;
   listingId: string;
   listingTitle: string;
   listingCategory: string;
   listingCity: string;
   isBuyer: boolean;
+  buyerId?: string;
+  sellerId?: string;
   sellerName: string;
+  sellerScore?: number;
+  sellerVerified?: boolean;
   buyerName: string;
+  buyerVerified?: boolean;
+  hasMyReview?: boolean;
+  myReviewRating?: number | null;
+  totalReviews?: number;
 }
 
 export interface Plan {

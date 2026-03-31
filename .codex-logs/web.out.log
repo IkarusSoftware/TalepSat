@@ -1,0 +1,83 @@
+
+> @talepsat/web@0.1.0 dev C:\Users\Eclipse\Desktop\Projelerim\ProjectNumber5\apps\web
+> next dev
+
+   ▲ Next.js 15.5.14
+   - Local:        http://localhost:3000
+   - Network:      http://10.0.2.194:3000
+   - Environments: .env
+   - Experiments (use with caution):
+     · serverActions
+
+ ✓ Starting...
+ ✓ Ready in 4.1s
+ ○ Compiling /api/mobile/auth/login ...
+ ✓ Compiled /api/mobile/auth/login in 994ms (393 modules)
+ POST /api/mobile/auth/login 200 in 2122ms
+ ○ Compiling /_not-found ...
+ ✓ Compiled /_not-found in 2.5s (796 modules)
+ GET /api/listings?status=active&sort=-createdAt 200 in 2882ms
+ ✓ Compiled (782 modules)
+ ✓ Compiled in 72ms (228 modules)
+ GET /api/favorites 404 in 3253ms
+ ✓ Compiled /api/listings/[id] in 437ms (784 modules)
+ GET /api/listings/cmnef6ojw0003gkuvxbigk7ro 200 in 1264ms
+ ○ Compiling /api/offers ...
+ ✓ Compiled /api/offers in 706ms (787 modules)
+ GET /api/offers?listingId=cmnef6ojw0003gkuvxbigk7ro 200 in 848ms
+ POST /api/offers 201 in 64ms
+ GET /api/offers?listingId=cmnef6ojw0003gkuvxbigk7ro 200 in 23ms
+ ✓ Compiled /middleware in 401ms (175 modules)
+ ✓ Compiled /api/settings/maintenance in 292ms (789 modules)
+ GET /api/settings/maintenance 200 in 370ms
+ ○ Compiling /dashboard ...
+ ✓ Compiled /dashboard in 2.1s (1755 modules)
+ GET /dashboard 200 in 3458ms
+ ○ Compiling /api/auth/[...nextauth] ...
+ ✓ Compiled /api/auth/[...nextauth] in 1769ms (1757 modules)
+ GET /api/auth/session 200 in 3418ms
+ GET /api/auth/session 200 in 179ms
+ ○ Compiling /api/unread-count ...
+ ✓ Compiled /api/unread-count in 1455ms (1759 modules)
+ GET /api/listings?buyerId=cmn71hlib000124uvha75frmw 200 in 1758ms
+ GET /api/offers?role=buyer 200 in 1834ms
+ GET /api/unread-count 200 in 1850ms
+ GET /api/auth/session 200 in 87ms
+ GET /api/auth/session 200 in 46ms
+ GET /api/auth/session 200 in 159ms
+ GET /api/auth/session 200 in 53ms
+ GET /api/settings/maintenance 200 in 51ms
+ ○ Compiling /notifications ...
+ ✓ Compiled /notifications in 2s (1774 modules)
+ GET /notifications 200 in 2293ms
+ GET /notifications 200 in 90ms
+ ○ Compiling /api/notifications ...
+ ✓ Compiled /api/notifications in 1435ms (1776 modules)
+ GET /api/notifications 200 in 1592ms
+ GET /api/unread-count 200 in 893ms
+ GET /api/notifications 200 in 52ms
+ PATCH /api/notifications 200 in 341ms
+ ○ Compiling /listing/[id] ...
+ ✓ Compiled /listing/[id] in 2.5s (1803 modules)
+ GET /listing/cmnef6ojw0003gkuvxbigk7ro 200 in 3998ms
+ ○ Compiling /api/listings/[id]/favorite-status ...
+ ✓ Compiled /api/listings/[id]/favorite-status in 2.1s (1805 modules)
+ GET /api/listings/cmnef6ojw0003gkuvxbigk7ro 200 in 2390ms
+ GET /api/listings/cmnef6ojw0003gkuvxbigk7ro 200 in 59ms
+ GET /api/listings/cmnef6ojw0003gkuvxbigk7ro/favorite-status 200 in 3335ms
+ GET /api/listings/cmnef6ojw0003gkuvxbigk7ro/favorite-status 200 in 45ms
+ ○ Compiling /api/offers/[id] ...
+ ✓ Compiled /api/offers/[id] in 812ms (1804 modules)
+ PATCH /api/offers/cmnekb45s00012cuvs6ra4xbh 200 in 1874ms
+ GET /api/offers/mine 404 in 41ms
+ GET /api/unread-count 200 in 44ms
+ GET /api/offers/mine 404 in 33ms
+ GET /api/listings/cmnef6ojw0003gkuvxbigk7ro 200 in 76ms
+ GET /api/offers?listingId=cmnef6ojw0003gkuvxbigk7ro 200 in 100ms
+ GET /api/listings?status=active&sort=-createdAt 200 in 38ms
+ ○ Compiling /api/conversations ...
+ ✓ Compiled /api/conversations in 852ms (1806 modules)
+ GET /api/conversations 401 in 952ms
+ GET /api/conversations 401 in 28ms
+ GET /api/listings?status=active&category=Elektronik&sort=-createdAt 200 in 28ms
+ GET /api/unread-count 200 in 48ms

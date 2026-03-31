@@ -1,21 +1,22 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { auth } from '@/lib/auth';
+import { getApiSession } from '@/lib/api-session';
 import { prisma } from '@/lib/prisma';
 
 // POST /api/conversations/[id]/mute — toggle mute
-export async function POST(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  const session = await auth();
-  if (!session?.user?.id) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const session = await getApiSession(req);
+  if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  const userId = session.userId;
 
   const { id } = await params;
 
   const participant = await prisma.conversationParticipant.findUnique({
-    where: { conversationId_userId: { conversationId: id, userId: session.user.id } },
+    where: { conversationId_userId: { conversationId: id, userId } },
   });
   if (!participant) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
 
   const updated = await prisma.conversationParticipant.update({
-    where: { conversationId_userId: { conversationId: id, userId: session.user.id } },
+    where: { conversationId_userId: { conversationId: id, userId } },
     data: { muted: !participant.muted },
   });
 

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity,
   Alert, Modal, TextInput, ActivityIndicator, KeyboardAvoidingView, Platform,
@@ -9,27 +9,30 @@ import Ionicons from '@expo/vector-icons/Ionicons';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import api from '../../src/lib/api';
 import { useAuth } from '../../src/contexts/AuthContext';
-import { Button } from '../../src/components/Button';
-import { COLORS, RADIUS, SPACING } from '../../src/lib/constants';
+import { useThemeColors } from '../../src/contexts/ThemeContext';
+import { Button } from '../../src/components/ui';
+import { fontFamily, space, borderRadius } from '../../src/theme';
 
 function fmt(n: number) { return n.toLocaleString('tr-TR'); }
-
-const urgencyLabels: Record<string, { label: string; color: string }> = {
-  urgent: { label: 'Acil', color: COLORS.error },
-  normal: { label: 'Normal', color: COLORS.primary },
-  flexible: { label: 'Esnek', color: COLORS.success },
-};
 
 export default function ListingDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
   const { user } = useAuth();
+  const colors = useThemeColors();
+  const styles = useMemo(() => makeStyles(colors), [colors]);
   const queryClient = useQueryClient();
 
   const [offerModal, setOfferModal] = useState(false);
   const [price, setPrice] = useState('');
   const [deliveryDays, setDeliveryDays] = useState('');
   const [note, setNote] = useState('');
+
+  const urgencyLabels: Record<string, { label: string; color: string }> = {
+    urgent:   { label: 'Acil',   color: colors.error.DEFAULT   },
+    normal:   { label: 'Normal', color: colors.primary.DEFAULT },
+    flexible: { label: 'Esnek', color: colors.success.DEFAULT  },
+  };
 
   const { data: listing, isLoading } = useQuery({
     queryKey: ['listing', id],
@@ -73,7 +76,7 @@ export default function ListingDetailScreen() {
   if (isLoading) {
     return (
       <View style={styles.center}>
-        <ActivityIndicator size="large" color={COLORS.primary} />
+        <ActivityIndicator size="large" color={colors.primary.DEFAULT} />
       </View>
     );
   }
@@ -81,7 +84,7 @@ export default function ListingDetailScreen() {
   if (!listing) {
     return (
       <View style={styles.center}>
-        <Text style={{ color: COLORS.textSecondary }}>İlan bulunamadı</Text>
+        <Text style={{ color: colors.textSecondary, fontFamily: fontFamily.regular }}>İlan bulunamadı</Text>
       </View>
     );
   }
@@ -93,8 +96,8 @@ export default function ListingDetailScreen() {
 
   return (
     <SafeAreaView style={styles.safe} edges={['bottom']}>
-      <ScrollView contentContainerStyle={styles.scroll}>
-        {/* Status Bar */}
+      <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
+        {/* Status Row */}
         <View style={styles.statusRow}>
           <View style={styles.categoryBadge}>
             <Text style={styles.categoryText}>{listing.category}</Text>
@@ -112,10 +115,10 @@ export default function ListingDetailScreen() {
 
         {/* Info Cards */}
         <View style={styles.infoGrid}>
-          <InfoCard icon="cash-outline" label="Min Bütçe" value={`₺${fmt(listing.budgetMin)}`} />
-          <InfoCard icon="trending-up-outline" label="Max Bütçe" value={`₺${fmt(listing.budgetMax)}`} />
-          <InfoCard icon="location-outline" label="Şehir" value={listing.city} />
-          <InfoCard icon="chatbubble-outline" label="Teklif" value={`${listing._count?.offers || offers.length}`} />
+          <InfoCard icon="cash-outline" label="Min Bütçe" value={`₺${fmt(listing.budgetMin)}`} colors={colors} styles={styles} />
+          <InfoCard icon="trending-up-outline" label="Max Bütçe" value={`₺${fmt(listing.budgetMax)}`} colors={colors} styles={styles} />
+          <InfoCard icon="location-outline" label="Şehir" value={listing.city} colors={colors} styles={styles} />
+          <InfoCard icon="chatbubble-outline" label="Teklif" value={`${listing._count?.offers ?? offers.length}`} colors={colors} styles={styles} />
         </View>
 
         {/* Buyer */}
@@ -130,7 +133,7 @@ export default function ListingDetailScreen() {
             <View style={styles.buyerMeta}>
               {listing.buyer?.verified && (
                 <View style={styles.verifiedBadge}>
-                  <Ionicons name="checkmark-circle" size={14} color={COLORS.success} />
+                  <Ionicons name="checkmark-circle" size={14} color={colors.success.DEFAULT} />
                   <Text style={styles.verifiedText}>Doğrulanmış</Text>
                 </View>
               )}
@@ -139,10 +142,10 @@ export default function ListingDetailScreen() {
           </View>
           {!isOwner && (
             <TouchableOpacity
-              onPress={() => router.push(`/(tabs)/messages` as any)}
+              onPress={() => router.push('/(tabs)/messages' as any)}
               style={styles.msgBtn}
             >
-              <Ionicons name="chatbubble-outline" size={20} color={COLORS.primary} />
+              <Ionicons name="chatbubble-outline" size={20} color={colors.primary.DEFAULT} />
             </TouchableOpacity>
           )}
         </View>
@@ -180,11 +183,11 @@ export default function ListingDetailScreen() {
         <View style={styles.bottomBar}>
           {myOffer ? (
             <View style={styles.myOfferBanner}>
-              <Ionicons name="checkmark-circle" size={20} color={COLORS.success} />
+              <Ionicons name="checkmark-circle" size={20} color={colors.success.DEFAULT} />
               <Text style={styles.myOfferText}>Teklifiniz gönderildi — ₺{fmt(myOffer.price)}</Text>
             </View>
           ) : (
-            <Button title="Teklif Ver" onPress={() => setOfferModal(true)} size="lg" style={{ flex: 1 }} />
+            <Button title="Teklif Ver" onPress={() => setOfferModal(true)} size="lg" fullWidth />
           )}
         </View>
       )}
@@ -207,8 +210,9 @@ export default function ListingDetailScreen() {
                   value={price}
                   onChangeText={setPrice}
                   placeholder="5000"
-                  placeholderTextColor={COLORS.textMuted}
+                  placeholderTextColor={colors.textTertiary}
                   keyboardType="numeric"
+                  selectionColor={colors.accent.DEFAULT}
                 />
               </View>
 
@@ -219,8 +223,9 @@ export default function ListingDetailScreen() {
                   value={deliveryDays}
                   onChangeText={setDeliveryDays}
                   placeholder="7"
-                  placeholderTextColor={COLORS.textMuted}
+                  placeholderTextColor={colors.textTertiary}
                   keyboardType="numeric"
+                  selectionColor={colors.accent.DEFAULT}
                 />
               </View>
 
@@ -231,13 +236,19 @@ export default function ListingDetailScreen() {
                   value={note}
                   onChangeText={setNote}
                   placeholder="Ek bilgi, teslimat detayları..."
-                  placeholderTextColor={COLORS.textMuted}
+                  placeholderTextColor={colors.textTertiary}
                   multiline
+                  selectionColor={colors.accent.DEFAULT}
                 />
               </View>
 
               <View style={styles.modalBtns}>
-                <Button title="İptal" variant="outline" onPress={() => setOfferModal(false)} style={{ flex: 1 }} />
+                <Button
+                  title="İptal"
+                  variant="secondary"
+                  onPress={() => setOfferModal(false)}
+                  style={{ flex: 1 }}
+                />
                 <Button
                   title="Gönder"
                   onPress={() => submitOffer.mutate()}
@@ -253,105 +264,253 @@ export default function ListingDetailScreen() {
   );
 }
 
-function InfoCard({ icon, label, value }: { icon: any; label: string; value: string }) {
+function InfoCard({ icon, label, value, colors, styles }: { icon: any; label: string; value: string; colors: any; styles: any }) {
   return (
     <View style={styles.infoCard}>
-      <Ionicons name={icon} size={18} color={COLORS.primary} />
+      <Ionicons name={icon} size={18} color={colors.primary.DEFAULT} />
       <Text style={styles.infoLabel}>{label}</Text>
       <Text style={styles.infoValue}>{value}</Text>
     </View>
   );
 }
 
-const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: COLORS.background },
-  scroll: { padding: SPACING.lg, paddingBottom: SPACING.xxl },
-  center: { flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: COLORS.background },
-  statusRow: { flexDirection: 'row', alignItems: 'center', gap: SPACING.sm, marginBottom: SPACING.md },
+const makeStyles = (colors: any) => StyleSheet.create({
+  safe: { flex: 1, backgroundColor: colors.background },
+  scroll: { padding: space.lg, paddingBottom: space.xxl },
+  center: { flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.background },
+  statusRow: { flexDirection: 'row', alignItems: 'center', gap: space.sm, marginBottom: space.md },
   categoryBadge: {
-    backgroundColor: COLORS.primary + '20', paddingHorizontal: SPACING.sm,
-    paddingVertical: 3, borderRadius: RADIUS.full,
+    backgroundColor: colors.primary.lighter,
+    paddingHorizontal: space.sm,
+    paddingVertical: 3,
+    borderRadius: borderRadius.full,
   },
-  categoryText: { fontSize: 12, fontWeight: '600', color: COLORS.primary },
+  categoryText: {
+    fontSize: 12,
+    fontFamily: fontFamily.semiBold,
+    color: colors.primary.light,
+  },
   urgencyBadge: {
-    flexDirection: 'row', alignItems: 'center', paddingHorizontal: SPACING.sm,
-    paddingVertical: 3, borderRadius: RADIUS.full, gap: 4,
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: space.sm,
+    paddingVertical: 3,
+    borderRadius: borderRadius.full,
+    gap: 4,
   },
   dot: { width: 6, height: 6, borderRadius: 3 },
-  urgencyText: { fontSize: 12, fontWeight: '600' },
-  daysLeft: { marginLeft: 'auto', fontSize: 12, color: COLORS.textMuted },
-  title: { fontSize: 22, fontWeight: '800', color: COLORS.text, marginBottom: SPACING.md, lineHeight: 28 },
-  description: { fontSize: 15, color: COLORS.textSecondary, lineHeight: 22, marginBottom: SPACING.lg },
-  infoGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: SPACING.sm, marginBottom: SPACING.lg },
-  infoCard: {
-    flex: 1, minWidth: '45%', backgroundColor: COLORS.surface, borderRadius: RADIUS.md,
-    padding: SPACING.md, borderWidth: 1, borderColor: COLORS.border, gap: 4,
+  urgencyText: { fontSize: 12, fontFamily: fontFamily.semiBold },
+  daysLeft: {
+    marginLeft: 'auto',
+    fontSize: 12,
+    fontFamily: fontFamily.regular,
+    color: colors.textTertiary,
   },
-  infoLabel: { fontSize: 11, color: COLORS.textMuted },
-  infoValue: { fontSize: 15, fontWeight: '700', color: COLORS.text },
+  title: {
+    fontSize: 22,
+    fontFamily: fontFamily.extraBold,
+    color: colors.textPrimary,
+    marginBottom: space.md,
+    lineHeight: 28,
+  },
+  description: {
+    fontSize: 15,
+    fontFamily: fontFamily.regular,
+    color: colors.textSecondary,
+    lineHeight: 22,
+    marginBottom: space.lg,
+  },
+  infoGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: space.sm, marginBottom: space.lg },
+  infoCard: {
+    flex: 1,
+    minWidth: '45%',
+    backgroundColor: colors.surface,
+    borderRadius: borderRadius.md,
+    padding: space.md,
+    borderWidth: 1,
+    borderColor: colors.border,
+    gap: 4,
+  },
+  infoLabel: {
+    fontSize: 11,
+    fontFamily: fontFamily.regular,
+    color: colors.textTertiary,
+  },
+  infoValue: {
+    fontSize: 15,
+    fontFamily: fontFamily.bold,
+    color: colors.textPrimary,
+  },
   buyerCard: {
-    flexDirection: 'row', alignItems: 'center', backgroundColor: COLORS.surface,
-    borderRadius: RADIUS.lg, padding: SPACING.md, borderWidth: 1, borderColor: COLORS.border,
-    marginBottom: SPACING.lg, gap: SPACING.md,
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.surface,
+    borderRadius: borderRadius.lg,
+    padding: space.md,
+    borderWidth: 1,
+    borderColor: colors.border,
+    marginBottom: space.lg,
+    gap: space.md,
   },
   buyerAvatar: {
-    width: 44, height: 44, borderRadius: 22, backgroundColor: COLORS.primary + '30',
-    alignItems: 'center', justifyContent: 'center',
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: colors.primary.lighter,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
-  buyerAvatarText: { fontSize: 16, fontWeight: '700', color: COLORS.primary },
-  buyerName: { fontSize: 15, fontWeight: '700', color: COLORS.text },
-  buyerMeta: { flexDirection: 'row', alignItems: 'center', gap: SPACING.sm, marginTop: 2 },
+  buyerAvatarText: {
+    fontSize: 16,
+    fontFamily: fontFamily.bold,
+    color: colors.primary.light,
+  },
+  buyerName: {
+    fontSize: 15,
+    fontFamily: fontFamily.bold,
+    color: colors.textPrimary,
+  },
+  buyerMeta: { flexDirection: 'row', alignItems: 'center', gap: space.sm, marginTop: 2 },
   verifiedBadge: { flexDirection: 'row', alignItems: 'center', gap: 2 },
-  verifiedText: { fontSize: 12, color: COLORS.success },
-  buyerScore: { fontSize: 12, color: COLORS.textSecondary },
+  verifiedText: {
+    fontSize: 12,
+    fontFamily: fontFamily.regular,
+    color: colors.success.DEFAULT,
+  },
+  buyerScore: {
+    fontSize: 12,
+    fontFamily: fontFamily.regular,
+    color: colors.textSecondary,
+  },
   msgBtn: {
-    width: 40, height: 40, borderRadius: 20, backgroundColor: COLORS.primary + '20',
-    alignItems: 'center', justifyContent: 'center',
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: colors.primary.lighter,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
-  offersSection: { marginBottom: SPACING.lg },
-  sectionTitle: { fontSize: 18, fontWeight: '700', color: COLORS.text, marginBottom: SPACING.md },
+  offersSection: { marginBottom: space.lg },
+  sectionTitle: {
+    fontSize: 18,
+    fontFamily: fontFamily.bold,
+    color: colors.textPrimary,
+    marginBottom: space.md,
+  },
   offerCard: {
-    backgroundColor: COLORS.surface, borderRadius: RADIUS.lg, padding: SPACING.md,
-    borderWidth: 1, borderColor: COLORS.border, marginBottom: SPACING.sm,
+    backgroundColor: colors.surface,
+    borderRadius: borderRadius.lg,
+    padding: space.md,
+    borderWidth: 1,
+    borderColor: colors.border,
+    marginBottom: space.sm,
   },
-  offerHeader: { flexDirection: 'row', alignItems: 'center', gap: SPACING.sm, marginBottom: SPACING.sm },
+  offerHeader: { flexDirection: 'row', alignItems: 'center', gap: space.sm, marginBottom: space.sm },
   offerAvatar: {
-    width: 36, height: 36, borderRadius: 18, backgroundColor: COLORS.surfaceLight,
-    alignItems: 'center', justifyContent: 'center',
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: colors.surfaceRaised,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
-  offerAvatarText: { fontSize: 13, fontWeight: '700', color: COLORS.textSecondary },
-  offerSeller: { fontSize: 14, fontWeight: '600', color: COLORS.text },
-  offerStatus: { fontSize: 12, color: COLORS.textMuted },
-  offerPrice: { fontSize: 18, fontWeight: '800', color: COLORS.primaryLight },
+  offerAvatarText: {
+    fontSize: 13,
+    fontFamily: fontFamily.semiBold,
+    color: colors.textSecondary,
+  },
+  offerSeller: {
+    fontSize: 14,
+    fontFamily: fontFamily.semiBold,
+    color: colors.textPrimary,
+  },
+  offerStatus: {
+    fontSize: 12,
+    fontFamily: fontFamily.regular,
+    color: colors.textTertiary,
+  },
+  offerPrice: {
+    fontSize: 18,
+    fontFamily: fontFamily.extraBold,
+    color: colors.primary.light,
+  },
   offerMeta: { gap: 4 },
-  offerMetaText: { fontSize: 13, color: COLORS.textSecondary },
-  offerNote: { fontSize: 13, color: COLORS.textMuted, fontStyle: 'italic' },
+  offerMetaText: {
+    fontSize: 13,
+    fontFamily: fontFamily.regular,
+    color: colors.textSecondary,
+  },
+  offerNote: {
+    fontSize: 13,
+    fontFamily: fontFamily.regular,
+    color: colors.textTertiary,
+    fontStyle: 'italic',
+  },
   bottomBar: {
-    paddingHorizontal: SPACING.lg, paddingVertical: SPACING.md,
-    backgroundColor: COLORS.surface, borderTopWidth: 1, borderTopColor: COLORS.border,
+    paddingHorizontal: space.lg,
+    paddingVertical: space.md,
+    backgroundColor: colors.surface,
+    borderTopWidth: 1,
+    borderTopColor: colors.border,
   },
   myOfferBanner: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
-    gap: SPACING.sm, paddingVertical: SPACING.md,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: space.sm,
+    paddingVertical: space.md,
   },
-  myOfferText: { fontSize: 15, fontWeight: '600', color: COLORS.success },
+  myOfferText: {
+    fontSize: 15,
+    fontFamily: fontFamily.semiBold,
+    color: colors.success.DEFAULT,
+  },
   modalOverlay: { flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(0,0,0,0.6)' },
   modalSheet: {
-    backgroundColor: COLORS.surface, borderTopLeftRadius: RADIUS.xl, borderTopRightRadius: RADIUS.xl,
-    padding: SPACING.lg, paddingBottom: SPACING.xxl,
+    backgroundColor: colors.surface,
+    borderTopLeftRadius: borderRadius.xl,
+    borderTopRightRadius: borderRadius.xl,
+    padding: space.lg,
+    paddingBottom: space.xxl,
   },
   modalHandle: {
-    width: 40, height: 4, borderRadius: 2, backgroundColor: COLORS.border,
-    alignSelf: 'center', marginBottom: SPACING.lg,
+    width: 40,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: colors.border,
+    alignSelf: 'center',
+    marginBottom: space.lg,
   },
-  modalTitle: { fontSize: 20, fontWeight: '800', color: COLORS.text, marginBottom: 4 },
-  modalSubtitle: { fontSize: 13, color: COLORS.textSecondary, marginBottom: SPACING.lg },
-  modalField: { marginBottom: SPACING.md },
-  modalLabel: { fontSize: 14, fontWeight: '500', color: COLORS.textSecondary, marginBottom: 6 },
+  modalTitle: {
+    fontSize: 20,
+    fontFamily: fontFamily.extraBold,
+    color: colors.textPrimary,
+    marginBottom: 4,
+  },
+  modalSubtitle: {
+    fontSize: 13,
+    fontFamily: fontFamily.regular,
+    color: colors.textSecondary,
+    marginBottom: space.lg,
+  },
+  modalField: { marginBottom: space.md },
+  modalLabel: {
+    fontSize: 14,
+    fontFamily: fontFamily.medium,
+    color: colors.textSecondary,
+    marginBottom: 6,
+  },
   modalInput: {
-    backgroundColor: COLORS.surfaceLight, borderRadius: RADIUS.md, borderWidth: 1.5,
-    borderColor: COLORS.border, paddingHorizontal: SPACING.md, paddingVertical: SPACING.sm + 4,
-    fontSize: 16, color: COLORS.text, minHeight: 50,
+    backgroundColor: colors.surfaceRaised,
+    borderRadius: borderRadius.md,
+    borderWidth: 1.5,
+    borderColor: colors.border,
+    paddingHorizontal: space.md,
+    paddingVertical: space.sm + 4,
+    fontSize: 16,
+    fontFamily: fontFamily.regular,
+    color: colors.textPrimary,
+    minHeight: 50,
   },
-  modalBtns: { flexDirection: 'row', gap: SPACING.md, marginTop: SPACING.sm },
+  modalBtns: { flexDirection: 'row', gap: space.md, marginTop: space.sm },
 });

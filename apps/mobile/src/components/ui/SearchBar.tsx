@@ -1,7 +1,8 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { View, TextInput, TouchableOpacity, StyleSheet } from 'react-native';
 import Ionicons from '@expo/vector-icons/Ionicons';
-import { colors, fontFamily, space, borderRadius } from '../../theme';
+import { useThemeColors } from '../../contexts/ThemeContext';
+import { fontFamily, space, borderRadius } from '../../theme';
 
 interface SearchBarProps {
   value: string;
@@ -10,6 +11,9 @@ interface SearchBarProps {
 }
 
 export function SearchBar({ value, onChangeText, placeholder = 'Ara...' }: SearchBarProps) {
+  const colors = useThemeColors();
+  const styles = useMemo(() => makeStyles(colors), [colors]);
+
   return (
     <View style={styles.container}>
       <Ionicons name="search-outline" size={20} color={colors.textSecondary} style={styles.icon} />
@@ -21,6 +25,7 @@ export function SearchBar({ value, onChangeText, placeholder = 'Ara...' }: Searc
         onChangeText={onChangeText}
         autoCapitalize="none"
         autoCorrect={false}
+        selectionColor={colors.accent.DEFAULT}
       />
       {value.length > 0 && (
         <TouchableOpacity onPress={() => onChangeText('')} hitSlop={8}>
@@ -31,7 +36,7 @@ export function SearchBar({ value, onChangeText, placeholder = 'Ara...' }: Searc
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (colors: any) => StyleSheet.create({
   container: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -41,9 +46,7 @@ const styles = StyleSheet.create({
     borderColor: colors.border,
     paddingHorizontal: space.md,
   },
-  icon: {
-    marginRight: space.sm,
-  },
+  icon: { marginRight: space.sm },
   input: {
     flex: 1,
     paddingVertical: space.sm + 4,
