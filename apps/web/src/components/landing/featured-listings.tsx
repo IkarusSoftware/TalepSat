@@ -21,6 +21,12 @@ function formatCurrency(n: number) {
   return new Intl.NumberFormat('tr-TR', { style: 'currency', currency: 'TRY', maximumFractionDigits: 0 }).format(n);
 }
 
+function formatBudget(min: number, max: number) {
+  if (min === 0 && max === 0) return 'Teklif Bekliyor';
+  if (min === max) return formatCurrency(min);
+  return `${formatCurrency(min)} — ${formatCurrency(max)}`;
+}
+
 function getDaysLeft(expiresAt: string) {
   const days = Math.max(0, Math.floor((new Date(expiresAt).getTime() - Date.now()) / 86400000));
   return `${days} gün kaldı`;
@@ -84,54 +90,52 @@ export function FeaturedListingsSection() {
           </Link>
         </div>
 
-        <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-6">
+        <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
           {listings.map((listing, index) => (
             <motion.article
               key={listing.id}
-              initial={{ opacity: 0, y: 20 }}
+              initial={{ opacity: 0, y: 16 }}
               whileInView={{ opacity: 1, y: 0 }}
               viewport={{ once: true }}
               transition={{
-                duration: 0.4,
-                delay: index * 0.08,
+                duration: 0.35,
+                delay: index * 0.07,
                 ease: [0, 0, 0.2, 1],
               }}
             >
               <Link
                 href={`/listing/${listing.id}`}
-                className="group block h-full rounded-xl border border-neutral-200/50 dark:border-dark-border bg-white dark:bg-dark-surface p-6 hover:shadow-md hover:border-neutral-300 dark:hover:border-neutral-600 hover:scale-[1.01] transition-all duration-normal"
+                className="group flex flex-col h-full rounded-xl border border-neutral-200/50 dark:border-dark-border bg-white dark:bg-dark-surface p-4 hover:shadow-md hover:border-neutral-300 dark:hover:border-neutral-600 hover:scale-[1.01] transition-all duration-normal"
               >
-                <span className="inline-block px-2.5 py-1 bg-primary-lighter dark:bg-primary/20 text-primary dark:text-blue-300 text-body-sm font-medium rounded-sm mb-3">
+                <span className="inline-block px-2 py-0.5 bg-primary-lighter dark:bg-primary/20 text-primary dark:text-blue-300 text-body-sm font-medium rounded-sm mb-2.5">
                   {listing.category}
                 </span>
 
-                <h3 className="text-h4 font-semibold text-neutral-900 dark:text-dark-textPrimary mb-3 line-clamp-2 group-hover:text-accent transition-colors">
+                <h3 className="text-body-lg font-semibold text-neutral-900 dark:text-dark-textPrimary mb-2 line-clamp-2 group-hover:text-accent transition-colors leading-snug">
                   {listing.title}
                 </h3>
 
-                <p className="text-body-lg font-bold text-accent mb-4">
-                  {formatCurrency(listing.budgetMin)} - {formatCurrency(listing.budgetMax)}
+                <p className="text-body-md font-bold text-accent mb-2.5">
+                  {formatBudget(listing.budgetMin, listing.budgetMax)}
                 </p>
 
-                <div className="flex flex-wrap items-center gap-3 text-body-sm text-neutral-400 mb-4">
+                <div className="flex flex-wrap items-center gap-2 text-body-sm text-neutral-400 mb-3">
                   <span className="inline-flex items-center gap-1">
-                    <MapPin size={14} />
+                    <MapPin size={12} />
                     {listing.city}
                   </span>
                   <span className="inline-flex items-center gap-1">
-                    <Clock size={14} />
+                    <Clock size={12} />
                     {getDaysLeft(listing.expiresAt)}
                   </span>
                 </div>
 
-                <div className="flex items-center justify-between pt-4 border-t border-neutral-100 dark:border-dark-border">
-                  <div className="flex items-center gap-2">
-                    <div className="w-7 h-7 rounded-full bg-neutral-200 dark:bg-dark-surfaceRaised flex items-center justify-center text-body-sm font-semibold text-neutral-600 dark:text-dark-textSecondary">
-                      {listing.buyerInitials}
-                    </div>
+                <div className="flex items-center justify-between pt-3 border-t border-neutral-100 dark:border-dark-border mt-auto">
+                  <div className="w-6 h-6 rounded-full bg-neutral-200 dark:bg-dark-surfaceRaised flex items-center justify-center text-[10px] font-semibold text-neutral-600 dark:text-dark-textSecondary">
+                    {listing.buyerInitials}
                   </div>
                   <span className="inline-flex items-center gap-1 text-body-sm font-medium text-accent">
-                    <MessageSquare size={14} />
+                    <MessageSquare size={13} />
                     {listing.offerCount} teklif
                   </span>
                 </div>

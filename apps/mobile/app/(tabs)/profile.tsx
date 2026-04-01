@@ -136,7 +136,7 @@ export default function ProfileScreen() {
           <MenuItem icon="diamond-outline" label="Planlar" onPress={() => router.push('/plans' as any)} colors={colors} />
           <MenuItem icon="card-outline" label="Abonelik" onPress={() => router.push('/subscription' as any)} colors={colors} />
           {(user.role === 'seller' || user.role === 'both') && (
-            <MenuItem icon="speedometer-outline" label="SatÄ±cÄ± Paneli" onPress={() => router.push('/seller-dashboard' as any)} colors={colors} />
+            <MenuItem icon="speedometer-outline" label="Satıcı Paneli" onPress={() => router.push('/seller-dashboard' as any)} colors={colors} />
           )}
           <MenuItem
             icon="person-outline"

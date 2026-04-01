@@ -148,14 +148,15 @@ export default function CreateListingPage() {
     setForm((prev) => ({ ...prev, docs: prev.docs.filter((_, i) => i !== index) }));
   };
 
-  const stripDots = (v: string) => v.replace(/\./g, '');
+  // Hem Türkçe locale (24.000) hem de diğer locale (24,000) çıktılarını temizler
+  const stripSeparators = (v: string) => v.replace(/[.,]/g, '');
 
   const handlePublish = async () => {
     setPublishError(null);
     setPublishing(true);
     const selectedCat = categories.find((c) => c.id === form.categoryId);
-    const budgetMin = stripDots(form.budgetType === 'range' ? form.budgetMin : form.budgetType === 'fixed' ? form.budgetFixed : '0');
-    const budgetMax = stripDots(form.budgetType === 'range' ? form.budgetMax : form.budgetType === 'fixed' ? form.budgetFixed : '0');
+    const budgetMin = stripSeparators(form.budgetType === 'range' ? form.budgetMin : form.budgetType === 'fixed' ? form.budgetFixed : '0');
+    const budgetMax = stripSeparators(form.budgetType === 'range' ? form.budgetMax : form.budgetType === 'fixed' ? form.budgetFixed : '0');
 
     const res = await fetch('/api/listings', {
       method: 'POST',

@@ -24,12 +24,10 @@ const sortOptions = [
 ];
 
 function formatBudget(min: number, max: number) {
-  const fmt = (n: number) => {
-    if (n >= 1000000) return `${(n / 1000000).toFixed(1)}M`;
-    if (n >= 1000) return `${Math.floor(n / 1000)}K`;
-    return n.toString();
-  };
-  return `₺${fmt(min)} - ₺${fmt(max)}`;
+  if (min === 0 && max === 0) return 'Teklif Bekliyor';
+  const fmt = (n: number) => new Intl.NumberFormat('tr-TR', { style: 'currency', currency: 'TRY', maximumFractionDigits: 0 }).format(n);
+  if (min === max) return fmt(min);
+  return `${fmt(min)} — ${fmt(max)}`;
 }
 
 function getTimeLeft(expiresAt: string) {
@@ -216,46 +214,45 @@ export default function ExplorePage() {
 
       {/* Listing grid */}
       {filteredListings.length > 0 ? (
-        <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-5">
+        <div className="grid sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
           {filteredListings.map((listing, index) => (
-            <motion.article key={listing.id} initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.35, delay: index * 0.05, ease: [0, 0, 0.2, 1] }}>
-              <div className="group relative h-full rounded-xl border border-neutral-200/50 dark:border-dark-border/80 bg-white dark:bg-dark-surface hover:shadow-md hover:border-neutral-300 dark:hover:border-neutral-500 hover:scale-[1.01] transition-all duration-normal">
+            <motion.article key={listing.id} initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3, delay: index * 0.04, ease: [0, 0, 0.2, 1] }}>
+              <div className="group relative h-full rounded-xl border border-neutral-200/50 dark:border-dark-border/80 bg-white dark:bg-dark-surface hover:shadow-md hover:border-neutral-300 dark:hover:border-neutral-500 hover:scale-[1.01] transition-all duration-normal flex flex-col">
                 {session?.user && (
                   <button
                     onClick={(e) => toggleFavorite(e, listing.id)}
-                    className={`absolute top-4 right-4 z-10 p-1.5 rounded-full transition-all duration-fast ${
+                    className={`absolute top-3 right-3 z-10 p-1.5 rounded-full transition-all duration-fast ${
                       favorites.has(listing.id)
                         ? 'text-red-500 bg-red-50 dark:bg-red-500/10'
                         : 'text-neutral-300 hover:text-red-400 bg-white dark:bg-dark-surface border border-neutral-200 dark:border-dark-border'
                     }`}
                     aria-label={favorites.has(listing.id) ? 'Favorilerden çıkar' : 'Favorile'}
                   >
-                    <Heart size={16} className={favorites.has(listing.id) ? 'fill-red-500' : ''} />
+                    <Heart size={14} className={favorites.has(listing.id) ? 'fill-red-500' : ''} />
                   </button>
                 )}
-                <Link href={`/listing/${listing.id}`} className="block p-6">
-                  <div className="flex items-center justify-between mb-3">
-                    <span className="px-2.5 py-1 bg-primary-lighter dark:bg-primary/20 text-primary dark:text-blue-300 text-body-sm font-medium rounded-sm">{listing.category}</span>
-                    <span className="text-body-sm text-neutral-400 flex items-center gap-1"><Clock size={13} />{getTimeLeft(listing.expiresAt)}</span>
+                <Link href={`/listing/${listing.id}`} className="flex flex-col flex-1 p-4">
+                  <div className="flex items-center gap-2 mb-2.5 pr-6">
+                    <span className="px-2 py-0.5 bg-primary-lighter dark:bg-primary/20 text-primary dark:text-blue-300 text-body-sm font-medium rounded-sm">{listing.category}</span>
+                    <span className="ml-auto text-body-sm text-neutral-400 flex items-center gap-1 whitespace-nowrap"><Clock size={12} />{getTimeLeft(listing.expiresAt)}</span>
                   </div>
-                  <h3 className="text-h4 font-semibold text-neutral-900 dark:text-dark-textPrimary mb-2 line-clamp-2 group-hover:text-accent transition-colors">{listing.title}</h3>
-                  <p className="text-body-lg font-bold text-accent mb-3">{formatBudget(listing.budgetMin, listing.budgetMax)}</p>
-                  <div className="flex flex-wrap items-center gap-3 text-body-sm text-neutral-400 mb-4">
-                    <span className="flex items-center gap-1"><MapPin size={13} /> {listing.city}</span>
-                    <span className="flex items-center gap-1"><Clock size={13} /> {listing.deliveryUrgency}</span>
+                  <h3 className="text-body-lg font-semibold text-neutral-900 dark:text-dark-textPrimary mb-2 line-clamp-2 group-hover:text-accent transition-colors leading-snug">{listing.title}</h3>
+                  <p className="text-body-md font-bold text-accent mb-2.5">{formatBudget(listing.budgetMin, listing.budgetMax)}</p>
+                  <div className="flex flex-wrap items-center gap-2 text-body-sm text-neutral-400 mb-3">
+                    <span className="flex items-center gap-1"><MapPin size={12} /> {listing.city}</span>
                   </div>
-                  <div className="flex items-center justify-between pt-4 border-t border-neutral-100 dark:border-dark-border">
-                    <div className="flex items-center gap-2">
+                  <div className="flex items-center justify-between pt-3 border-t border-neutral-100 dark:border-dark-border mt-auto">
+                    <div className="flex items-center gap-1.5">
                       <Link
                         href={`/profile/${listing.buyerId}`}
                         onClick={(e) => e.stopPropagation()}
-                        className="w-7 h-7 rounded-full bg-neutral-200 dark:bg-dark-surfaceRaised flex items-center justify-center text-[11px] font-semibold text-neutral-600 dark:text-dark-textSecondary hover:ring-2 hover:ring-accent/30 transition-all"
+                        className="w-6 h-6 rounded-full bg-neutral-200 dark:bg-dark-surfaceRaised flex items-center justify-center text-[10px] font-semibold text-neutral-600 dark:text-dark-textSecondary hover:ring-2 hover:ring-accent/30 transition-all"
                       >
                         {listing.buyerInitials}
                       </Link>
-                      <div className="flex items-center gap-1 text-body-sm text-neutral-500"><Star size={12} className="text-amber-400 fill-amber-400" />{listing.buyerScore}</div>
+                      <div className="flex items-center gap-0.5 text-body-sm text-neutral-400"><Star size={11} className="text-amber-400 fill-amber-400" />{listing.buyerScore}</div>
                     </div>
-                    <span className="flex items-center gap-1 text-body-sm font-semibold text-accent"><MessageSquare size={14} />{listing.offerCount} teklif</span>
+                    <span className="flex items-center gap-1 text-body-sm font-semibold text-accent"><MessageSquare size={13} />{listing.offerCount} teklif</span>
                   </div>
                 </Link>
               </div>

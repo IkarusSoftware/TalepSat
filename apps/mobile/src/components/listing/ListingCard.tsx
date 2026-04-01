@@ -26,31 +26,42 @@ export function ListingCard({ listing, onFavoriteToggle, isFavorited }: ListingC
       onPress={() => router.push(`/listing/${listing.id}` as any)}
       style={styles.card}
     >
+      {/* Top row: category + city + urgent badge + fav */}
       <View style={styles.topRow}>
         <View style={styles.tags}>
           <Badge label={listing.category} variant="accent" size="sm" />
-          <Text style={styles.city}>📍 {listing.city}</Text>
+          <Text style={styles.city}>
+            <Ionicons name="location-outline" size={11} color={colors.textSecondary} />
+            {' '}{listing.city}
+          </Text>
           {listing.deliveryUrgency === 'urgent' && (
             <Badge label={urgencyLabel(listing.deliveryUrgency)} variant="error" size="sm" />
           )}
         </View>
         {onFavoriteToggle && (
-          <TouchableOpacity onPress={() => onFavoriteToggle(listing.id)} hitSlop={8}>
+          <TouchableOpacity onPress={() => onFavoriteToggle(listing.id)} hitSlop={10}>
             <Ionicons
               name={isFavorited ? 'heart' : 'heart-outline'}
-              size={20}
+              size={18}
               color={isFavorited ? colors.error.DEFAULT : colors.textSecondary}
             />
           </TouchableOpacity>
         )}
       </View>
 
+      {/* Title */}
       <Text style={styles.title} numberOfLines={2}>{listing.title}</Text>
 
+      {/* Budget */}
       <Text style={styles.budget}>
-        {formatPrice(listing.budgetMin)} — {formatPrice(listing.budgetMax)}
+        {listing.budgetMin === 0 && listing.budgetMax === 0
+          ? 'Teklif Bekliyor'
+          : listing.budgetMin === listing.budgetMax
+          ? formatPrice(listing.budgetMin)
+          : `${formatPrice(listing.budgetMin)} — ${formatPrice(listing.budgetMax)}`}
       </Text>
 
+      {/* Footer: buyer + meta */}
       <View style={styles.bottomRow}>
         <View style={styles.buyerInfo}>
           <Avatar
@@ -63,11 +74,14 @@ export function ListingCard({ listing, onFavoriteToggle, isFavorited }: ListingC
         </View>
         <View style={styles.meta}>
           {listing.offerCount > 0 && (
-            <Badge label={`${listing.offerCount} teklif`} variant="primary" size="sm" />
+            <View style={styles.offerBadge}>
+              <Ionicons name="chatbubble-outline" size={11} color={colors.accent.DEFAULT} />
+              <Text style={styles.offerText}>{listing.offerCount}</Text>
+            </View>
           )}
           {days !== null && (
             <Text style={[styles.daysText, days <= 3 && { color: colors.error.DEFAULT }]}>
-              {days} gün
+              {days}g
             </Text>
           )}
         </View>
@@ -82,21 +96,79 @@ const makeStyles = (colors: any) => StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.border,
     borderRadius: borderRadius.lg,
-    padding: space.md,
-    marginBottom: space.sm + 4,
+    padding: space.sm + 4,   // 12px — tighter than before (was space.md = 16)
+    marginBottom: space.sm,  // 8px gap
     ...shadows.sm,
   },
   topRow: {
-    flexDirection: 'row', justifyContent: 'space-between',
-    alignItems: 'center', marginBottom: space.sm,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: space.xs + 2,
   },
-  tags: { flexDirection: 'row', alignItems: 'center', gap: space.sm, flexShrink: 1 },
-  city: { fontSize: 12, fontFamily: fontFamily.regular, color: colors.textSecondary },
-  title: { fontSize: 16, fontFamily: fontFamily.semiBold, color: colors.textPrimary, marginBottom: space.xs },
-  budget: { fontSize: 15, fontFamily: fontFamily.bold, color: colors.accent.DEFAULT, marginBottom: space.sm + 4 },
-  bottomRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  buyerInfo: { flexDirection: 'row', alignItems: 'center', gap: space.sm, flexShrink: 1 },
-  buyerName: { fontSize: 13, fontFamily: fontFamily.medium, color: colors.textSecondary, maxWidth: 120 },
-  meta: { flexDirection: 'row', alignItems: 'center', gap: space.sm },
-  daysText: { fontSize: 12, fontFamily: fontFamily.medium, color: colors.textSecondary },
+  tags: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: space.xs + 2,
+    flexShrink: 1,
+  },
+  city: {
+    fontSize: 11,
+    fontFamily: fontFamily.regular,
+    color: colors.textSecondary,
+  },
+  title: {
+    fontSize: 15,
+    fontFamily: fontFamily.semiBold,
+    color: colors.textPrimary,
+    marginBottom: space.xs,
+    lineHeight: 21,
+  },
+  budget: {
+    fontSize: 14,
+    fontFamily: fontFamily.bold,
+    color: colors.accent.DEFAULT,
+    marginBottom: space.sm,
+  },
+  bottomRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  buyerInfo: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: space.xs + 2,
+    flexShrink: 1,
+  },
+  buyerName: {
+    fontSize: 12,
+    fontFamily: fontFamily.medium,
+    color: colors.textSecondary,
+    maxWidth: 110,
+  },
+  meta: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: space.xs + 2,
+  },
+  offerBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 3,
+    paddingHorizontal: 7,
+    paddingVertical: 3,
+    borderRadius: borderRadius.sm,
+    backgroundColor: colors.accent.lighter,
+  },
+  offerText: {
+    fontSize: 11,
+    fontFamily: fontFamily.semiBold,
+    color: colors.accent.DEFAULT,
+  },
+  daysText: {
+    fontSize: 11,
+    fontFamily: fontFamily.medium,
+    color: colors.textSecondary,
+  },
 });

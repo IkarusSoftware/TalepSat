@@ -7,9 +7,9 @@ import { motion, AnimatePresence } from 'framer-motion';
 import Link from 'next/link';
 import {
   ArrowLeft, MapPin, Clock, Eye, MessageSquare, Star,
-  CheckCircle, ChevronRight, Heart, Share2, Pencil,
+  CheckCircle, ChevronRight, Heart, Share2, Pencil, Trash2,
   Sparkles, Send, X, FileText, Calendar, Banknote,
-  Award, Info, Loader2,
+  Award, Info, Loader2, AlertTriangle, CheckCheck,
 } from 'lucide-react';
 
 function formatCurrency(n: number) {
@@ -187,6 +187,9 @@ export default function ListingDetailPage() {
   const [isFavorite, setIsFavorite] = useState(false);
   const [shared, setShared] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const [deleteSuccess, setDeleteSuccess] = useState(false);
 
   // Offer form state
   const [offerPrice, setOfferPrice] = useState('');
@@ -253,6 +256,18 @@ export default function ListingDetailPage() {
     }
   };
 
+  const handleDelete = async () => {
+    if (!params.id) return;
+    setDeleting(true);
+    const res = await fetch(`/api/listings/${params.id}`, { method: 'DELETE' });
+    setDeleting(false);
+    if (res.ok) {
+      setShowDeleteConfirm(false);
+      setDeleteSuccess(true);
+      setTimeout(() => router.push('/dashboard'), 2200);
+    }
+  };
+
   const handleSubmitOffer = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!offerPrice || !listing) return;
@@ -309,6 +324,77 @@ export default function ListingDetailPage() {
 
   return (
     <div className="max-w-7xl mx-auto px-6 py-8">
+
+      {/* ── Animasyonlu başarı toast ─────────────────────────────── */}
+      <AnimatePresence>
+        {deleteSuccess && (
+          <motion.div
+            initial={{ opacity: 0, y: -24, scale: 0.95 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: -12, scale: 0.97 }}
+            transition={{ type: 'spring', stiffness: 300, damping: 24 }}
+            className="fixed top-6 left-1/2 -translate-x-1/2 z-50 flex items-center gap-3 px-5 py-3.5 bg-success text-white rounded-xl shadow-lg"
+          >
+            <CheckCheck size={20} className="shrink-0" />
+            <div>
+              <p className="text-body-md font-semibold">İlan başarıyla silindi!</p>
+              <p className="text-body-sm opacity-80">İlanlarım sayfasına yönlendiriliyorsunuz…</p>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* ── Silme onay modalı ────────────────────────────────────── */}
+      <AnimatePresence>
+        {showDeleteConfirm && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm"
+            onClick={(e) => { if (e.target === e.currentTarget) setShowDeleteConfirm(false); }}
+          >
+            <motion.div
+              initial={{ opacity: 0, scale: 0.93, y: 16 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 8 }}
+              transition={{ type: 'spring', stiffness: 320, damping: 26 }}
+              className="bg-white dark:bg-dark-surface rounded-2xl border border-neutral-200/50 dark:border-dark-border p-6 w-full max-w-md shadow-xl"
+            >
+              <div className="w-12 h-12 rounded-full bg-red-50 dark:bg-red-500/10 flex items-center justify-center mx-auto mb-4">
+                <AlertTriangle size={24} className="text-red-500" />
+              </div>
+              <h3 className="text-h4 font-bold text-neutral-900 dark:text-dark-textPrimary text-center mb-2">
+                İlanı silmek istiyor musunuz?
+              </h3>
+              <p className="text-body-md text-neutral-500 text-center mb-6">
+                <strong className="text-neutral-700 dark:text-dark-textPrimary">&ldquo;{listing.title}&rdquo;</strong> ilanı kalıcı olarak silinecek. Bu işlem geri alınamaz.
+              </p>
+              <div className="flex gap-3">
+                <button
+                  onClick={() => setShowDeleteConfirm(false)}
+                  disabled={deleting}
+                  className="flex-1 h-11 rounded-xl border border-neutral-200 dark:border-dark-border text-body-md font-medium text-neutral-600 dark:text-dark-textSecondary hover:bg-neutral-50 dark:hover:bg-dark-surfaceRaised transition-colors disabled:opacity-50"
+                >
+                  İptal
+                </button>
+                <button
+                  onClick={handleDelete}
+                  disabled={deleting}
+                  className="flex-1 h-11 rounded-xl bg-red-500 hover:bg-red-600 text-white text-body-md font-semibold transition-colors flex items-center justify-center gap-2 disabled:opacity-60"
+                >
+                  {deleting ? (
+                    <Loader2 size={18} className="animate-spin" />
+                  ) : (
+                    <><Trash2 size={16} /> Evet, Sil</>
+                  )}
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       {/* Breadcrumb */}
       <div className="flex items-center gap-2 text-body-sm text-neutral-400 mb-6">
         <Link href="/explore" className="flex items-center gap-1 hover:text-neutral-600 transition-colors">
@@ -393,12 +479,20 @@ export default function ListingDetailPage() {
                 <Share2 size={16} /> {shared ? 'Kopyalandı!' : 'Paylaş'}
               </button>
               {isOwner && (
-                <Link
-                  href={`/listing/${listing.id}/edit`}
-                  className="h-10 px-4 rounded-lg border border-neutral-200 dark:border-dark-border text-body-md font-medium text-neutral-600 hover:bg-neutral-50 flex items-center gap-2 transition-colors"
-                >
-                  <Pencil size={16} /> Düzenle
-                </Link>
+                <>
+                  <Link
+                    href={`/listing/${listing.id}/edit`}
+                    className="h-10 px-4 rounded-lg border border-neutral-200 dark:border-dark-border text-body-md font-medium text-neutral-600 dark:text-dark-textSecondary hover:bg-neutral-50 dark:hover:bg-dark-surfaceRaised flex items-center gap-2 transition-colors"
+                  >
+                    <Pencil size={16} /> Düzenle
+                  </Link>
+                  <button
+                    onClick={() => setShowDeleteConfirm(true)}
+                    className="h-10 px-4 rounded-lg border border-red-200 dark:border-red-500/30 text-body-md font-medium text-red-500 hover:bg-red-50 dark:hover:bg-red-500/10 flex items-center gap-2 transition-colors"
+                  >
+                    <Trash2 size={16} /> Sil
+                  </button>
+                </>
               )}
             </div>
 
@@ -557,7 +651,10 @@ export default function ListingDetailPage() {
                     {listing.title}
                   </p>
                   <p className="text-body-sm text-accent font-semibold mt-1">
-                    Bütçe: {formatCurrency(listing.budgetMin)} — {formatCurrency(listing.budgetMax)}
+                    Bütçe:{' '}
+                    {listing.budgetMin === 0 && listing.budgetMax === 0
+                      ? 'Teklif Bekliyor'
+                      : `${formatCurrency(listing.budgetMin)} — ${formatCurrency(listing.budgetMax)}`}
                   </p>
                 </div>
 
