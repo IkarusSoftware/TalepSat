@@ -1,4 +1,5 @@
 import { PrismaClient } from '@/generated/prisma/client';
+import { PrismaBetterSqlite3 } from '@prisma/adapter-better-sqlite3';
 import { PrismaPg } from '@prisma/adapter-pg';
 
 const globalForPrisma = globalThis as unknown as { prisma: InstanceType<typeof PrismaClient> };
@@ -10,7 +11,10 @@ function createPrismaClient() {
     throw new Error('DATABASE_URL is required to initialize Prisma.');
   }
 
-  const adapter = new PrismaPg({ connectionString: url });
+  const adapter = url.startsWith('file:') || url === ':memory:'
+    ? new PrismaBetterSqlite3({ url })
+    : new PrismaPg({ connectionString: url });
+
   return new PrismaClient({ adapter });
 }
 

@@ -172,7 +172,14 @@ export default function OrdersScreen() {
                     <Text style={styles.metaText}>{order.deliveryDays} gun teslimat</Text>
                   </View>
 
-                  <View style={styles.counterpartCard}>
+                  <TouchableOpacity
+                    style={styles.counterpartCard}
+                    activeOpacity={0.88}
+                    onPress={() => {
+                      const userId = order.isBuyer ? order.sellerId : order.buyerId;
+                      if (userId) router.push(`/user/${userId}` as any);
+                    }}
+                  >
                     <View style={styles.counterpartAvatar}>
                       <Text style={styles.counterpartInitials}>{initialsOf(counterpartName || '?')}</Text>
                     </View>
@@ -181,7 +188,7 @@ export default function OrdersScreen() {
                       <Text style={styles.counterpartName}>{counterpartName}</Text>
                     </View>
                     <Text style={styles.price}>{formatPrice(order.price)}</Text>
-                  </View>
+                  </TouchableOpacity>
 
                   <View style={styles.confirmationRow}>
                     <View style={styles.confirmItem}>

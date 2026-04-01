@@ -1,6 +1,13 @@
-import React, { useState, useMemo } from 'react';
+import React, { useMemo, useState } from 'react';
 import {
-  View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert, Switch,
+  View,
+  Text,
+  StyleSheet,
+  ScrollView,
+  TouchableOpacity,
+  Alert,
+  Switch,
+  Linking,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
@@ -32,11 +39,25 @@ export default function ProfileScreen() {
   const router = useRouter();
   const { user, logout } = useAuth();
   const { colors, isDark, toggleTheme } = useTheme();
+  const styles = useMemo(() => makeStyles(colors), [colors]);
   const [loggingOut, setLoggingOut] = useState(false);
 
-  const styles = useMemo(() => makeStyles(colors), [colors]);
+  if (!user) return null;
 
-  const handleLogout = () => {
+  const initials = user.name
+    .split(' ')
+    .map((n) => n[0])
+    .join('')
+    .toUpperCase()
+    .slice(0, 2);
+
+  function openSupport() {
+    Linking.openURL('mailto:destek@talepsat.com?subject=TalepSat%20Mobil%20Destek').catch(() => {
+      Alert.alert('Hata', 'Destek adresi açılamadı.');
+    });
+  }
+
+  function handleLogout() {
     Alert.alert('Çıkış Yap', 'Hesabından çıkmak istediğine emin misin?', [
       { text: 'İptal', style: 'cancel' },
       {
@@ -48,23 +69,18 @@ export default function ProfileScreen() {
         },
       },
     ]);
-  };
-
-  if (!user) return null;
-
-  const initials = user.name.split(' ').map((n) => n[0]).join('').toUpperCase().slice(0, 2);
+  }
 
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
       <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
-        {/* Header */}
         <View style={styles.header}>
           <Text style={styles.headerTitle}>Profil</Text>
+          <Text style={styles.headerSubtitle}>Hesabını, favorilerini ve yasal alanları buradan yönet.</Text>
         </View>
 
-        {/* Profile Card */}
         <View style={styles.profileCard}>
-          <View style={styles.avatarContainer}>
+          <View style={styles.avatarWrap}>
             <View style={styles.avatar}>
               <Text style={styles.avatarText}>{initials}</Text>
             </View>
@@ -82,7 +98,7 @@ export default function ProfileScreen() {
               <Text style={styles.roleBadgeText}>{roleLabels[user.role] || user.role}</Text>
             </View>
             {user.badge && (
-              <View style={[styles.planBadge, { backgroundColor: badgeColors[user.badge] + '30' }]}>
+              <View style={[styles.planBadge, { backgroundColor: badgeColors[user.badge] + '24' }]}>
                 <Text style={[styles.planBadgeText, { color: badgeColors[user.badge] }]}>
                   {badgeLabels[user.badge]}
                 </Text>
@@ -90,7 +106,6 @@ export default function ProfileScreen() {
             )}
           </View>
 
-          {/* Stats */}
           <View style={styles.statsRow}>
             <View style={styles.statItem}>
               <Text style={styles.statValue}>{user.score?.toFixed(1) ?? '0.0'}</Text>
@@ -113,20 +128,34 @@ export default function ProfileScreen() {
           </View>
         </View>
 
-        {/* Hesap Menüsü */}
-        <Text style={styles.sectionLabel}>Hesap</Text>
+        <Text style={styles.sectionLabel}>Kısayollar</Text>
         <View style={styles.menuSection}>
+          <MenuItem icon="heart-outline" label="Favorilerim" onPress={() => router.push('/saved' as any)} colors={colors} />
           <MenuItem icon="cube-outline" label="Siparişlerim" onPress={() => router.push('/orders' as any)} colors={colors} />
-          <MenuItem icon="person-outline" label="Profili Düzenle" onPress={() => {}} colors={colors} />
-          <MenuItem icon="lock-closed-outline" label="Şifre Değiştir" onPress={() => {}} colors={colors} />
-          <MenuItem icon="notifications-outline" label="Bildirimler" onPress={() => router.push('/notifications' as any)} colors={colors} last />
+          <MenuItem icon="notifications-outline" label="Bildirimler" onPress={() => router.push('/notifications' as any)} colors={colors} />
+          <MenuItem icon="diamond-outline" label="Planlar" onPress={() => router.push('/plans' as any)} colors={colors} />
+          <MenuItem icon="card-outline" label="Abonelik" onPress={() => router.push('/subscription' as any)} colors={colors} />
+          {(user.role === 'seller' || user.role === 'both') && (
+            <MenuItem icon="speedometer-outline" label="SatÄ±cÄ± Paneli" onPress={() => router.push('/seller-dashboard' as any)} colors={colors} />
+          )}
+          <MenuItem
+            icon="person-outline"
+            label="Profili Düzenle"
+            onPress={() => router.push({ pathname: '/settings', params: { section: 'profile' } } as any)}
+            colors={colors}
+          />
+          <MenuItem
+            icon="lock-closed-outline"
+            label="Şifre Değiştir"
+            onPress={() => router.push({ pathname: '/settings', params: { section: 'password' } } as any)}
+            colors={colors}
+          />
+          <MenuItem icon="settings-outline" label="Ayarlar" onPress={() => router.push('/settings' as any)} colors={colors} last />
         </View>
 
-        {/* Ayarlar */}
-        <Text style={styles.sectionLabel}>Ayarlar</Text>
+        <Text style={styles.sectionLabel}>Görünüm</Text>
         <View style={styles.menuSection}>
-          {/* Tema Toggle */}
-          <View style={styles.menuItem}>
+          <View style={styles.switchRow}>
             <View style={styles.menuIconWrap}>
               <Ionicons
                 name={isDark ? 'moon-outline' : 'sunny-outline'}
@@ -146,16 +175,19 @@ export default function ProfileScreen() {
               ios_backgroundColor={colors.border}
             />
           </View>
-
-          <MenuItem icon="help-circle-outline" label="Yardım & Destek" onPress={() => {}} colors={colors} />
-          <MenuItem icon="document-text-outline" label="Kullanım Şartları" onPress={() => {}} colors={colors} />
-          <MenuItem icon="shield-outline" label="Gizlilik Politikası" onPress={() => {}} colors={colors} last />
         </View>
 
-        {/* App Version */}
+        <Text style={styles.sectionLabel}>Yardım ve Yasal</Text>
+        <View style={styles.menuSection}>
+          <MenuItem icon="help-circle-outline" label="Yardım & Destek" onPress={openSupport} colors={colors} />
+          <MenuItem icon="document-text-outline" label="Kullanım Şartları" onPress={() => router.push('/terms' as any)} colors={colors} />
+          <MenuItem icon="shield-outline" label="Gizlilik Politikası" onPress={() => router.push('/privacy' as any)} colors={colors} />
+          <MenuItem icon="document-lock-outline" label="KVKK Aydınlatma" onPress={() => router.push('/kvkk' as any)} colors={colors} />
+          <MenuItem icon="albums-outline" label="Çerez Politikası" onPress={() => router.push('/cookies' as any)} colors={colors} last />
+        </View>
+
         <Text style={styles.version}>TalepSat v1.0.0</Text>
 
-        {/* Logout */}
         <Button
           title="Çıkış Yap"
           variant="destructive"
@@ -168,7 +200,13 @@ export default function ProfileScreen() {
   );
 }
 
-function MenuItem({ icon, label, onPress, last, colors }: {
+function MenuItem({
+  icon,
+  label,
+  onPress,
+  last,
+  colors,
+}: {
   icon: keyof typeof Ionicons.glyphMap;
   label: string;
   onPress: () => void;
@@ -189,13 +227,17 @@ function MenuItem({ icon, label, onPress, last, colors }: {
         },
       ]}
       onPress={onPress}
-      activeOpacity={0.7}
+      activeOpacity={0.75}
     >
       <View style={{
-        width: 36, height: 36, borderRadius: borderRadius.sm,
+        width: 36,
+        height: 36,
+        borderRadius: borderRadius.sm,
         backgroundColor: colors.primary.lighter,
-        alignItems: 'center' as const, justifyContent: 'center' as const,
-      }}>
+        alignItems: 'center' as const,
+        justifyContent: 'center' as const,
+      }}
+      >
         <Ionicons name={icon} size={20} color={colors.primary.DEFAULT} />
       </View>
       <Text style={{ flex: 1, fontSize: 15, fontFamily: fontFamily.medium, color: colors.textPrimary }}>
@@ -210,11 +252,8 @@ const makeStyles = (colors: any) => StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.background },
   scroll: { paddingHorizontal: space.lg, paddingBottom: 100, paddingTop: space.md },
   header: { marginBottom: space.lg },
-  headerTitle: {
-    fontSize: 24,
-    fontFamily: fontFamily.extraBold,
-    color: colors.textPrimary,
-  },
+  headerTitle: { fontSize: 26, fontFamily: fontFamily.extraBold, color: colors.textPrimary },
+  headerSubtitle: { fontSize: 13, lineHeight: 19, fontFamily: fontFamily.regular, color: colors.textSecondary, marginTop: 4 },
   profileCard: {
     backgroundColor: colors.surface,
     borderRadius: borderRadius.xl,
@@ -224,33 +263,48 @@ const makeStyles = (colors: any) => StyleSheet.create({
     borderColor: colors.border,
     marginBottom: space.lg,
   },
-  avatarContainer: { position: 'relative', marginBottom: space.md },
+  avatarWrap: { position: 'relative', marginBottom: space.md },
   avatar: {
-    width: 80, height: 80, borderRadius: 40,
+    width: 84,
+    height: 84,
+    borderRadius: 42,
     backgroundColor: colors.primary.DEFAULT,
-    alignItems: 'center', justifyContent: 'center',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   avatarText: { fontSize: 30, fontFamily: fontFamily.extraBold, color: colors.white },
   verifiedBadge: {
-    position: 'absolute', bottom: 0, right: 0,
-    width: 24, height: 24, borderRadius: 12,
+    position: 'absolute',
+    bottom: 0,
+    right: 0,
+    width: 24,
+    height: 24,
+    borderRadius: 12,
     backgroundColor: colors.success.DEFAULT,
-    alignItems: 'center', justifyContent: 'center',
-    borderWidth: 2, borderColor: colors.surface,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 2,
+    borderColor: colors.surface,
   },
   name: { fontSize: 20, fontFamily: fontFamily.extraBold, color: colors.textPrimary, marginBottom: 4 },
   email: { fontSize: 14, fontFamily: fontFamily.regular, color: colors.textSecondary, marginBottom: space.md },
   badgesRow: { flexDirection: 'row', gap: space.sm, marginBottom: space.lg },
   roleBadge: {
     backgroundColor: colors.primary.lighter,
-    paddingHorizontal: space.sm, paddingVertical: 4, borderRadius: borderRadius.full,
+    paddingHorizontal: space.sm,
+    paddingVertical: 4,
+    borderRadius: borderRadius.full,
   },
-  roleBadgeText: { fontSize: 12, fontFamily: fontFamily.semiBold, color: colors.primary.light },
+  roleBadgeText: { fontSize: 12, fontFamily: fontFamily.semiBold, color: colors.primary.DEFAULT },
   planBadge: { paddingHorizontal: space.sm, paddingVertical: 4, borderRadius: borderRadius.full },
   planBadgeText: { fontSize: 12, fontFamily: fontFamily.bold },
   statsRow: {
-    flexDirection: 'row', alignItems: 'center', width: '100%',
-    backgroundColor: colors.surfaceRaised, borderRadius: borderRadius.md, padding: space.md,
+    flexDirection: 'row',
+    alignItems: 'center',
+    width: '100%',
+    backgroundColor: colors.surfaceRaised,
+    borderRadius: borderRadius.md,
+    padding: space.md,
   },
   statItem: { flex: 1, alignItems: 'center' },
   statValue: { fontSize: 18, fontFamily: fontFamily.extraBold, color: colors.textPrimary },
@@ -274,13 +328,11 @@ const makeStyles = (colors: any) => StyleSheet.create({
     overflow: 'hidden',
     marginBottom: space.sm,
   },
-  menuItem: {
+  switchRow: {
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: space.lg,
     paddingVertical: space.md,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border,
     gap: space.md,
   },
   menuIconWrap: {
@@ -295,7 +347,10 @@ const makeStyles = (colors: any) => StyleSheet.create({
   menuLabel: { fontSize: 15, fontFamily: fontFamily.medium, color: colors.textPrimary },
   menuSub: { fontSize: 12, fontFamily: fontFamily.regular, color: colors.textTertiary, marginTop: 1 },
   version: {
-    textAlign: 'center', fontSize: 12, fontFamily: fontFamily.regular,
-    color: colors.textTertiary, marginVertical: space.lg,
+    textAlign: 'center',
+    fontSize: 12,
+    fontFamily: fontFamily.regular,
+    color: colors.textTertiary,
+    marginVertical: space.lg,
   },
 });

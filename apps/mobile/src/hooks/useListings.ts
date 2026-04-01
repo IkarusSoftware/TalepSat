@@ -35,30 +35,40 @@ export function useToggleFavorite() {
 
   return useMutation({
     mutationFn: async ({ listingId, favorited }: { listingId: string; favorited: boolean }) => {
-      if (favorited) {
-        await api.delete(`/api/favorites/${listingId}`);
-      } else {
-        await api.post(`/api/favorites/${listingId}`);
-      }
+      await api.post(`/api/listings/${listingId}/favorite`, { favorited: !favorited });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['favorites'] });
+      queryClient.invalidateQueries({ queryKey: ['favorite-ids'] });
+      queryClient.invalidateQueries({ queryKey: ['listings'] });
     },
   });
 }
 
 export function useFavoriteIds() {
   return useQuery<string[]>({
-    queryKey: ['favorites'],
+    queryKey: ['favorite-ids'],
     queryFn: async () => {
       try {
-        const res = await api.get('/api/favorites');
-        return (res.data as any[]).map((f: any) => f.listingId ?? f.id);
+        const res = await api.get('/api/listings/favorites');
+        return (res.data as Listing[]).map((listing) => listing.id);
       } catch {
         // Not authenticated or endpoint not available yet
         return [];
       }
     },
     staleTime: 60_000,
+  });
+}
+
+export function useFavoriteListings(enabled = true) {
+  return useQuery<Listing[]>({
+    queryKey: ['favorites'],
+    queryFn: async () => {
+      const res = await api.get('/api/listings/favorites');
+      return res.data;
+    },
+    enabled,
+    staleTime: 30_000,
   });
 }

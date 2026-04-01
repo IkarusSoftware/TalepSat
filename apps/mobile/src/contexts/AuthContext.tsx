@@ -12,8 +12,12 @@ export type AuthUser = {
   image: string | null;
   city: string | null;
   bio: string | null;
+  phone?: string | null;
+  companyName?: string | null;
+  taxNumber?: string | null;
   score: number;
   completedDeals: number;
+  createdAt?: string;
 };
 
 type AuthContextType = {

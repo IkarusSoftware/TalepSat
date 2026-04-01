@@ -248,7 +248,7 @@ export default function ConversationScreen() {
           <TouchableOpacity
             style={styles.headerMain}
             activeOpacity={0.8}
-            onPress={() => conversation?.listingId && router.push(`/listing/${conversation.listingId}` as any)}
+            onPress={() => conversation?.participantId && router.push(`/user/${conversation.participantId}` as any)}
           >
             <View style={[styles.avatar, { backgroundColor: avatar }]}>
               <Text style={styles.avatarText}>{conversation?.participantInitials || 'K'}</Text>
@@ -268,6 +268,16 @@ export default function ConversationScreen() {
               </Text>
             </View>
           </TouchableOpacity>
+
+          {conversation?.listingId && (
+            <TouchableOpacity
+              style={styles.headerBtn}
+              onPress={() => router.push(`/listing/${conversation.listingId}` as any)}
+              activeOpacity={0.8}
+            >
+              <Ionicons name="briefcase-outline" size={18} color={colors.textPrimary} />
+            </TouchableOpacity>
+          )}
 
           <TouchableOpacity style={styles.headerBtn} onPress={() => setMenuOpen(true)} activeOpacity={0.8}>
             <Ionicons name="ellipsis-vertical" size={18} color={colors.textPrimary} />

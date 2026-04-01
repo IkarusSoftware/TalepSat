@@ -166,10 +166,13 @@ export interface Plan {
   name: string;
   priceMonthly: number;
   priceYearly: number;
-  offersPerMonth: number;
-  boostPerMonth: number;
-  maxListings: number;
+  offersPerMonth: number | null;
+  boostPerMonth: number | null;
+  maxListings: number | null;
   analytics: boolean;
   prioritySupport: boolean;
   verifiedBadge: boolean;
+  customProfile?: boolean;
+  responseTime?: string;
+  sortOrder?: number;
 }

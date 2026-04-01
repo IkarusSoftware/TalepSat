@@ -1,11 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import { auth } from '@/lib/auth';
+import { getApiSession } from '@/lib/api-session';
 import bcrypt from 'bcryptjs';
 
 export async function POST(req: NextRequest) {
-  const session = await auth();
-  if (!session?.user?.id) {
+  const session = await getApiSession(req);
+  if (!session?.userId) {
     return NextResponse.json({ error: 'Yetkisiz' }, { status: 401 });
   }
 
@@ -20,7 +20,7 @@ export async function POST(req: NextRequest) {
   }
 
   const user = await prisma.user.findUnique({
-    where: { id: session.user.id },
+    where: { id: session.userId },
     select: { hashedPassword: true },
   });
 
@@ -35,7 +35,7 @@ export async function POST(req: NextRequest) {
 
   const hashedPassword = await bcrypt.hash(newPassword, 12);
   await prisma.user.update({
-    where: { id: session.user.id },
+    where: { id: session.userId },
     data: { hashedPassword },
   });
 

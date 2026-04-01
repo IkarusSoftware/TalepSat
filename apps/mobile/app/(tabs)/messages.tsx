@@ -160,6 +160,14 @@ export default function MessagesScreen() {
             </View>
           )}
         </View>
+
+        <TouchableOpacity
+          style={styles.profileBtn}
+          activeOpacity={0.82}
+          onPress={() => router.push(`/user/${conv.participantId}` as any)}
+        >
+          <Ionicons name="person-circle-outline" size={20} color={colors.textTertiary} />
+        </TouchableOpacity>
       </TouchableOpacity>
     );
   };
@@ -251,6 +259,14 @@ const makeStyles = (colors: any) => StyleSheet.create({
     borderColor: colors.background,
   },
   convContent: { flex: 1 },
+  profileBtn: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.surfaceRaised,
+  },
   convHeader: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 2 },
   nameWrap: { flexDirection: 'row', alignItems: 'center', gap: 4, flex: 1, paddingRight: space.sm },
   convName: { fontSize: 15, fontFamily: fontFamily.bold, color: colors.textPrimary, flexShrink: 1 },

@@ -122,7 +122,11 @@ export default function ListingDetailScreen() {
         </View>
 
         {/* Buyer */}
-        <View style={styles.buyerCard}>
+        <TouchableOpacity
+          style={styles.buyerCard}
+          activeOpacity={0.88}
+          onPress={() => listing.buyer?.id && router.push(`/user/${listing.buyer.id}` as any)}
+        >
           <View style={styles.buyerAvatar}>
             <Text style={styles.buyerAvatarText}>
               {listing.buyer?.name.split(' ').map((n: string) => n[0]).join('').toUpperCase().slice(0, 2)}
@@ -140,15 +144,10 @@ export default function ListingDetailScreen() {
               <Text style={styles.buyerScore}>⭐ {listing.buyer?.score?.toFixed(1)}</Text>
             </View>
           </View>
-          {!isOwner && (
-            <TouchableOpacity
-              onPress={() => router.push('/(tabs)/messages' as any)}
-              style={styles.msgBtn}
-            >
-              <Ionicons name="chatbubble-outline" size={20} color={colors.primary.DEFAULT} />
-            </TouchableOpacity>
-          )}
-        </View>
+          <View style={styles.msgBtn}>
+            <Ionicons name="chevron-forward" size={20} color={colors.primary.DEFAULT} />
+          </View>
+        </TouchableOpacity>
 
         {/* Offers */}
         {offers.length > 0 && (
@@ -162,10 +161,14 @@ export default function ListingDetailScreen() {
                       {offer.seller?.name.split(' ').map((n: string) => n[0]).join('').toUpperCase().slice(0, 2)}
                     </Text>
                   </View>
-                  <View style={{ flex: 1 }}>
+                  <TouchableOpacity
+                    style={styles.offerProfileLink}
+                    activeOpacity={0.82}
+                    onPress={() => offer.seller?.id && router.push(`/user/${offer.seller.id}` as any)}
+                  >
                     <Text style={styles.offerSeller}>{offer.seller?.name}</Text>
                     <Text style={styles.offerStatus}>{offer.status === 'pending' ? 'Beklemede' : offer.status}</Text>
-                  </View>
+                  </TouchableOpacity>
                   <Text style={styles.offerPrice}>₺{fmt(offer.price)}</Text>
                 </View>
                 <View style={styles.offerMeta}>
@@ -179,9 +182,22 @@ export default function ListingDetailScreen() {
       </ScrollView>
 
       {/* Bottom CTA */}
-      {!isOwner && (
-        <View style={styles.bottomBar}>
-          {myOffer ? (
+      <View style={styles.bottomBar}>
+          {isOwner ? (
+            offers.length > 0 ? (
+              <Button
+                title={`Teklifleri Karsilastir (${offers.length})`}
+                onPress={() => router.push(`/listing-compare/${id}` as any)}
+                size="lg"
+                fullWidth
+              />
+            ) : (
+              <View style={styles.myOfferBanner}>
+                <Ionicons name="hourglass-outline" size={20} color={colors.textTertiary} />
+                <Text style={[styles.myOfferText, { color: colors.textSecondary }]}>Henuz karsilastiracak teklif yok</Text>
+              </View>
+            )
+          ) : myOffer ? (
             <View style={styles.myOfferBanner}>
               <Ionicons name="checkmark-circle" size={20} color={colors.success.DEFAULT} />
               <Text style={styles.myOfferText}>Teklifiniz gönderildi — ₺{fmt(myOffer.price)}</Text>
@@ -189,8 +205,7 @@ export default function ListingDetailScreen() {
           ) : (
             <Button title="Teklif Ver" onPress={() => setOfferModal(true)} size="lg" fullWidth />
           )}
-        </View>
-      )}
+      </View>
 
       {/* Offer Modal */}
       <Modal visible={offerModal} animationType="slide" transparent>
@@ -406,6 +421,7 @@ const makeStyles = (colors: any) => StyleSheet.create({
     marginBottom: space.sm,
   },
   offerHeader: { flexDirection: 'row', alignItems: 'center', gap: space.sm, marginBottom: space.sm },
+  offerProfileLink: { flex: 1 },
   offerAvatar: {
     width: 36,
     height: 36,

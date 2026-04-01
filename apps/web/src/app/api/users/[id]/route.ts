@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import { auth } from '@/lib/auth';
+import { getApiSession } from '@/lib/api-session';
 
 // GET /api/users/[id] — public profile
 export async function GET(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -53,8 +53,8 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
 // PATCH /api/users/[id] — update own profile
 export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const session = await auth();
-  if (!session?.user?.id || session.user.id !== id) {
+  const session = await getApiSession(req);
+  if (!session?.userId || session.userId !== id) {
     return NextResponse.json({ error: 'Yetkisiz' }, { status: 401 });
   }
 

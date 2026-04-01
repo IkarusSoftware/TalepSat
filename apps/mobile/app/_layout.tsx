@@ -111,6 +111,62 @@ function RootNavigator() {
           }}
         />
         <Stack.Screen
+          name="subscription"
+          options={{
+            headerShown: true,
+            headerTitle: 'Abonelik',
+            headerBackTitle: 'Geri',
+          }}
+        />
+        <Stack.Screen
+          name="seller-dashboard"
+          options={{
+            headerShown: true,
+            headerTitle: 'Satıcı Paneli',
+            headerBackTitle: 'Geri',
+          }}
+        />
+        <Stack.Screen
+          name="listing-compare/[id]"
+          options={{
+            headerShown: true,
+            headerTitle: 'Teklifleri Karşılaştır',
+            headerBackTitle: 'Geri',
+          }}
+        />
+        <Stack.Screen
+          name="terms"
+          options={{
+            headerShown: true,
+            headerTitle: 'Kullanım Şartları',
+            headerBackTitle: 'Geri',
+          }}
+        />
+        <Stack.Screen
+          name="privacy"
+          options={{
+            headerShown: true,
+            headerTitle: 'Gizlilik Politikası',
+            headerBackTitle: 'Geri',
+          }}
+        />
+        <Stack.Screen
+          name="kvkk"
+          options={{
+            headerShown: true,
+            headerTitle: 'KVKK Aydınlatma',
+            headerBackTitle: 'Geri',
+          }}
+        />
+        <Stack.Screen
+          name="cookies"
+          options={{
+            headerShown: true,
+            headerTitle: 'Çerez Politikası',
+            headerBackTitle: 'Geri',
+          }}
+        />
+        <Stack.Screen
           name="user/[id]"
           options={{
             headerShown: true,
@@ -118,7 +174,14 @@ function RootNavigator() {
             headerBackTitle: 'Geri',
           }}
         />
-        <Stack.Screen name="settings" options={{ headerShown: false }} />
+        <Stack.Screen
+          name="settings"
+          options={{
+            headerShown: true,
+            headerTitle: 'Ayarlar',
+            headerBackTitle: 'Geri',
+          }}
+        />
       </Stack>
     </>
   );

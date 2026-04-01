@@ -207,7 +207,11 @@ export default function OfferDetailScreen() {
 
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Karsi Taraf</Text>
-          <View style={styles.partyCard}>
+          <TouchableOpacity
+            style={styles.partyCard}
+            activeOpacity={0.88}
+            onPress={() => router.push(`/user/${otherParty.id}` as any)}
+          >
             <View style={styles.partyAvatar}>
               <Text style={styles.partyAvatarText}>{initialsOf(otherParty.name)}</Text>
             </View>
@@ -220,7 +224,8 @@ export default function OfferDetailScreen() {
               </View>
               <Text style={styles.partyMeta}>{otherParty.role} • {otherParty.score.toFixed(1)} puan</Text>
             </View>
-          </View>
+            <Ionicons name="chevron-forward" size={18} color={colors.textTertiary} />
+          </TouchableOpacity>
         </View>
 
         <View style={styles.section}>
