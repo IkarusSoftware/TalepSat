@@ -45,6 +45,7 @@ apps/web/src/generated/
 
 # Claude
 .claude/
+.codex-logs/
 
 # Testing
 coverage/
