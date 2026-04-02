@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getApiSession } from '@/lib/api-session';
+import { createNotificationAndPublish } from '@/lib/notification-service';
 import { prisma } from '@/lib/prisma';
+import { eventForUser, emitRealtimeEvents } from '@/lib/realtime';
 
 // GET /api/offers/[id]
 export async function GET(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -45,6 +47,10 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   // Seller can withdraw their own offer
   if (action === 'withdraw' && offer.sellerId === session.userId) {
     const updated = await prisma.offer.update({ where: { id }, data: { status: 'withdrawn' } });
+    emitRealtimeEvents([
+      eventForUser(offer.sellerId, 'offer.updated', offer.id),
+      eventForUser(offer.listing.buyerId, 'offer.updated', offer.id),
+    ]);
     return NextResponse.json(updated);
   }
 
@@ -66,6 +72,10 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
         seller: { select: { id: true, name: true, score: true, verified: true, badge: true, completedDeals: true, companyName: true, createdAt: true, city: true } },
       },
     });
+    emitRealtimeEvents([
+      eventForUser(offer.sellerId, 'offer.updated', offer.id),
+      eventForUser(offer.listing.buyerId, 'offer.updated', offer.id),
+    ]);
     return NextResponse.json(updated);
   }
 
@@ -124,36 +134,41 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
         where: { id: offer.listingId },
         data: { status: 'completed' },
       });
-      // Notify both
-      await prisma.notification.createMany({
-        data: [
-          {
-            userId: offer.sellerId,
-            type: 'system',
-            title: 'Sipariş Tamamlandı',
-            description: `"${offer.listing.title}" siparişi başarıyla tamamlandı.`,
-            link: `/orders`,
-          },
-          {
-            userId: offer.listing.buyerId,
-            type: 'system',
-            title: 'Sipariş Tamamlandı',
-            description: `"${offer.listing.title}" siparişi tamamlandı. Satıcıyı değerlendirmeyi unutmayın!`,
-            link: `/orders`,
-          },
-        ],
-      });
-    } else {
-      await prisma.notification.create({
-        data: {
-          userId: notifyUserId,
+      await Promise.all([
+        createNotificationAndPublish({
+          userId: offer.sellerId,
           type: 'system',
-          title: `${confirmerRole} Teslimatı Onayladı`,
-          description: `"${offer.listing.title}" siparişi için ${confirmerRole.toLowerCase()} teslimatı onayladı. Siz de onaylayın.`,
-          link: `/orders`,
-        },
+          title: 'Sipariş Tamamlandı',
+          description: `"${offer.listing.title}" siparişi başarıyla tamamlandı.`,
+          link: '/orders',
+          entityId: offer.id,
+        }),
+        createNotificationAndPublish({
+          userId: offer.listing.buyerId,
+          type: 'system',
+          title: 'Sipariş Tamamlandı',
+          description: `"${offer.listing.title}" siparişi tamamlandı. Satıcıyı değerlendirmeyi unutmayın!`,
+          link: '/orders',
+          entityId: offer.id,
+        }),
+      ]);
+    } else {
+      await createNotificationAndPublish({
+        userId: notifyUserId,
+        type: 'system',
+        title: `${confirmerRole} Teslimatı Onayladı`,
+        description: `"${offer.listing.title}" siparişi için ${confirmerRole.toLowerCase()} teslimatı onayladı. Siz de onaylayın.`,
+        link: '/orders',
+        entityId: offer.id,
       });
     }
+
+    emitRealtimeEvents([
+      eventForUser(offer.sellerId, 'order.updated', offer.id),
+      eventForUser(offer.listing.buyerId, 'order.updated', offer.id),
+      eventForUser(offer.sellerId, 'offer.updated', offer.id),
+      eventForUser(offer.listing.buyerId, 'offer.updated', offer.id),
+    ]);
 
     return NextResponse.json(updated);
   }
@@ -169,29 +184,37 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
       if (offer.counterPrice) updateData.price = offer.counterPrice;
       if (offer.counterDays) updateData.deliveryDays = offer.counterDays;
       const updated = await prisma.offer.update({ where: { id }, data: updateData });
-      await prisma.notification.create({
-        data: {
-          userId: offer.listing.buyerId,
-          type: 'offer_accepted',
-          title: 'Karşı Teklifiniz Kabul Edildi',
-          description: `"${offer.listing.title}" ilanındaki karşı teklifiniz satıcı tarafından kabul edildi.`,
-          link: `/offers/${offer.id}`,
-        },
+      await createNotificationAndPublish({
+        userId: offer.listing.buyerId,
+        type: 'offer_accepted',
+        title: 'Karşı Teklifiniz Kabul Edildi',
+        description: `"${offer.listing.title}" ilanındaki karşı teklifiniz satıcı tarafından kabul edildi.`,
+        link: `/offers/${offer.id}`,
+        entityId: offer.id,
       });
+      emitRealtimeEvents([
+        eventForUser(offer.sellerId, 'offer.updated', offer.id),
+        eventForUser(offer.listing.buyerId, 'offer.updated', offer.id),
+        eventForUser(offer.sellerId, 'order.updated', offer.id),
+        eventForUser(offer.listing.buyerId, 'order.updated', offer.id),
+      ]);
       return NextResponse.json(updated);
     }
 
     if (action === 'reject') {
       const updated = await prisma.offer.update({ where: { id }, data: { status: 'rejected', rejectedReason: rejectedReason || 'Karşı teklif satıcı tarafından reddedildi' } });
-      await prisma.notification.create({
-        data: {
-          userId: offer.listing.buyerId,
-          type: 'offer_rejected',
-          title: 'Satıcı Karşı Teklifinizi Reddetti',
-          description: `"${offer.listing.title}" ilanındaki karşı teklifiniz reddedildi.`,
-          link: `/offers/${offer.id}`,
-        },
+      await createNotificationAndPublish({
+        userId: offer.listing.buyerId,
+        type: 'offer_rejected',
+        title: 'Satıcı Karşı Teklifinizi Reddetti',
+        description: `"${offer.listing.title}" ilanındaki karşı teklifiniz reddedildi.`,
+        link: `/offers/${offer.id}`,
+        entityId: offer.id,
       });
+      emitRealtimeEvents([
+        eventForUser(offer.sellerId, 'offer.updated', offer.id),
+        eventForUser(offer.listing.buyerId, 'offer.updated', offer.id),
+      ]);
       return NextResponse.json(updated);
     }
 
@@ -202,15 +225,18 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
       if (body.deliveryDays) updateData.deliveryDays = parseInt(body.deliveryDays);
       if (body.note !== undefined) updateData.note = body.note || null;
       const updated = await prisma.offer.update({ where: { id }, data: updateData });
-      await prisma.notification.create({
-        data: {
-          userId: offer.listing.buyerId,
-          type: 'offer_updated',
-          title: 'Satıcı Teklifini Güncelledi',
-          description: `"${offer.listing.title}" ilanındaki teklif satıcı tarafından revize edildi.`,
-          link: `/offers/${offer.id}`,
-        },
+      await createNotificationAndPublish({
+        userId: offer.listing.buyerId,
+        type: 'offer_updated',
+        title: 'Satıcı Teklifini Güncelledi',
+        description: `"${offer.listing.title}" ilanındaki teklif satıcı tarafından revize edildi.`,
+        link: `/offers/${offer.id}`,
+        entityId: offer.id,
       });
+      emitRealtimeEvents([
+        eventForUser(offer.sellerId, 'offer.updated', offer.id),
+        eventForUser(offer.listing.buyerId, 'offer.updated', offer.id),
+      ]);
       return NextResponse.json(updated);
     }
   }
@@ -222,29 +248,37 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
 
   if (action === 'accept') {
     const updated = await prisma.offer.update({ where: { id }, data: { status: 'accepted' } });
-    await prisma.notification.create({
-      data: {
-        userId: offer.sellerId,
-        type: 'offer_accepted',
-        title: 'Teklifiniz Kabul Edildi',
-        description: `"${offer.listing.title}" ilanındaki teklifiniz kabul edildi.`,
-        link: `/offers/${offer.id}`,
-      },
+    await createNotificationAndPublish({
+      userId: offer.sellerId,
+      type: 'offer_accepted',
+      title: 'Teklifiniz Kabul Edildi',
+      description: `"${offer.listing.title}" ilanındaki teklifiniz kabul edildi.`,
+      link: `/offers/${offer.id}`,
+      entityId: offer.id,
     });
+    emitRealtimeEvents([
+      eventForUser(offer.sellerId, 'offer.updated', offer.id),
+      eventForUser(offer.listing.buyerId, 'offer.updated', offer.id),
+      eventForUser(offer.sellerId, 'order.updated', offer.id),
+      eventForUser(offer.listing.buyerId, 'order.updated', offer.id),
+    ]);
     return NextResponse.json(updated);
   }
 
   if (action === 'reject') {
     const updated = await prisma.offer.update({ where: { id }, data: { status: 'rejected', rejectedReason } });
-    await prisma.notification.create({
-      data: {
-        userId: offer.sellerId,
-        type: 'offer_rejected',
-        title: 'Teklifiniz Reddedildi',
-        description: `"${offer.listing.title}" ilanındaki teklifiniz reddedildi.`,
-        link: `/offers/${offer.id}`,
-      },
+    await createNotificationAndPublish({
+      userId: offer.sellerId,
+      type: 'offer_rejected',
+      title: 'Teklifiniz Reddedildi',
+      description: `"${offer.listing.title}" ilanındaki teklifiniz reddedildi.`,
+      link: `/offers/${offer.id}`,
+      entityId: offer.id,
     });
+    emitRealtimeEvents([
+      eventForUser(offer.sellerId, 'offer.updated', offer.id),
+      eventForUser(offer.listing.buyerId, 'offer.updated', offer.id),
+    ]);
     return NextResponse.json(updated);
   }
 
@@ -260,15 +294,18 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
         revisionCount: { increment: 1 },
       },
     });
-    await prisma.notification.create({
-      data: {
-        userId: offer.sellerId,
-        type: 'counter_offer',
-        title: 'Karşı Teklif Aldınız',
-        description: `"${offer.listing.title}" ilanındaki teklifinize karşı teklif yapıldı.`,
-        link: `/offers/${offer.id}`,
-      },
+    await createNotificationAndPublish({
+      userId: offer.sellerId,
+      type: 'counter_offer',
+      title: 'Karşı Teklif Aldınız',
+      description: `"${offer.listing.title}" ilanındaki teklifinize karşı teklif yapıldı.`,
+      link: `/offers/${offer.id}`,
+      entityId: offer.id,
     });
+    emitRealtimeEvents([
+      eventForUser(offer.sellerId, 'offer.updated', offer.id),
+      eventForUser(offer.listing.buyerId, 'offer.updated', offer.id),
+    ]);
     return NextResponse.json(updated);
   }
 

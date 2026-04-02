@@ -19,6 +19,7 @@ import * as SecureStore from 'expo-secure-store';
 import { useLocalSearchParams } from 'expo-router';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import api from '../src/lib/api';
+import { syncPushPreference } from '../src/lib/push';
 import { useAuth, type AuthUser } from '../src/contexts/AuthContext';
 import { useThemeColors } from '../src/contexts/ThemeContext';
 import { Avatar, Button, EmptyState, Input } from '../src/components/ui';
@@ -55,6 +56,7 @@ export default function SettingsScreen() {
   const [taxNumber, setTaxNumber] = useState('');
   const [image, setImage] = useState<string | null>(null);
   const [notificationPrefs, setNotificationPrefs] = useState<NotificationPrefs>(defaultNotificationPrefs);
+  const [notificationPrefsLoaded, setNotificationPrefsLoaded] = useState(false);
   const [passwordModalOpen, setPasswordModalOpen] = useState(false);
   const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
@@ -72,12 +74,21 @@ export default function SettingsScreen() {
         if (!stored) return;
         setNotificationPrefs({ ...defaultNotificationPrefs, ...JSON.parse(stored) });
       })
-      .catch(() => {});
+      .catch(() => {})
+      .finally(() => setNotificationPrefsLoaded(true));
   }, []);
 
   useEffect(() => {
     SecureStore.setItemAsync(NOTIFICATION_PREFS_KEY, JSON.stringify(notificationPrefs)).catch(() => {});
   }, [notificationPrefs]);
+
+  useEffect(() => {
+    if (!notificationPrefsLoaded || !user?.id) return;
+
+    syncPushPreference(notificationPrefs.push).catch(() => {
+      // Preference save stays local even if device registration cannot complete right now.
+    });
+  }, [notificationPrefs.push, notificationPrefsLoaded, user?.id]);
 
   useEffect(() => {
     if (!authUser) return;
@@ -281,7 +292,7 @@ export default function SettingsScreen() {
             {
               key: 'push' as const,
               title: 'Push bildirimleri',
-              description: 'Şimdilik yerel tercih olarak saklanır; gerçek push altyapısı daha sonra açılacak.',
+              description: 'Mesaj, teklif ve sipariş hareketleri için cihaz kaydın açık tutulur.',
             },
           ].map((item, index, arr) => (
             <View

@@ -1,54 +1,44 @@
 'use client';
 
-import { useState, useEffect, useMemo } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { motion } from 'framer-motion';
 import Link from 'next/link';
 import { useSession } from 'next-auth/react';
 import {
-  Clock, MessageSquare, MapPin, Eye, Plus, ArrowRight,
-  Calendar, FileText, Loader2, XCircle, AlertCircle, TrendingUp,
+  AlertCircle,
+  ArrowRight,
+  Clock,
+  FileText,
+  Loader2,
+  MessageSquare,
+  Plus,
+  TrendingUp,
 } from 'lucide-react';
-
-function formatCurrency(n: number) {
-  return new Intl.NumberFormat('tr-TR', { style: 'currency', currency: 'TRY', maximumFractionDigits: 0 }).format(n);
-}
+import { ListingOwnerCard } from '@/components/listing/ListingMediaCard';
 
 const deliveryLabels: Record<string, string> = {
-  urgent:    'Acil (1-3 gün)',
-  week:      '1 Hafta',
+  urgent: 'Acil (1-3 gün)',
+  week: '1 Hafta',
   two_weeks: '2 Hafta',
-  month:     '1 Ay',
-  flexible:  'Esnek',
-  normal:    'Normal',
+  month: '1 Ay',
+  flexible: 'Esnek',
+  normal: 'Normal',
 };
 
-function formatBudget(min: number, max: number) {
-  if (min === 0 && max === 0) return 'Teklif Bekliyor';
-  if (min === max) return formatCurrency(min);
-  return `${formatCurrency(min)} — ${formatCurrency(max)}`;
-}
-
-function getTimeLeft(expiresAt: string) {
-  const diff = new Date(expiresAt).getTime() - Date.now();
-  const days = Math.max(0, Math.floor(diff / 86400000));
-  if (days === 0) return 'Bugün bitiyor';
-  return `${days} gün kaldı`;
-}
-
 const tabs = [
-  { value: 'active',    label: 'Aktif' },
-  { value: 'pending',   label: 'Onay Bekliyor' },
-  { value: 'rejected',  label: 'Reddedildi' },
+  { value: 'active', label: 'Aktif' },
+  { value: 'pending', label: 'Onay Bekliyor' },
+  { value: 'rejected', label: 'Reddedildi' },
   { value: 'completed', label: 'Tamamlanan' },
-  { value: 'expired',   label: 'Süresi Dolan' },
+  { value: 'expired', label: 'Süresi Dolan' },
 ];
 
-const statusConfig: Record<string, { label: string; dot: string; text: string }> = {
-  active:    { label: 'Aktif',         dot: 'bg-emerald-500', text: 'text-emerald-600 dark:text-emerald-400' },
-  pending:   { label: 'Onay Bekliyor', dot: 'bg-amber-500',   text: 'text-amber-600 dark:text-amber-400' },
-  rejected:  { label: 'Reddedildi',    dot: 'bg-red-500',     text: 'text-red-600 dark:text-red-400' },
-  completed: { label: 'Tamamlandı',    dot: 'bg-blue-500',    text: 'text-blue-600 dark:text-blue-400' },
-  expired:   { label: 'Süresi Doldu',  dot: 'bg-neutral-400', text: 'text-neutral-500 dark:text-neutral-400' },
+const statusConfig: Record<string, { label: string; dotClassName: string; textClassName: string }> = {
+  active: { label: 'Aktif', dotClassName: 'bg-emerald-500', textClassName: 'text-emerald-600 dark:text-emerald-400' },
+  pending: { label: 'Onay Bekliyor', dotClassName: 'bg-amber-500', textClassName: 'text-amber-600 dark:text-amber-400' },
+  rejected: { label: 'Reddedildi', dotClassName: 'bg-red-500', textClassName: 'text-red-600 dark:text-red-400' },
+  completed: { label: 'Tamamlandı', dotClassName: 'bg-blue-500', textClassName: 'text-blue-600 dark:text-blue-400' },
+  expired: { label: 'Süresi Doldu', dotClassName: 'bg-neutral-400', textClassName: 'text-neutral-500 dark:text-neutral-400' },
 };
 
 interface Listing {
@@ -64,6 +54,7 @@ interface Listing {
   expiresAt: string;
   offerCount: number;
   createdAt: string;
+  images: string[];
 }
 
 interface Offer {
@@ -81,38 +72,41 @@ export default function DashboardPage() {
 
   useEffect(() => {
     if (!session?.user?.id) return;
+
     setLoading(true);
     Promise.all([
-      fetch(`/api/listings?buyerId=${session.user.id}`).then((r) => r.json()),
-      fetch('/api/offers?role=buyer').then((r) => r.json()),
+      fetch(`/api/listings?buyerId=${session.user.id}`).then((response) => response.json()),
+      fetch('/api/offers?role=buyer').then((response) => response.json()),
     ])
       .then(([listingsData, offersData]) => {
-        setListings(listingsData);
+        setListings(Array.isArray(listingsData) ? listingsData : []);
         setOffers(Array.isArray(offersData) ? offersData : []);
       })
       .finally(() => setLoading(false));
   }, [session?.user?.id]);
 
-  const filtered = useMemo(() => listings.filter((l) => l.status === activeTab), [listings, activeTab]);
+  const filtered = useMemo(() => listings.filter((listing) => listing.status === activeTab), [listings, activeTab]);
 
   const pendingOfferCounts = useMemo(() => {
     const counts: Record<string, number> = {};
-    offers.filter((o) => o.status === 'pending').forEach((o) => {
-      counts[o.listingId] = (counts[o.listingId] || 0) + 1;
-    });
+    offers
+      .filter((offer) => offer.status === 'pending')
+      .forEach((offer) => {
+        counts[offer.listingId] = (counts[offer.listingId] || 0) + 1;
+      });
     return counts;
   }, [offers]);
 
   const tabCounts = {
-    active:    listings.filter((l) => l.status === 'active').length,
-    pending:   listings.filter((l) => l.status === 'pending').length,
-    rejected:  listings.filter((l) => l.status === 'rejected').length,
-    completed: listings.filter((l) => l.status === 'completed').length,
-    expired:   listings.filter((l) => l.status === 'expired').length,
+    active: listings.filter((listing) => listing.status === 'active').length,
+    pending: listings.filter((listing) => listing.status === 'pending').length,
+    rejected: listings.filter((listing) => listing.status === 'rejected').length,
+    completed: listings.filter((listing) => listing.status === 'completed').length,
+    expired: listings.filter((listing) => listing.status === 'expired').length,
   };
 
-  const totalOffers  = offers.length;
-  const totalPending = offers.filter((o) => o.status === 'pending').length;
+  const totalOffers = offers.length;
+  const totalPending = offers.filter((offer) => offer.status === 'pending').length;
 
   if (loading) {
     return (
@@ -124,8 +118,6 @@ export default function DashboardPage() {
 
   return (
     <div className="max-w-7xl mx-auto px-6 py-8">
-
-      {/* ── Header ─────────────────────────────────────────────── */}
       <div className="flex items-center justify-between mb-6">
         <div>
           <h1 className="text-h2 font-bold text-neutral-900 dark:text-dark-textPrimary">İlanlarım</h1>
@@ -135,19 +127,22 @@ export default function DashboardPage() {
           href="/create"
           className="hidden sm:inline-flex items-center gap-2 h-10 px-4 bg-accent text-white text-body-md font-semibold rounded-lg hover:bg-accent-600 active:scale-[0.97] transition-all shadow-sm"
         >
-          <Plus size={16} /> Yeni İlan
+          <Plus size={16} />
+          Yeni İlan
         </Link>
       </div>
 
-      {/* ── Stats row ──────────────────────────────────────────── */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6">
+      <div className="grid grid-cols-2 gap-3 mb-6 sm:grid-cols-4">
         {[
-          { label: 'Aktif İlan',      value: tabCounts.active,    color: 'text-accent',      icon: <FileText size={14} /> },
-          { label: 'Toplam Teklif',   value: totalOffers,         color: 'text-primary',     icon: <MessageSquare size={14} /> },
-          { label: 'Bekleyen Teklif', value: totalPending,        color: 'text-amber-600',   icon: <Clock size={14} /> },
-          { label: 'Tamamlanan',      value: tabCounts.completed, color: 'text-success',     icon: <TrendingUp size={14} /> },
+          { label: 'Aktif İlan', value: tabCounts.active, color: 'text-accent', icon: <FileText size={14} /> },
+          { label: 'Toplam Teklif', value: totalOffers, color: 'text-primary', icon: <MessageSquare size={14} /> },
+          { label: 'Bekleyen Teklif', value: totalPending, color: 'text-amber-600', icon: <Clock size={14} /> },
+          { label: 'Tamamlanan', value: tabCounts.completed, color: 'text-success', icon: <TrendingUp size={14} /> },
         ].map((stat) => (
-          <div key={stat.label} className="bg-white dark:bg-dark-surface rounded-xl border border-neutral-200/50 dark:border-dark-border/80 px-4 py-3 flex items-center gap-3">
+          <div
+            key={stat.label}
+            className="bg-white dark:bg-dark-surface rounded-xl border border-neutral-200/50 dark:border-dark-border/80 px-4 py-3 flex items-center gap-3"
+          >
             <div className={`${stat.color} opacity-60`}>{stat.icon}</div>
             <div>
               <p className={`text-h3 font-bold leading-none ${stat.color}`}>{stat.value}</p>
@@ -157,13 +152,13 @@ export default function DashboardPage() {
         ))}
       </div>
 
-      {/* ── Tabs ───────────────────────────────────────────────── */}
       <div className="flex items-center gap-1 mb-5 overflow-x-auto pb-1">
         {tabs.map((tab) => {
           const count = tabCounts[tab.value as keyof typeof tabCounts];
           return (
             <button
               key={tab.value}
+              type="button"
               onClick={() => setActiveTab(tab.value)}
               className={`flex-shrink-0 px-3.5 py-2 rounded-lg text-body-md font-medium transition-colors ${
                 activeTab === tab.value
@@ -182,12 +177,74 @@ export default function DashboardPage() {
         })}
       </div>
 
-      {/* ── Listing grid ───────────────────────────────────────── */}
       {filtered.length > 0 ? (
-        <div className="grid sm:grid-cols-2 xl:grid-cols-3 gap-4">
+        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
           {filtered.map((listing, index) => {
             const pendingCount = pendingOfferCounts[listing.id] || 0;
-            const config = statusConfig[listing.status] || statusConfig.active;
+            const status = statusConfig[listing.status] || statusConfig.active;
+
+            const infoBanner = listing.status === 'pending' ? (
+              <p className="rounded-xl bg-amber-50 px-3 py-2 text-body-sm text-amber-600 dark:bg-amber-500/10 dark:text-amber-400">
+                Admin onayı bekleniyor - 24 saat içinde sonuçlanır.
+              </p>
+            ) : listing.status === 'rejected' ? (
+              <p className="rounded-xl bg-red-50 px-3 py-2 text-body-sm text-red-600 dark:bg-red-500/10 dark:text-red-400">
+                İlan reddedildi.{' '}
+                <a href="mailto:destek@talepsat.com" className="underline font-medium">
+                  İletişime geç
+                </a>
+              </p>
+            ) : null;
+
+            const footerLead = listing.status === 'active' ? (
+              <span className="inline-flex items-center gap-1.5 text-body-md font-semibold text-accent">
+                <MessageSquare size={14} />
+                {listing.offerCount} teklif
+                {pendingCount > 0 && (
+                  <span className="w-4 h-4 rounded-full bg-accent text-white text-[10px] font-bold flex items-center justify-center">
+                    {pendingCount}
+                  </span>
+                )}
+              </span>
+            ) : (
+              <span className="inline-flex items-center gap-1 text-body-sm text-neutral-400">
+                <AlertCircle size={13} />
+                {listing.status === 'completed' ? `${listing.offerCount} teklif` : '-'}
+              </span>
+            );
+
+            const footerActions = (
+              <>
+                {listing.offerCount > 1 && listing.status === 'active' && (
+                  <Link
+                    href={`/listing/${listing.id}/compare`}
+                    className="h-8 px-3 rounded-lg border border-neutral-200 dark:border-dark-border text-body-sm font-medium text-neutral-600 dark:text-dark-textSecondary hover:bg-neutral-50 dark:hover:bg-dark-surfaceRaised transition-colors flex items-center"
+                  >
+                    Karşılaştır
+                  </Link>
+                )}
+
+                {listing.status === 'active' && (
+                  <Link
+                    href={`/listing/${listing.id}`}
+                    className="h-8 px-3 rounded-lg bg-accent/10 text-accent text-body-sm font-semibold hover:bg-accent/20 transition-colors flex items-center gap-1.5"
+                  >
+                    Teklifleri Gör
+                    <ArrowRight size={13} />
+                  </Link>
+                )}
+
+                {listing.status === 'rejected' && (
+                  <Link
+                    href="/create"
+                    className="h-8 px-3 rounded-lg bg-red-50 dark:bg-red-500/10 text-red-600 dark:text-red-400 text-body-sm font-semibold hover:bg-red-100 dark:hover:bg-red-500/20 transition-colors flex items-center gap-1.5"
+                  >
+                    Yeniden Oluştur
+                    <ArrowRight size={13} />
+                  </Link>
+                )}
+              </>
+            );
 
             return (
               <motion.div
@@ -195,103 +252,15 @@ export default function DashboardPage() {
                 initial={{ opacity: 0, y: 10 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.25, delay: index * 0.04 }}
-                className="bg-white dark:bg-dark-surface rounded-xl border border-neutral-200/50 dark:border-dark-border/80 p-4 hover:shadow-md hover:border-neutral-300 dark:hover:border-neutral-500 transition-all flex flex-col"
               >
-                {/* Top badges + time */}
-                <div className="flex items-center gap-1.5 mb-3">
-                  <span className="px-2 py-0.5 bg-primary-lighter dark:bg-primary/20 text-primary dark:text-blue-300 text-body-sm font-medium rounded-sm">
-                    {listing.category}
-                  </span>
-                  <span className={`flex items-center gap-1 text-body-sm font-medium ${config.text}`}>
-                    <span className={`w-1.5 h-1.5 rounded-full ${config.dot}`} />
-                    {config.label}
-                  </span>
-                  {listing.status === 'active' && (
-                    <span className="ml-auto flex items-center gap-1 text-body-sm text-amber-500 font-medium whitespace-nowrap">
-                      <Clock size={12} />{getTimeLeft(listing.expiresAt)}
-                    </span>
-                  )}
-                </div>
-
-                {/* Title */}
-                <Link
-                  href={`/listing/${listing.id}`}
-                  className="text-body-lg font-semibold text-neutral-900 dark:text-dark-textPrimary hover:text-accent transition-colors line-clamp-2 mb-2 block leading-snug"
-                >
-                  {listing.title}
-                </Link>
-
-                {/* Budget */}
-                <p className="text-body-md font-bold text-accent mb-3">
-                  {formatBudget(listing.budgetMin, listing.budgetMax)}
-                </p>
-
-                {/* Meta */}
-                <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-body-sm text-neutral-400 mb-3">
-                  <span className="flex items-center gap-1"><MapPin size={12} />{listing.city}</span>
-                  <span className="flex items-center gap-1"><Calendar size={12} />{deliveryLabels[listing.deliveryUrgency] ?? listing.deliveryUrgency}</span>
-                  <span className="flex items-center gap-1"><Eye size={12} />{listing.viewCount}</span>
-                </div>
-
-                {/* Info banners (compact) */}
-                {listing.status === 'pending' && (
-                  <p className="text-body-sm text-amber-600 dark:text-amber-400 mb-3 bg-amber-50 dark:bg-amber-500/10 rounded-lg px-3 py-2">
-                    Admin onayı bekleniyor — 24 saat içinde sonuçlanır.
-                  </p>
-                )}
-                {listing.status === 'rejected' && (
-                  <p className="text-body-sm text-red-600 dark:text-red-400 mb-3 bg-red-50 dark:bg-red-500/10 rounded-lg px-3 py-2">
-                    İlan reddedildi.{' '}
-                    <a href="mailto:destek@talepsat.com" className="underline font-medium">İletişime geç</a>
-                  </p>
-                )}
-
-                {/* Footer */}
-                <div className="mt-auto pt-3 border-t border-neutral-100 dark:border-dark-border flex items-center justify-between">
-                  {listing.status === 'active' ? (
-                    <span className="flex items-center gap-1.5 text-body-md font-semibold text-accent">
-                      <MessageSquare size={14} />
-                      {listing.offerCount} teklif
-                      {pendingCount > 0 && (
-                        <span className="w-4 h-4 rounded-full bg-accent text-white text-[10px] font-bold flex items-center justify-center">
-                          {pendingCount}
-                        </span>
-                      )}
-                    </span>
-                  ) : (
-                    <span className="flex items-center gap-1 text-body-sm text-neutral-400">
-                      <AlertCircle size={13} />
-                      {listing.status === 'completed' ? `${listing.offerCount} teklif` : '—'}
-                    </span>
-                  )}
-
-                  <div className="flex items-center gap-2">
-                    {listing.offerCount > 1 && listing.status === 'active' && (
-                      <Link
-                        href={`/listing/${listing.id}/compare`}
-                        className="h-8 px-3 rounded-lg border border-neutral-200 dark:border-dark-border text-body-sm font-medium text-neutral-600 dark:text-dark-textSecondary hover:bg-neutral-50 dark:hover:bg-dark-surfaceRaised transition-colors flex items-center"
-                      >
-                        Karşılaştır
-                      </Link>
-                    )}
-                    {listing.status === 'active' && (
-                      <Link
-                        href={`/listing/${listing.id}`}
-                        className="h-8 px-3 rounded-lg bg-accent/10 text-accent text-body-sm font-semibold hover:bg-accent/20 transition-colors flex items-center gap-1.5"
-                      >
-                        Teklifleri Gör <ArrowRight size={13} />
-                      </Link>
-                    )}
-                    {listing.status === 'rejected' && (
-                      <Link
-                        href="/create"
-                        className="h-8 px-3 rounded-lg bg-red-50 dark:bg-red-500/10 text-red-600 dark:text-red-400 text-body-sm font-semibold hover:bg-red-100 dark:hover:bg-red-500/20 transition-colors flex items-center gap-1.5"
-                      >
-                        Yeniden Oluştur <ArrowRight size={13} />
-                      </Link>
-                    )}
-                  </div>
-                </div>
+                <ListingOwnerCard
+                  listing={listing}
+                  status={status}
+                  deliveryLabel={deliveryLabels[listing.deliveryUrgency] ?? listing.deliveryUrgency}
+                  infoBanner={infoBanner}
+                  footerLead={footerLead}
+                  footerActions={footerActions}
+                />
               </motion.div>
             );
           })}
@@ -302,10 +271,14 @@ export default function DashboardPage() {
             <FileText size={24} className="text-neutral-400" />
           </div>
           <h3 className="text-h4 font-semibold text-neutral-700 dark:text-dark-textPrimary mb-2">
-            {activeTab === 'active' ? 'Henüz aktif ilanın yok'
-              : activeTab === 'pending' ? 'Onay bekleyen ilan yok'
-              : activeTab === 'rejected' ? 'Reddedilen ilan yok'
-              : activeTab === 'completed' ? 'Tamamlanan ilan yok'
+            {activeTab === 'active'
+              ? 'Henüz aktif ilanın yok'
+              : activeTab === 'pending'
+              ? 'Onay bekleyen ilan yok'
+              : activeTab === 'rejected'
+              ? 'Reddedilen ilan yok'
+              : activeTab === 'completed'
+              ? 'Tamamlanan ilan yok'
               : 'Süresi dolan ilan yok'}
           </h3>
           <p className="text-body-md text-neutral-500 mb-5">
@@ -315,15 +288,15 @@ export default function DashboardPage() {
             href="/create"
             className="inline-flex items-center gap-2 h-10 px-5 bg-accent text-white text-body-md font-semibold rounded-lg hover:bg-accent-600 transition-colors"
           >
-            <Plus size={16} /> İlan Oluştur
+            <Plus size={16} />
+            İlan Oluştur
           </Link>
         </div>
       )}
 
-      {/* Mobile FAB */}
       <Link
         href="/create"
-        className="sm:hidden fixed bottom-6 right-6 w-13 h-13 bg-accent text-white rounded-2xl shadow-lg flex items-center justify-center hover:bg-accent-600 active:scale-95 transition-all z-20"
+        className="fixed bottom-6 right-6 z-20 flex h-13 w-13 items-center justify-center rounded-2xl bg-accent text-white shadow-lg transition-all hover:bg-accent-600 active:scale-95 sm:hidden"
       >
         <Plus size={22} />
       </Link>

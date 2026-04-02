@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { auth } from '@/lib/auth';
+import { getApiSession } from '@/lib/api-session';
 import { prisma } from '@/lib/prisma';
 import { createHash } from 'crypto';
 
@@ -62,18 +62,20 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
     buyerName: listing.buyer.name,
     buyerInitials: listing.buyer.name.split(' ').map((n: string) => n[0]).join('').toUpperCase().slice(0, 2),
     buyerScore: listing.buyer.score,
+    buyerVerified: listing.buyer.verified,
+    buyerImage: listing.buyer.image,
   });
 }
 
 // PATCH /api/listings/[id]
 export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  const session = await auth();
-  if (!session?.user?.id) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  const session = await getApiSession(req);
+  if (!session?.userId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
   const { id } = await params;
   const listing = await prisma.listing.findUnique({ where: { id } });
   if (!listing) return NextResponse.json({ error: 'İlan bulunamadı' }, { status: 404 });
-  if (listing.buyerId !== session.user.id) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+  if (listing.buyerId !== session.userId) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
 
   const body = await req.json();
   const updated = await prisma.listing.update({ where: { id }, data: body });
@@ -81,14 +83,14 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
 }
 
 // DELETE /api/listings/[id]
-export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  const session = await auth();
-  if (!session?.user?.id) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+export async function DELETE(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const session = await getApiSession(req);
+  if (!session?.userId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
   const { id } = await params;
   const listing = await prisma.listing.findUnique({ where: { id } });
   if (!listing) return NextResponse.json({ error: 'İlan bulunamadı' }, { status: 404 });
-  if (listing.buyerId !== session.user.id) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+  if (listing.buyerId !== session.userId) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
 
   await prisma.listing.delete({ where: { id } });
   return NextResponse.json({ success: true });

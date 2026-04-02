@@ -69,8 +69,8 @@ export default function SettingsPage() {
       .then((data) => {
         setProfile({
           name: data.name || '',
-          email: (session.user as Record<string, string>).email || '',
-          phone: (session.user as Record<string, string>).phone || '',
+          email: data.email || (session.user as Record<string, string>).email || '',
+          phone: data.phone || '',
           bio: data.bio || '',
           companyName: data.companyName || '',
           taxNumber: data.taxNumber || '',

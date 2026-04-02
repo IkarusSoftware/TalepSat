@@ -20,12 +20,56 @@ interface Plan {
   boostPerMonth: number | null;
   maxListings: number | null;
   analytics: boolean;
+  analyticsTier: 'none' | 'basic' | 'plus' | 'pro';
   prioritySupport: boolean;
   verifiedBadge: boolean;
   customProfile: boolean;
   responseTime: string;
   sortOrder: number;
   updatedAt: string;
+}
+
+function AnalyticsTierSelector({
+  value,
+  onChange,
+}: {
+  value: Plan['analyticsTier'];
+  onChange: (value: Plan['analyticsTier']) => void;
+}) {
+  const options: Array<{ value: Plan['analyticsTier']; label: string }> = [
+    { value: 'none', label: 'Kapalı' },
+    { value: 'basic', label: 'Basic' },
+    { value: 'plus', label: 'Plus' },
+    { value: 'pro', label: 'Pro' },
+  ];
+
+  return (
+    <div className="px-3 py-2.5">
+      <div className="flex items-center gap-2.5 mb-2">
+        <TrendingUp size={14} className="text-neutral-400 shrink-0" />
+        <span className="text-body-sm text-neutral-600 dark:text-dark-textSecondary">Analitik seviyesi</span>
+      </div>
+      <div className="grid grid-cols-4 gap-1 rounded-xl bg-neutral-100 dark:bg-dark-surfaceRaised p-1">
+        {options.map((option) => {
+          const active = value === option.value;
+          return (
+            <button
+              key={option.value}
+              type="button"
+              onClick={() => onChange(option.value)}
+              className={`h-8 rounded-lg text-[11px] font-semibold transition-colors ${
+                active
+                  ? 'bg-white dark:bg-dark-surface text-neutral-900 dark:text-dark-textPrimary shadow-sm'
+                  : 'text-neutral-500 hover:text-neutral-700'
+              }`}
+            >
+              {option.label}
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
 }
 
 // ── Plan meta ──────────────────────────────────────────────────────────────────
@@ -260,7 +304,7 @@ function PlanCard({
       {/* Features */}
       <div className="px-2 py-1 flex-1 space-y-0.5">
         <p className="px-3 pt-2 pb-1 text-[10px] font-semibold text-neutral-400 uppercase tracking-wide">Özellikler</p>
-        <FeatureToggle icon={TrendingUp}   label="Analitik"             value={draft.analytics}       onChange={(v) => set('analytics', v)} />
+        <AnalyticsTierSelector value={draft.analyticsTier} onChange={(v) => set('analyticsTier', v)} />
         <FeatureToggle icon={Headphones}   label="Öncelikli destek"    value={draft.prioritySupport} onChange={(v) => set('prioritySupport', v)} />
         <FeatureToggle icon={BadgeCheck}   label="Onaylı rozet"        value={draft.verifiedBadge}   onChange={(v) => set('verifiedBadge', v)} />
         <FeatureToggle icon={Palette}      label="Özel profil"         value={draft.customProfile}   onChange={(v) => set('customProfile', v)} />

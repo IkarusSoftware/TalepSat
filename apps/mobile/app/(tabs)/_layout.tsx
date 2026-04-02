@@ -43,7 +43,7 @@ export default function TabsLayout() {
       return data;
     },
     enabled: !!user,
-    refetchInterval: 10000,
+    refetchInterval: 60000,
   });
 
   const unreadMessages = unread.messages ?? 0;

@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getApiSession } from '@/lib/api-session';
 import { prisma } from '@/lib/prisma';
+import { eventForUser, emitRealtimeEvents } from '@/lib/realtime';
+import { sendPushToUser } from '@/lib/push';
 
 // GET /api/conversations
 export async function GET(req: NextRequest) {
@@ -94,7 +96,7 @@ export async function POST(req: NextRequest) {
 
   if (existing) {
     // Add message to existing conversation
-    await prisma.message.create({
+    const createdMessage = await prisma.message.create({
       data: { conversationId: existing.id, senderId: userId, text: message },
     });
     await prisma.conversationParticipant.updateMany({
@@ -102,6 +104,22 @@ export async function POST(req: NextRequest) {
       data: { unreadCount: { increment: 1 } },
     });
     await prisma.conversation.update({ where: { id: existing.id }, data: { updatedAt: new Date() } });
+
+    emitRealtimeEvents([
+      eventForUser(participantId, 'message.created', createdMessage.id, { conversationId: existing.id }),
+      eventForUser(participantId, 'conversation.updated', existing.id, { conversationId: existing.id }),
+      eventForUser(userId, 'conversation.updated', existing.id, { conversationId: existing.id }),
+    ]);
+
+    await sendPushToUser(participantId, {
+      title: session.name || 'Yeni mesaj',
+      body: message,
+      data: {
+        conversationId: existing.id,
+        link: `/messages?conversation=${existing.id}`,
+      },
+    });
+
     return NextResponse.json({ id: existing.id });
   }
 
@@ -115,9 +133,29 @@ export async function POST(req: NextRequest) {
           { userId: participantId, unreadCount: 1 },
         ],
       },
-      messages: {
-        create: { senderId: userId, text: message },
-      },
+    },
+  });
+
+  const createdMessage = await prisma.message.create({
+    data: {
+      conversationId: conversation.id,
+      senderId: userId,
+      text: message,
+    },
+  });
+
+  emitRealtimeEvents([
+    eventForUser(participantId, 'message.created', createdMessage.id, { conversationId: conversation.id }),
+    eventForUser(participantId, 'conversation.updated', conversation.id, { conversationId: conversation.id }),
+    eventForUser(userId, 'conversation.updated', conversation.id, { conversationId: conversation.id }),
+  ]);
+
+  await sendPushToUser(participantId, {
+    title: session.name || 'Yeni mesaj',
+    body: message,
+    data: {
+      conversationId: conversation.id,
+      link: `/messages?conversation=${conversation.id}`,
     },
   });
 

@@ -65,7 +65,7 @@ export default function ConversationScreen() {
     queryKey: ['conversations'],
     queryFn: async () => (await api.get('/api/conversations')).data,
     enabled: !!user,
-    refetchInterval: 5000,
+    refetchInterval: 60000,
   });
 
   const conversation = useMemo(() => conversations.find((item) => item.id === id) || null, [conversations, id]);
@@ -74,7 +74,7 @@ export default function ConversationScreen() {
     queryKey: ['conversation-messages', id],
     queryFn: async () => (await api.get(`/api/conversations/${id}/messages`)).data,
     enabled: !!id && !!user,
-    refetchInterval: 2000,
+    refetchInterval: 60000,
   });
 
   useEffect(() => {

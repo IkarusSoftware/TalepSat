@@ -130,6 +130,7 @@ export default function ProfileScreen() {
 
         <Text style={styles.sectionLabel}>Kısayollar</Text>
         <View style={styles.menuSection}>
+          <MenuItem icon="grid-outline" label="Alıcı Paneli" onPress={() => router.push('/dashboard' as any)} colors={colors} />
           <MenuItem icon="document-text-outline" label="İlanlarım" onPress={() => router.push('/my-listings' as any)} colors={colors} />
           <MenuItem icon="heart-outline" label="Favorilerim" onPress={() => router.push('/saved' as any)} colors={colors} />
           <MenuItem icon="cube-outline" label="Siparişlerim" onPress={() => router.push('/orders' as any)} colors={colors} />

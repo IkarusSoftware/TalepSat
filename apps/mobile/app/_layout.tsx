@@ -15,6 +15,8 @@ import {
 } from '@expo-google-fonts/plus-jakarta-sans';
 import { AuthProvider, useAuth } from '../src/contexts/AuthContext';
 import { ThemeProvider, useTheme } from '../src/contexts/ThemeContext';
+import { PushProvider } from '../src/providers/PushProvider';
+import { RealtimeProvider } from '../src/providers/RealtimeProvider';
 import { fontFamily } from '../src/theme';
 
 SplashScreen.preventAutoHideAsync();
@@ -56,6 +58,14 @@ function RootNavigator() {
       >
         <Stack.Screen name="(auth)" />
         <Stack.Screen name="(tabs)" />
+        <Stack.Screen
+          name="dashboard"
+          options={{
+            headerShown: true,
+            headerTitle: 'Alıcı Paneli',
+            headerBackTitle: 'Geri',
+          }}
+        />
         <Stack.Screen
           name="listing/[id]"
           options={{
@@ -210,7 +220,11 @@ function AppContent() {
 
   return (
     <AuthProvider>
-      <RootNavigator />
+      <PushProvider>
+        <RealtimeProvider>
+          <RootNavigator />
+        </RealtimeProvider>
+      </PushProvider>
     </AuthProvider>
   );
 }

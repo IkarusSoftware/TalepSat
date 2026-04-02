@@ -28,6 +28,8 @@ export async function GET(req: NextRequest) {
     offerCount: l._count.offers,
     buyerName: l.buyer.name,
     buyerScore: l.buyer.score,
+    buyerVerified: l.buyer.verified,
+    buyerImage: l.buyer.image,
     buyerInitials: l.buyer.name
       .split(' ')
       .map((n: string) => n[0])

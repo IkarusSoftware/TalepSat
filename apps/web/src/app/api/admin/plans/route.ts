@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { auth } from '@/lib/auth';
 import type { Session } from 'next-auth';
+import { fallbackAnalyticsTierForPlanSlug, normalizeAnalyticsTier } from '../../../../../../../shared/plan-analytics';
+import { serializePlan } from '@/lib/plans';
 
 function isAdmin(session: Session | null) {
   const role = (session?.user as { role?: string })?.role;
@@ -13,7 +15,7 @@ export async function GET() {
   if (!isAdmin(session)) return NextResponse.json({ error: 'Yetkisiz' }, { status: 401 });
 
   const plans = await prisma.plan.findMany({ orderBy: { sortOrder: 'asc' } });
-  return NextResponse.json(plans);
+  return NextResponse.json(plans.map(serializePlan));
 }
 
 export async function PATCH(req: NextRequest) {
@@ -27,7 +29,7 @@ export async function PATCH(req: NextRequest) {
 
   // Sanitize: only allow known fields
   const allowed = ['name', 'priceMonthly', 'priceYearly', 'offersPerMonth', 'boostPerMonth',
-    'maxListings', 'analytics', 'prioritySupport', 'verifiedBadge', 'customProfile', 'responseTime'];
+    'maxListings', 'analytics', 'analyticsTier', 'prioritySupport', 'verifiedBadge', 'customProfile', 'responseTime'];
 
   const updateData: Record<string, unknown> = {};
   for (const key of allowed) {
@@ -47,6 +49,17 @@ export async function PATCH(req: NextRequest) {
     if (field in updateData) updateData[field] = Number(updateData[field]);
   }
 
+  if ('analyticsTier' in updateData) {
+    const analyticsTier = normalizeAnalyticsTier(updateData.analyticsTier, slug);
+    updateData.analyticsTier = analyticsTier;
+    updateData.analytics = analyticsTier !== 'none';
+  } else if ('analytics' in updateData) {
+    const analyticsEnabled = Boolean(updateData.analytics);
+    const analyticsTier = analyticsEnabled ? fallbackAnalyticsTierForPlanSlug(slug, true) : 'none';
+    updateData.analyticsTier = analyticsTier;
+    updateData.analytics = analyticsEnabled;
+  }
+
   const plan = await prisma.plan.update({ where: { slug }, data: updateData });
-  return NextResponse.json(plan);
+  return NextResponse.json(serializePlan(plan));
 }

@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getApiSession } from '@/lib/api-session';
 import { prisma } from '@/lib/prisma';
+import { eventForUser, emitRealtimeEvents } from '@/lib/realtime';
+import { sendPushToUser } from '@/lib/push';
 
 // GET /api/conversations/[id]/messages
 export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -27,6 +29,10 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
     where: { conversationId_userId: { conversationId: id, userId } },
     data: { unreadCount: 0 },
   });
+
+  emitRealtimeEvents([
+    eventForUser(userId, 'conversation.updated', id, { conversationId: id }),
+  ]);
 
   const result = messages.map((m) => ({
     ...m,
@@ -68,6 +74,37 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   });
 
   await prisma.conversation.update({ where: { id }, data: { updatedAt: new Date() } });
+
+  const recipients = await prisma.conversationParticipant.findMany({
+    where: { conversationId: id, userId: { not: userId } },
+    select: { userId: true },
+  });
+
+  emitRealtimeEvents([
+    eventForUser(userId, 'conversation.updated', id, { conversationId: id }),
+    ...recipients.flatMap((recipient) => ([
+      eventForUser(recipient.userId, 'message.created', message.id, { conversationId: id }),
+      eventForUser(recipient.userId, 'conversation.updated', id, { conversationId: id }),
+    ])),
+  ]);
+
+  const pushBody =
+    body.text?.trim()
+      ? body.text.trim()
+      : (body.attachments?.length ? `📎 ${body.attachments[0].name || 'Dosya gönderildi'}` : 'Yeni mesaj');
+
+  await Promise.all(
+    recipients.map((recipient) =>
+      sendPushToUser(recipient.userId, {
+        title: message.sender.name,
+        body: pushBody,
+        data: {
+          conversationId: id,
+          link: `/messages?conversation=${id}`,
+        },
+      }),
+    ),
+  );
 
   return NextResponse.json({
     ...message,

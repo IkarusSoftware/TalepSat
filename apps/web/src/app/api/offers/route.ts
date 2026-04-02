@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getApiSession } from '@/lib/api-session';
+import { createNotificationAndPublish } from '@/lib/notification-service';
 import { prisma } from '@/lib/prisma';
+import { eventForUser, emitRealtimeEvents } from '@/lib/realtime';
 import { getSettingsDirect } from '@/lib/site-settings';
 
 // GET /api/offers — list offers for current user (as buyer or seller)
@@ -143,15 +145,19 @@ export async function POST(req: NextRequest) {
   });
 
   // Create notification for listing owner
-  await prisma.notification.create({
-    data: {
-      userId: listing.buyerId,
-      type: 'offer_received',
-      title: 'Yeni Teklif Aldınız',
-      description: `"${listing.title}" ilanınıza yeni bir teklif geldi.`,
-      link: `/listing/${listing.id}`,
-    },
+  await createNotificationAndPublish({
+    userId: listing.buyerId,
+    type: 'offer_received',
+    title: 'Yeni Teklif Aldınız',
+    description: `"${listing.title}" ilanınıza yeni bir teklif geldi.`,
+    link: `/listing/${listing.id}`,
+    entityId: offer.id,
   });
+
+  emitRealtimeEvents([
+    eventForUser(listing.buyerId, 'offer.updated', offer.id),
+    eventForUser(session.userId, 'offer.updated', offer.id),
+  ]);
 
   return NextResponse.json(offer, { status: 201 });
 }

@@ -11,6 +11,7 @@ export async function GET(req: NextRequest) {
   const category = searchParams.get('category');
   const city = searchParams.get('city');
   const search = searchParams.get('search');
+  const sort = searchParams.get('sort');
 
   const where: Record<string, unknown> = {};
   if (buyerId) where.buyerId = buyerId;
@@ -19,13 +20,21 @@ export async function GET(req: NextRequest) {
   if (city) where.city = { contains: city };
   if (search) where.title = { contains: search };
 
+  const defaultOrder = { createdAt: 'desc' as const };
+  const prismaOrderBy =
+    sort === '-budgetMax'
+      ? { budgetMax: 'desc' as const }
+      : sort === 'expiresAt'
+        ? { expiresAt: 'asc' as const }
+        : defaultOrder;
+
   const listings = await prisma.listing.findMany({
     where,
     include: {
       buyer: { select: { id: true, name: true, score: true, verified: true, image: true, city: true } },
       _count: { select: { offers: true } },
     },
-    orderBy: { createdAt: 'desc' },
+    orderBy: prismaOrderBy,
   });
 
   const result = listings.map((l) => ({
@@ -34,8 +43,19 @@ export async function GET(req: NextRequest) {
     offerCount: l._count.offers,
     buyerName: l.buyer.name,
     buyerScore: l.buyer.score,
+    buyerVerified: l.buyer.verified,
+    buyerImage: l.buyer.image,
     buyerInitials: l.buyer.name.split(' ').map((n: string) => n[0]).join('').toUpperCase().slice(0, 2),
   }));
+
+  if (sort === '-offerCount') {
+    result.sort((a, b) => {
+      if (b.offerCount !== a.offerCount) return b.offerCount - a.offerCount;
+      return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+    });
+  } else if (!sort || sort === '-createdAt') {
+    result.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+  }
 
   return NextResponse.json(result);
 }

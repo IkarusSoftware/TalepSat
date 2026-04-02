@@ -221,16 +221,70 @@ CREATE TABLE "Plan" (
     "name" TEXT NOT NULL,
     "priceMonthly" REAL NOT NULL DEFAULT 0,
     "priceYearly" REAL NOT NULL DEFAULT 0,
+    "iyzicoMonthlyPlanRef" TEXT,
+    "iyzicoYearlyPlanRef" TEXT,
     "offersPerMonth" INTEGER,
     "boostPerMonth" INTEGER,
     "maxListings" INTEGER,
     "analytics" BOOLEAN NOT NULL DEFAULT false,
+    "analyticsTier" TEXT NOT NULL DEFAULT 'none',
     "prioritySupport" BOOLEAN NOT NULL DEFAULT false,
     "verifiedBadge" BOOLEAN NOT NULL DEFAULT false,
     "customProfile" BOOLEAN NOT NULL DEFAULT false,
     "responseTime" TEXT NOT NULL DEFAULT 'Standart',
     "sortOrder" INTEGER NOT NULL DEFAULT 0,
     "updatedAt" DATETIME NOT NULL
+);
+
+-- CreateTable
+CREATE TABLE "PushDevice" (
+    "id" TEXT NOT NULL PRIMARY KEY,
+    "userId" TEXT NOT NULL,
+    "platform" TEXT NOT NULL,
+    "expoPushToken" TEXT NOT NULL,
+    "appVersion" TEXT,
+    "lastSeenAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "disabledAt" DATETIME,
+    "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" DATETIME NOT NULL,
+    CONSTRAINT "PushDevice_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User" ("id") ON DELETE CASCADE ON UPDATE CASCADE
+);
+
+-- CreateTable
+CREATE TABLE "UserSubscription" (
+    "id" TEXT NOT NULL PRIMARY KEY,
+    "userId" TEXT NOT NULL,
+    "planId" TEXT NOT NULL,
+    "provider" TEXT NOT NULL,
+    "billingCycle" TEXT NOT NULL,
+    "status" TEXT NOT NULL,
+    "providerCustomerRef" TEXT,
+    "providerSubscriptionRef" TEXT,
+    "providerCheckoutToken" TEXT,
+    "startedAt" DATETIME,
+    "currentPeriodStart" DATETIME,
+    "currentPeriodEnd" DATETIME,
+    "cancelAtPeriodEnd" BOOLEAN NOT NULL DEFAULT false,
+    "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" DATETIME NOT NULL,
+    CONSTRAINT "UserSubscription_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User" ("id") ON DELETE CASCADE ON UPDATE CASCADE,
+    CONSTRAINT "UserSubscription_planId_fkey" FOREIGN KEY ("planId") REFERENCES "Plan" ("id") ON DELETE CASCADE ON UPDATE CASCADE
+);
+
+-- CreateTable
+CREATE TABLE "BillingEvent" (
+    "id" TEXT NOT NULL PRIMARY KEY,
+    "userId" TEXT,
+    "planId" TEXT,
+    "provider" TEXT NOT NULL,
+    "eventType" TEXT NOT NULL,
+    "payload" TEXT NOT NULL,
+    "providerReference" TEXT,
+    "processedAt" DATETIME,
+    "status" TEXT NOT NULL DEFAULT 'pending',
+    "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT "BillingEvent_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User" ("id") ON DELETE CASCADE ON UPDATE CASCADE,
+    CONSTRAINT "BillingEvent_planId_fkey" FOREIGN KEY ("planId") REFERENCES "Plan" ("id") ON DELETE SET NULL ON UPDATE CASCADE
 );
 
 -- CreateIndex
@@ -262,4 +316,25 @@ CREATE UNIQUE INDEX "PasswordResetToken_token_key" ON "PasswordResetToken"("toke
 
 -- CreateIndex
 CREATE UNIQUE INDEX "Plan_slug_key" ON "Plan"("slug");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "PushDevice_expoPushToken_key" ON "PushDevice"("expoPushToken");
+
+-- CreateIndex
+CREATE INDEX "PushDevice_userId_idx" ON "PushDevice"("userId");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "UserSubscription_providerSubscriptionRef_key" ON "UserSubscription"("providerSubscriptionRef");
+
+-- CreateIndex
+CREATE INDEX "UserSubscription_userId_idx" ON "UserSubscription"("userId");
+
+-- CreateIndex
+CREATE INDEX "UserSubscription_status_idx" ON "UserSubscription"("status");
+
+-- CreateIndex
+CREATE INDEX "BillingEvent_provider_eventType_idx" ON "BillingEvent"("provider", "eventType");
+
+-- CreateIndex
+CREATE INDEX "BillingEvent_userId_idx" ON "BillingEvent"("userId");
 

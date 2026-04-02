@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getApiSession } from '@/lib/api-session';
+import { markNotificationsReadAndPublish } from '@/lib/notification-service';
 import { prisma } from '@/lib/prisma';
 
 // GET /api/notifications
@@ -24,22 +25,20 @@ export async function PATCH(req: NextRequest) {
   const body = await req.json();
 
   if (body.markAllRead) {
-    await prisma.notification.updateMany({
-      where: { userId: session.userId, read: false },
-      data: { read: true },
-    });
+    await markNotificationsReadAndPublish(session.userId);
     return NextResponse.json({ success: true });
   }
 
   if (body.id) {
-    const result = await prisma.notification.updateMany({
+    const result = await prisma.notification.count({
       where: { id: body.id, userId: session.userId, read: false },
-      data: { read: true },
     });
 
-    if (result.count === 0) {
+    if (result === 0) {
       return NextResponse.json({ error: 'Bildirim bulunamadi' }, { status: 404 });
     }
+
+    await markNotificationsReadAndPublish(session.userId, [body.id]);
 
     return NextResponse.json({ success: true });
   }
