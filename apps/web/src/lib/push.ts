@@ -52,6 +52,18 @@ export async function unregisterPushDevice(userId: string, expoPushToken?: strin
 }
 
 export async function sendPushToUser(userId: string, message: PushMessage) {
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+    select: {
+      pushNotificationsEnabled: true,
+      status: true,
+    },
+  });
+
+  if (!user || user.status !== 'active' || !user.pushNotificationsEnabled) {
+    return;
+  }
+
   const devices = await prisma.pushDevice.findMany({
     where: {
       userId,

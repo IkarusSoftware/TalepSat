@@ -23,6 +23,7 @@ model User {
   verified            Boolean                   @default(false)
   badge               String?
   status              String                    @default("active")
+  pushNotificationsEnabled Boolean              @default(false)
   score               Float                     @default(0)
   completedDeals      Int                       @default(0)
   lastSeen            DateTime?

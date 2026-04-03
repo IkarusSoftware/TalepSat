@@ -58,6 +58,10 @@ export async function unregisterStoredPushToken() {
 export async function syncPushPreference(forceEnabled?: boolean) {
   const pushEnabled = typeof forceEnabled === 'boolean' ? forceEnabled : await readPushPreference();
 
+  await api.patch('/api/users/preferences', {
+    push: pushEnabled,
+  }).catch(() => {});
+
   if (!pushEnabled) {
     await unregisterStoredPushToken();
     return null;

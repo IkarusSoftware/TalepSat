@@ -7,6 +7,8 @@
 import { NextRequest } from 'next/server';
 import { auth } from '@/lib/auth';
 import { getMobileSession } from '@/lib/mobile-auth';
+import { prisma } from '@/lib/prisma';
+import { isActiveUserStatus } from '@/lib/user-status';
 
 export type ApiSession = {
   userId: string;
@@ -17,6 +19,34 @@ export type ApiSession = {
   verified: boolean;
 };
 
+async function resolveActiveUserSession(userId: string): Promise<ApiSession | null> {
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+    select: {
+      id: true,
+      role: true,
+      name: true,
+      email: true,
+      badge: true,
+      verified: true,
+      status: true,
+    },
+  });
+
+  if (!user || !isActiveUserStatus(user.status)) {
+    return null;
+  }
+
+  return {
+    userId: user.id,
+    role: user.role,
+    name: user.name,
+    email: user.email,
+    badge: user.badge,
+    verified: user.verified,
+  };
+}
+
 /**
  * Önce mobil JWT Bearer token'ı, sonra NextAuth session'ı kontrol eder.
  * İkisi de yoksa null döner.
@@ -25,31 +55,13 @@ export async function getApiSession(req: NextRequest): Promise<ApiSession | null
   // 1. Mobil JWT Bearer token (Authorization: Bearer ...)
   const mobileSession = await getMobileSession(req);
   if (mobileSession) {
-    return {
-      userId:   mobileSession.sub,
-      role:     mobileSession.role,
-      name:     mobileSession.name,
-      email:    mobileSession.email,
-      badge:    mobileSession.badge,
-      verified: mobileSession.verified,
-    };
+    return resolveActiveUserSession(mobileSession.sub);
   }
 
   // 2. NextAuth web session (cookie tabanlı)
   const session = await auth();
   if (session?.user?.id) {
-    const user = session.user as {
-      id: string; role?: string; name?: string; email?: string;
-      badge?: string; verified?: boolean;
-    };
-    return {
-      userId:   user.id,
-      role:     user.role     ?? 'buyer',
-      name:     user.name     ?? '',
-      email:    user.email    ?? '',
-      badge:    user.badge    ?? null,
-      verified: user.verified ?? false,
-    };
+    return resolveActiveUserSession(session.user.id);
   }
 
   return null;

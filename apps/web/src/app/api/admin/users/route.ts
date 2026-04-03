@@ -28,6 +28,7 @@ export async function GET(req: NextRequest) {
   if (tab === 'unverified') where.verified = false;
   if (tab === 'banned')     where.status = 'banned';
   if (tab === 'suspended')  where.status = 'suspended';
+  if (tab === 'deactivated') where.status = 'deactivated';
 
   const users = await prisma.user.findMany({
     where,
@@ -96,6 +97,9 @@ export async function PATCH(req: NextRequest) {
       await prisma.user.update({ where: { id: userId }, data: { status: 'suspended' } });
       break;
     case 'unsuspend':
+      await prisma.user.update({ where: { id: userId }, data: { status: 'active' } });
+      break;
+    case 'reactivate':
       await prisma.user.update({ where: { id: userId }, data: { status: 'active' } });
       break;
     case 'setBadge': {

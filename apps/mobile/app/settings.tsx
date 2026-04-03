@@ -69,13 +69,31 @@ export default function SettingsScreen() {
   });
 
   useEffect(() => {
-    SecureStore.getItemAsync(NOTIFICATION_PREFS_KEY)
-      .then((stored) => {
-        if (!stored) return;
-        setNotificationPrefs({ ...defaultNotificationPrefs, ...JSON.parse(stored) });
+    let active = true;
+
+    Promise.all([
+      SecureStore.getItemAsync(NOTIFICATION_PREFS_KEY).catch(() => null),
+      api.get('/api/users/preferences').catch(() => null),
+    ])
+      .then(([stored, prefsRes]) => {
+        const localPrefs = stored ? { ...defaultNotificationPrefs, ...JSON.parse(stored) } : defaultNotificationPrefs;
+        const serverPush = prefsRes?.data?.push;
+
+        if (!active) return;
+        setNotificationPrefs({
+          ...localPrefs,
+          push: typeof serverPush === 'boolean' ? serverPush : localPrefs.push,
+        });
       })
-      .catch(() => {})
-      .finally(() => setNotificationPrefsLoaded(true));
+      .finally(() => {
+        if (active) {
+          setNotificationPrefsLoaded(true);
+        }
+      });
+
+    return () => {
+      active = false;
+    };
   }, []);
 
   useEffect(() => {

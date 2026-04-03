@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useRef, useEffect, useCallback, useMemo, Suspense } from 'react';
+import { useState, useRef, useEffect, useCallback, useMemo, Suspense, type ChangeEvent, type FormEvent } from 'react';
 import Link from 'next/link';
 import { useSession } from 'next-auth/react';
 import { useSearchParams, useRouter } from 'next/navigation';
@@ -405,7 +405,7 @@ function MessagesPage() {
   }, []);
 
   const handleSend = useCallback(
-    async (e: React.FormEvent) => {
+    async (e: FormEvent) => {
       e.preventDefault();
       if (!newMessage.trim() || !selectedId || sending) return;
       const text = newMessage.trim();
@@ -459,7 +459,7 @@ function MessagesPage() {
   );
 
   /* ── File upload handler ── */
-  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileUpload = async (e: ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
     const convId = selectedId; // capture current value
     if (!files?.length || !convId) {

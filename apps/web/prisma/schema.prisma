@@ -22,7 +22,8 @@ model User {
   taxNumber      String?
   verified       Boolean   @default(false)
   badge          String?   // basic, plus, pro
-  status         String    @default("active") // active, suspended, banned
+  status         String    @default("active") // active, suspended, banned, deactivated
+  pushNotificationsEnabled Boolean @default(false)
   score          Float     @default(0)
   completedDeals Int       @default(0)
   lastSeen       DateTime?

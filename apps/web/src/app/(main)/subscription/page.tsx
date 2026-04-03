@@ -4,21 +4,21 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { motion } from 'framer-motion';
-import {
-  Crown,
-  Shield,
-  Zap,
-  Star,
-  CreditCard,
-  ArrowUpRight,
-  ChevronRight,
-  BarChart3,
-  Sparkles,
-  Loader2,
-  AlertTriangle,
-  RefreshCcw,
-} from 'lucide-react';
 import { useSession } from 'next-auth/react';
+import {
+  AlertTriangle,
+  ArrowUpRight,
+  BarChart3,
+  ChevronRight,
+  CreditCard,
+  Crown,
+  Loader2,
+  RefreshCcw,
+  Shield,
+  Sparkles,
+  Star,
+  Zap,
+} from 'lucide-react';
 import { analyticsTierFeatureTitle } from '../../../../../../shared/plan-analytics';
 
 type BillingCycle = 'monthly' | 'yearly';
@@ -77,13 +77,13 @@ const planColors: Record<string, { text: string; bg: string; border: string; des
     text: 'text-neutral-500',
     bg: 'bg-neutral-100 dark:bg-neutral-500/10',
     border: 'border-neutral-200',
-    description: 'Başlamak ve temel görünürlük kazanmak için ideal giriş planı.',
+    description: 'Baslangic ve temel gorunurluk icin.',
   },
   basic: {
     text: 'text-blue-500',
     bg: 'bg-blue-50 dark:bg-blue-500/10',
     border: 'border-blue-200 dark:border-blue-500/30',
-    description: 'Temel satis takibi isteyen saticilar icin hizli baslangic paketi.',
+    description: 'Temel satis takibi isteyen saticilar icin yaln bir paket.',
   },
   plus: {
     text: 'text-amber-500',
@@ -95,7 +95,7 @@ const planColors: Record<string, { text: string; bg: string; border: string; des
     text: 'text-accent',
     bg: 'bg-accent-lighter dark:bg-accent/10',
     border: 'border-accent/30',
-    description: 'Gelismis raporlama, filtreler ve export isteyen profesyoneller icin.',
+    description: 'Gelişmis raporlama ve export ihtiyaci olanlar icin.',
   },
 };
 
@@ -108,19 +108,6 @@ function formatDate(value?: string | null) {
   });
 }
 
-function featureList(plan: Plan) {
-  return [
-    `Aylık ${plan.offersPerMonth === null ? 'sınırsız' : plan.offersPerMonth} teklif hakkı`,
-    `${plan.boostPerMonth === null ? 'Sınırsız' : plan.boostPerMonth} öne çıkarma`,
-    `${plan.maxListings === null ? 'Sınırsız' : plan.maxListings} aktif ilan limiti`,
-    `${plan.responseTime || 'Standart'} destek yanıt süresi`,
-    plan.analyticsTier !== 'none' ? analyticsTierFeatureTitle(plan.analyticsTier) : null,
-    plan.prioritySupport ? 'Öncelikli destek' : null,
-    plan.verifiedBadge ? 'Doğrulanmış rozet' : null,
-    plan.customProfile ? 'Özel profil sayfası' : null,
-  ].filter(Boolean) as string[];
-}
-
 function statusLabel(status?: string | null) {
   switch (status) {
     case 'active':
@@ -128,9 +115,9 @@ function statusLabel(status?: string | null) {
     case 'pending':
       return 'Beklemede';
     case 'canceled':
-      return 'İptal edildi';
+      return 'Iptal edildi';
     case 'past_due':
-      return 'Ödeme bekliyor';
+      return 'Odeme bekliyor';
     case 'expired':
       return 'Sona erdi';
     default:
@@ -138,12 +125,46 @@ function statusLabel(status?: string | null) {
   }
 }
 
+function featureList(plan: Plan) {
+  return [
+    `Aylik ${plan.offersPerMonth === null ? 'sinirsiz' : plan.offersPerMonth} teklif hakki`,
+    `${plan.boostPerMonth === null ? 'Sinirsiz' : plan.boostPerMonth} one cikarma`,
+    `${plan.maxListings === null ? 'Sinirsiz' : plan.maxListings} aktif ilan limiti`,
+    `${plan.responseTime || 'Standart'} destek suresi`,
+    plan.analyticsTier !== 'none' ? analyticsTierFeatureTitle(plan.analyticsTier) : null,
+    plan.prioritySupport ? 'Oncelikli destek' : null,
+    plan.verifiedBadge ? 'Dogrulanmis rozet' : null,
+    plan.customProfile ? 'Ozel profil sayfasi' : null,
+  ].filter(Boolean) as string[];
+}
+
+function getCheckoutBlockReason(snapshot: BillingSnapshot, focusPlan: Plan | null, currentPlanSlug: string, cycle: BillingCycle) {
+  if (!focusPlan || focusPlan.slug === currentPlanSlug || focusPlan.slug === 'free') {
+    return null;
+  }
+
+  if (snapshot.requiredProfileFields.length > 0) {
+    return `Checkout icin once su alanlari tamamla: ${snapshot.requiredProfileFields.join(', ')}.`;
+  }
+
+  if (!snapshot.iyzicoConfigured) {
+    return 'Bu ortamda iyzico tanimli degil. Ekran inceleme modunda calisiyor.';
+  }
+
+  const planReference = cycle === 'monthly' ? focusPlan.iyzicoMonthlyPlanRef : focusPlan.iyzicoYearlyPlanRef;
+  if (!planReference) {
+    return `Secili ${cycle === 'monthly' ? 'aylik' : 'yillik'} donem icin plan referansi henuz tanimli degil.`;
+  }
+
+  return null;
+}
+
 export default function SubscriptionPage() {
   const { data: session, status } = useSession();
   const router = useRouter();
   const searchParams = useSearchParams();
   const selectedPlanSlug = searchParams.get('plan');
-  const selectedCycle = searchParams.get('cycle') === 'monthly' ? 'monthly' : 'yearly';
+  const selectedCycle: BillingCycle = searchParams.get('cycle') === 'monthly' ? 'monthly' : 'yearly';
   const billingStatus = searchParams.get('billing');
 
   const [plans, setPlans] = useState<Plan[]>([]);
@@ -159,14 +180,8 @@ export default function SubscriptionPage() {
     setLoading(true);
     setError(null);
     try {
-      const plansRes = await fetch('/api/plans', {
-        cache: 'no-store',
-        credentials: 'include',
-      });
-
+      const plansRes = await fetch('/api/plans', { cache: 'no-store', credentials: 'include' });
       const plansData = await plansRes.json().catch(() => []);
-
-      if (!plansRes.ok) throw new Error('Plan verisi alınamadı.');
       const sortedPlans = Array.isArray(plansData)
         ? plansData.sort((a, b) => (a.sortOrder || 0) - (b.sortOrder || 0))
         : [];
@@ -184,10 +199,7 @@ export default function SubscriptionPage() {
       }
 
       const profileRes = sessionUser?.id
-        ? await fetch(`/api/users/${sessionUser.id}`, {
-            cache: 'no-store',
-            credentials: 'include',
-          })
+        ? await fetch(`/api/users/${sessionUser.id}`, { cache: 'no-store', credentials: 'include' })
         : null;
       const profileData = profileRes ? await profileRes.json().catch(() => null) : null;
       const fallbackPlan = sortedPlans.find((item) => item.slug === fallbackBadge) || sortedPlans[0] || null;
@@ -211,10 +223,10 @@ export default function SubscriptionPage() {
       });
 
       if (billingData?.error && billingData.error !== 'Yetkisiz') {
-        setError(`${billingData.error} Temel abonelik görünümü yüklendi.`);
+        setError(`${billingData.error} Temel gorunumle devam edildi.`);
       }
-    } catch (err: any) {
-      setError(err?.message || 'Abonelik verisi yüklenemedi.');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Abonelik verisi yuklenemedi.');
     } finally {
       setLoading(false);
     }
@@ -235,17 +247,32 @@ export default function SubscriptionPage() {
     [plans, selectedPlanSlug],
   );
   const focusPlan = selectedPlan || currentPlan;
+  const effectiveSnapshot: BillingSnapshot | null = snapshot
+    ? snapshot
+    : currentPlan
+      ? {
+          badge: currentPlanSlug,
+          currentPlan,
+          subscription: null,
+          usage: { listingCount: 0, totalOffers: 0, acceptedOffers: 0, reviewCount: 0 },
+          requiredProfileFields: [],
+          iyzicoConfigured: false,
+        }
+      : null;
 
   const currentBadge = currentPlanSlug || 'free';
   const PlanIcon = planIcons[currentBadge] || Star;
   const colors = planColors[currentBadge] || planColors.free;
 
   async function handleCheckout() {
-    if (!focusPlan) return;
+    if (!focusPlan || !effectiveSnapshot) return;
 
-    if (snapshot?.requiredProfileFields?.length) {
-      setError(`Ödeme öncesi şu alanları tamamlamalısın: ${snapshot.requiredProfileFields.join(', ')}.`);
-      router.push('/settings');
+    const blockReason = getCheckoutBlockReason(effectiveSnapshot, focusPlan, currentPlanSlug, selectedCycle);
+    if (blockReason) {
+      setError(blockReason);
+      if (effectiveSnapshot.requiredProfileFields.length > 0) {
+        router.push('/settings');
+      }
       return;
     }
 
@@ -263,7 +290,7 @@ export default function SubscriptionPage() {
 
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
-        throw new Error(data?.error || 'Checkout başlatılamadı.');
+        throw new Error(data?.error || 'Checkout baslatilamadi.');
       }
 
       if (data.mode === 'noop') {
@@ -273,11 +300,12 @@ export default function SubscriptionPage() {
 
       if (data.checkoutUrl) {
         window.location.href = data.checkoutUrl;
-      } else {
-        throw new Error('Checkout bağlantısı oluşturulamadı.');
+        return;
       }
-    } catch (err: any) {
-      setError(err?.message || 'Checkout başlatılamadı.');
+
+      throw new Error('Checkout baglantisi olusturulamadi.');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Checkout baslatilamadi.');
     } finally {
       setActionLoading(null);
     }
@@ -287,16 +315,14 @@ export default function SubscriptionPage() {
     setActionLoading(mode);
     setError(null);
     try {
-      const res = await fetch(`/api/billing/${mode}`, {
-        method: 'POST',
-      });
+      const res = await fetch(`/api/billing/${mode}`, { method: 'POST' });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
-        throw new Error(data?.error || 'İşlem tamamlanamadı.');
+        throw new Error(data?.error || 'Islem tamamlanamadi.');
       }
       await load();
-    } catch (err: any) {
-      setError(err?.message || 'İşlem tamamlanamadı.');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Islem tamamlanamadi.');
     } finally {
       setActionLoading(null);
     }
@@ -304,50 +330,67 @@ export default function SubscriptionPage() {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center min-h-[60vh]">
-        <Loader2 className="w-8 h-8 animate-spin text-accent" />
+      <div className="flex min-h-[60vh] items-center justify-center">
+        <Loader2 className="h-8 w-8 animate-spin text-accent" />
       </div>
     );
   }
 
-  if (!currentPlan || !snapshot) {
+  if (!plans.length || !currentPlan || !effectiveSnapshot) {
     return (
-      <div className="max-w-3xl mx-auto px-6 py-8">
-        <div className="rounded-2xl border border-neutral-200 bg-white p-6 text-body-md text-neutral-600">
-          {error || 'Abonelik bilgisi şu an yüklenemedi.'}
+      <div className="mx-auto max-w-3xl px-6 py-8">
+        <div className="rounded-2xl border border-neutral-200 bg-white p-6 dark:border-dark-border dark:bg-dark-surface">
+          <h2 className="text-h3 font-semibold text-neutral-900 dark:text-dark-textPrimary">Abonelik paneli acilamadi</h2>
+          <p className="mt-2 text-body-md text-neutral-600 dark:text-dark-textSecondary">
+            {error || 'Plan verisi gelmedigi icin bu ekrani guvenli gorunumde acamadik.'}
+          </p>
+          <div className="mt-4 flex flex-wrap gap-3">
+            <button
+              onClick={() => load()}
+              className="inline-flex h-10 items-center gap-2 rounded-xl border border-neutral-200 px-4 text-body-md font-medium text-neutral-700 transition-colors hover:bg-neutral-50 dark:border-dark-border dark:text-dark-textSecondary dark:hover:bg-dark-surfaceRaised"
+            >
+              <RefreshCcw size={16} />
+              Yenile
+            </button>
+            <Link
+              href="/pricing"
+              className="inline-flex h-10 items-center gap-2 rounded-xl bg-accent px-4 text-body-md font-semibold text-white transition-colors hover:bg-accent-600"
+            >
+              Planlari ac
+              <ArrowUpRight size={16} />
+            </Link>
+          </div>
         </div>
       </div>
     );
   }
 
+  const checkoutBlockReason = getCheckoutBlockReason(effectiveSnapshot, focusPlan, currentPlanSlug, selectedCycle);
   const offersLimit = currentPlan.offersPerMonth;
-  const offersUsed = snapshot.usage.totalOffers || 0;
+  const offersUsed = effectiveSnapshot.usage.totalOffers || 0;
   const offersPercent = offersLimit ? Math.round((offersUsed / offersLimit) * 100) : null;
-  const activeSubscription = snapshot.subscription;
-  const planConfigured =
-    focusPlan?.slug === 'free' ||
-    Boolean(selectedCycle === 'monthly' ? focusPlan?.iyzicoMonthlyPlanRef : focusPlan?.iyzicoYearlyPlanRef);
+  const activeSubscription = effectiveSnapshot.subscription;
 
   return (
-    <div className="max-w-5xl mx-auto px-6 py-8">
-      <div className="flex items-center justify-between mb-8">
+    <div className="mx-auto max-w-5xl px-6 py-8">
+      <div className="mb-8 flex items-center justify-between">
         <div>
-          <h1 className="text-h1 font-bold text-neutral-900 dark:text-dark-textPrimary">Abonelik Yönetimi</h1>
-          <p className="mt-1 text-body-lg text-neutral-500">Planını ve kullanımını gerçek zamanlı olarak görüntüle.</p>
+          <h1 className="text-h1 font-bold text-neutral-900 dark:text-dark-textPrimary">Abonelik Yonetimi</h1>
+          <p className="mt-1 text-body-lg text-neutral-500">Planini, kullanimini ve checkout hazirlik durumunu tek ekranda gor.</p>
         </div>
         <div className="flex items-center gap-3">
           <button
             onClick={() => load()}
-            className="hidden md:inline-flex items-center gap-2 h-10 px-5 rounded-xl border border-neutral-200 dark:border-dark-border text-body-md font-medium text-neutral-700 dark:text-dark-textSecondary hover:bg-neutral-50 dark:hover:bg-dark-surfaceRaised transition-colors"
+            className="hidden h-10 items-center gap-2 rounded-xl border border-neutral-200 px-5 text-body-md font-medium text-neutral-700 transition-colors hover:bg-neutral-50 md:inline-flex dark:border-dark-border dark:text-dark-textSecondary dark:hover:bg-dark-surfaceRaised"
           >
             <RefreshCcw size={16} />
             Yenile
           </button>
           <Link
             href="/pricing"
-            className="hidden md:inline-flex items-center gap-2 h-10 px-5 rounded-xl border border-neutral-200 dark:border-dark-border text-body-md font-medium text-neutral-700 dark:text-dark-textSecondary hover:bg-neutral-50 dark:hover:bg-dark-surfaceRaised transition-colors"
+            className="hidden h-10 items-center gap-2 rounded-xl border border-neutral-200 px-5 text-body-md font-medium text-neutral-700 transition-colors hover:bg-neutral-50 md:inline-flex dark:border-dark-border dark:text-dark-textSecondary dark:hover:bg-dark-surfaceRaised"
           >
-            Planları Karşılaştır
+            Planlari Karsilastir
             <ArrowUpRight size={16} />
           </Link>
         </div>
@@ -365,90 +408,82 @@ export default function SubscriptionPage() {
         >
           {error ||
             (billingStatus === 'success'
-              ? 'Ödeme akışı başarıyla tamamlandı. Abonelik bilgilerin güncellendi.'
+              ? 'Odeme akisiniz tamamlandi. Abonelik durumu guncelleniyor.'
               : billingStatus === 'pending'
-                ? 'Checkout tamamlandıktan sonra abonelik durumu birkaç saniye içinde güncellenecek.'
-                : 'Ödeme akışı tamamlanamadı ya da geri dönüş alınamadı.')}
+                ? 'Checkout tamamlandiysa abonelik durumu birkac saniye icinde guncellenecek.'
+                : 'Odeme akisindan net bir geri donus alinmadi.')}
         </div>
       )}
 
-      {!snapshot.iyzicoConfigured && (
+      {!effectiveSnapshot.iyzicoConfigured && (
         <div className="mb-6 rounded-2xl border border-amber-200 bg-amber-50 px-5 py-4 text-body-md text-amber-900">
-          Bu ortamda iyzico anahtarları tanımlı değil. Plan detaylarını görüntüleyebilirsin ancak ödeme başlatılamaz.
+          Iyzico bu ortamda tanimli degil. Panel inceleme modunda calisir, checkout acilmaz.
         </div>
       )}
 
-      {snapshot.requiredProfileFields.length > 0 && (
+      {effectiveSnapshot.requiredProfileFields.length > 0 && (
         <div className="mb-6 rounded-2xl border border-amber-200 bg-amber-50 px-5 py-4">
           <div className="flex items-start gap-3">
-            <AlertTriangle className="w-5 h-5 text-amber-600 mt-0.5" />
+            <AlertTriangle className="mt-0.5 h-5 w-5 text-amber-600" />
             <div>
-              <p className="text-body-md font-semibold text-amber-900">Checkout öncesi profilini tamamla</p>
-              <p className="text-body-sm text-amber-800 mt-1">
-                Gerekli alanlar: {snapshot.requiredProfileFields.join(', ')}. Bunları{' '}
-                <Link href="/settings" className="underline font-semibold">
+              <p className="text-body-md font-semibold text-amber-900">Checkout oncesi profilini tamamla</p>
+              <p className="mt-1 text-body-sm text-amber-800">
+                Gerekli alanlar: {effectiveSnapshot.requiredProfileFields.join(', ')}. Bunlari{' '}
+                <Link href="/settings" className="font-semibold underline">
                   ayarlar
                 </Link>{' '}
-                sayfasından güncelleyebilirsin.
+                sayfasindan guncelleyebilirsin.
               </p>
             </div>
           </div>
         </div>
       )}
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <div className="lg:col-span-2 space-y-6">
+      {checkoutBlockReason && (
+        <div className="mb-6 rounded-2xl border border-neutral-200 bg-neutral-50 px-5 py-4 text-body-md text-neutral-700 dark:border-dark-border dark:bg-dark-surfaceRaised dark:text-dark-textSecondary">
+          {checkoutBlockReason}
+        </div>
+      )}
+
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
+        <div className="space-y-6 lg:col-span-2">
           <motion.div
             initial={{ opacity: 0, y: 12 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.35 }}
-            className={`rounded-2xl border ${colors.border} bg-white dark:bg-dark-surface p-6`}
+            className={`rounded-2xl border ${colors.border} bg-white p-6 dark:bg-dark-surface`}
           >
-            <div className="flex items-start justify-between mb-6">
+            <div className="mb-6 flex items-start justify-between">
               <div className="flex items-center gap-4">
-                <div className={`w-14 h-14 rounded-2xl ${colors.bg} flex items-center justify-center`}>
+                <div className={`flex h-14 w-14 items-center justify-center rounded-2xl ${colors.bg}`}>
                   <PlanIcon size={28} className={colors.text} />
                 </div>
                 <div>
                   <div className="flex items-center gap-2">
-                    <h2 className="text-h2 font-bold text-neutral-900 dark:text-dark-textPrimary">
-                      {currentPlan.name} Plan
-                    </h2>
-                    <span className={`px-2.5 py-0.5 rounded-full text-[11px] font-bold uppercase tracking-wide ${colors.bg} ${colors.text}`}>
-                      {activeSubscription ? statusLabel(activeSubscription.status) : 'Ücretsiz'}
+                    <h2 className="text-h2 font-bold text-neutral-900 dark:text-dark-textPrimary">{currentPlan.name} Plan</h2>
+                    <span className={`rounded-full px-2.5 py-0.5 text-[11px] font-bold uppercase tracking-wide ${colors.bg} ${colors.text}`}>
+                      {activeSubscription ? statusLabel(activeSubscription.status) : 'Ucretsiz'}
                     </span>
                   </div>
-                  <p className="text-body-md text-neutral-500 mt-0.5">{colors.description}</p>
+                  <p className="mt-0.5 text-body-md text-neutral-500">{colors.description}</p>
                 </div>
               </div>
               <div className="text-right">
                 <p className="text-2xl font-bold text-neutral-900 dark:text-dark-textPrimary">
-                  {currentPlan.priceMonthly === 0 ? 'Ücretsiz' : `₺${new Intl.NumberFormat('tr-TR').format(currentPlan.priceMonthly)}`}
+                  {currentPlan.priceMonthly === 0 ? 'Ucretsiz' : `₺${new Intl.NumberFormat('tr-TR').format(currentPlan.priceMonthly)}`}
                 </p>
                 {currentPlan.priceMonthly > 0 && <p className="text-body-sm text-neutral-400">/ay</p>}
               </div>
             </div>
 
-            <div className="rounded-2xl border border-neutral-100 dark:border-dark-border bg-neutral-50 dark:bg-dark-surfaceRaised p-4 mb-5">
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <div>
-                  <p className="text-body-sm text-neutral-500">Dönem başlangıcı</p>
-                  <p className="mt-1 text-body-md font-semibold text-neutral-900 dark:text-dark-textPrimary">
-                    {formatDate(activeSubscription?.currentPeriodStart)}
-                  </p>
-                </div>
-                <div>
-                  <p className="text-body-sm text-neutral-500">Dönem sonu</p>
-                  <p className="mt-1 text-body-md font-semibold text-neutral-900 dark:text-dark-textPrimary">
-                    {formatDate(activeSubscription?.currentPeriodEnd)}
-                  </p>
-                </div>
-                <div>
-                  <p className="text-body-sm text-neutral-500">Yenileme durumu</p>
-                  <p className="mt-1 text-body-md font-semibold text-neutral-900 dark:text-dark-textPrimary">
-                    {activeSubscription ? (activeSubscription.cancelAtPeriodEnd ? 'Dönem sonunda kapanır' : 'Otomatik yenilenir') : 'Aktif abonelik yok'}
-                  </p>
-                </div>
+            <div className="mb-5 rounded-2xl border border-neutral-100 bg-neutral-50 p-4 dark:border-dark-border dark:bg-dark-surfaceRaised">
+              <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+                <Metric label="Donem baslangici" value={formatDate(activeSubscription?.currentPeriodStart)} />
+                <Metric label="Donem sonu" value={formatDate(activeSubscription?.currentPeriodEnd)} />
+                <Metric
+                  label="Yenileme durumu"
+                  value={activeSubscription ? (activeSubscription.cancelAtPeriodEnd ? 'Donem sonunda kapanir' : 'Otomatik yenilenir') : 'Aktif abonelik yok'}
+                />
               </div>
             </div>
 
@@ -456,8 +491,8 @@ export default function SubscriptionPage() {
               {focusPlan && focusPlan.slug !== currentPlan.slug && focusPlan.slug !== 'free' && (
                 <button
                   onClick={handleCheckout}
-                  disabled={actionLoading === 'checkout' || !snapshot.iyzicoConfigured || !planConfigured}
-                  className="h-10 px-5 rounded-xl bg-accent text-white text-body-md font-semibold flex items-center gap-2 hover:bg-accent-600 active:scale-[0.97] transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                  disabled={actionLoading === 'checkout' || Boolean(checkoutBlockReason)}
+                  className="flex h-10 items-center gap-2 rounded-xl bg-accent px-5 text-body-md font-semibold text-white transition-all hover:bg-accent-600 disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   {actionLoading === 'checkout' ? <Loader2 size={16} className="animate-spin" /> : <Sparkles size={16} />}
                   iyzico ile Devam Et
@@ -468,9 +503,9 @@ export default function SubscriptionPage() {
                 <button
                   onClick={() => handleSubscriptionAction('cancel')}
                   disabled={actionLoading === 'cancel'}
-                  className="h-10 px-5 rounded-xl border border-neutral-200 dark:border-dark-border text-body-md font-medium text-neutral-700 dark:text-dark-textSecondary hover:bg-neutral-50 dark:hover:bg-dark-surfaceRaised transition-colors disabled:opacity-50"
+                  className="h-10 rounded-xl border border-neutral-200 px-5 text-body-md font-medium text-neutral-700 transition-colors hover:bg-neutral-50 disabled:opacity-50 dark:border-dark-border dark:text-dark-textSecondary dark:hover:bg-dark-surfaceRaised"
                 >
-                  {actionLoading === 'cancel' ? 'İşleniyor...' : 'Dönem Sonunda Free Plana Dön'}
+                  {actionLoading === 'cancel' ? 'Isleniyor...' : 'Donem Sonunda Free Plana Don'}
                 </button>
               )}
 
@@ -478,9 +513,9 @@ export default function SubscriptionPage() {
                 <button
                   onClick={() => handleSubscriptionAction('cancel')}
                   disabled={actionLoading === 'cancel'}
-                  className="h-10 px-5 rounded-xl border border-neutral-200 dark:border-dark-border text-body-md font-medium text-neutral-700 dark:text-dark-textSecondary hover:bg-neutral-50 dark:hover:bg-dark-surfaceRaised transition-colors disabled:opacity-50"
+                  className="h-10 rounded-xl border border-neutral-200 px-5 text-body-md font-medium text-neutral-700 transition-colors hover:bg-neutral-50 disabled:opacity-50 dark:border-dark-border dark:text-dark-textSecondary dark:hover:bg-dark-surfaceRaised"
                 >
-                  {actionLoading === 'cancel' ? 'İşleniyor...' : 'Dönem Sonunda İptal Et'}
+                  {actionLoading === 'cancel' ? 'Isleniyor...' : 'Donem Sonunda Iptal Et'}
                 </button>
               )}
 
@@ -488,9 +523,9 @@ export default function SubscriptionPage() {
                 <button
                   onClick={() => handleSubscriptionAction('resume')}
                   disabled={actionLoading === 'resume'}
-                  className="h-10 px-5 rounded-xl border border-neutral-200 dark:border-dark-border text-body-md font-medium text-neutral-700 dark:text-dark-textSecondary hover:bg-neutral-50 dark:hover:bg-dark-surfaceRaised transition-colors disabled:opacity-50"
+                  className="h-10 rounded-xl border border-neutral-200 px-5 text-body-md font-medium text-neutral-700 transition-colors hover:bg-neutral-50 disabled:opacity-50 dark:border-dark-border dark:text-dark-textSecondary dark:hover:bg-dark-surfaceRaised"
                 >
-                  {actionLoading === 'resume' ? 'İşleniyor...' : 'İptali Geri Al'}
+                  {actionLoading === 'resume' ? 'Isleniyor...' : 'Iptali Geri Al'}
                 </button>
               )}
             </div>
@@ -500,23 +535,23 @@ export default function SubscriptionPage() {
             initial={{ opacity: 0, y: 12 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.35, delay: 0.08 }}
-            className="rounded-2xl border border-neutral-200/50 dark:border-dark-border bg-white dark:bg-dark-surface p-6"
+            className="rounded-2xl border border-neutral-200/50 bg-white p-6 dark:border-dark-border dark:bg-dark-surface"
           >
-            <h3 className="text-h3 font-bold text-neutral-900 dark:text-dark-textPrimary mb-5 flex items-center gap-2">
+            <h3 className="mb-5 flex items-center gap-2 text-h3 font-bold text-neutral-900 dark:text-dark-textPrimary">
               <BarChart3 size={20} className="text-neutral-400" />
-              Kullanım
+              Kullanim
             </h3>
 
             <div className="space-y-5">
               <div>
-                <div className="flex items-center justify-between mb-2">
+                <div className="mb-2 flex items-center justify-between">
                   <span className="text-body-md text-neutral-700 dark:text-dark-textSecondary">Toplam Teklif</span>
                   <span className="text-body-md font-semibold text-neutral-900 dark:text-dark-textPrimary">
                     {offersUsed}
-                    {offersLimit ? ` / ${offersLimit}` : ' (Sınırsız)'}
+                    {offersLimit ? ` / ${offersLimit}` : ' (Sinirsiz)'}
                   </span>
                 </div>
-                <div className="h-2.5 rounded-full bg-neutral-100 dark:bg-dark-surfaceRaised overflow-hidden">
+                <div className="h-2.5 overflow-hidden rounded-full bg-neutral-100 dark:bg-dark-surfaceRaised">
                   <motion.div
                     initial={{ width: 0 }}
                     animate={{ width: offersPercent !== null ? `${Math.min(offersPercent, 100)}%` : '15%' }}
@@ -526,19 +561,10 @@ export default function SubscriptionPage() {
                 </div>
               </div>
 
-              <div className="grid grid-cols-3 gap-4 pt-3 border-t border-neutral-100 dark:border-dark-border">
-                <div className="text-center p-3 rounded-xl bg-neutral-50 dark:bg-dark-surfaceRaised">
-                  <p className="text-h3 font-bold text-neutral-900 dark:text-dark-textPrimary">{snapshot.usage.listingCount || 0}</p>
-                  <p className="text-body-sm text-neutral-500">İlan</p>
-                </div>
-                <div className="text-center p-3 rounded-xl bg-neutral-50 dark:bg-dark-surfaceRaised">
-                  <p className="text-h3 font-bold text-neutral-900 dark:text-dark-textPrimary">{snapshot.usage.acceptedOffers || 0}</p>
-                  <p className="text-body-sm text-neutral-500">Kabul Edilen</p>
-                </div>
-                <div className="text-center p-3 rounded-xl bg-neutral-50 dark:bg-dark-surfaceRaised">
-                  <p className="text-h3 font-bold text-neutral-900 dark:text-dark-textPrimary">{snapshot.usage.reviewCount || 0}</p>
-                  <p className="text-body-sm text-neutral-500">Değerlendirme</p>
-                </div>
+              <div className="grid grid-cols-3 gap-4 border-t border-neutral-100 pt-3 dark:border-dark-border">
+                <UsageCard value={effectiveSnapshot.usage.listingCount || 0} label="Ilan" />
+                <UsageCard value={effectiveSnapshot.usage.acceptedOffers || 0} label="Kabul" />
+                <UsageCard value={effectiveSnapshot.usage.reviewCount || 0} label="Degerlendirme" />
               </div>
             </div>
           </motion.div>
@@ -549,18 +575,18 @@ export default function SubscriptionPage() {
             initial={{ opacity: 0, y: 12 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.35, delay: 0.1 }}
-            className="rounded-2xl border border-neutral-200/50 dark:border-dark-border bg-white dark:bg-dark-surface p-6"
+            className="rounded-2xl border border-neutral-200/50 bg-white p-6 dark:border-dark-border dark:bg-dark-surface"
           >
-            <h3 className="text-h4 font-bold text-neutral-900 dark:text-dark-textPrimary mb-4 flex items-center gap-2">
+            <h3 className="mb-4 flex items-center gap-2 text-h4 font-bold text-neutral-900 dark:text-dark-textPrimary">
               <Crown size={18} className="text-neutral-400" />
-              Plan Özellikleri
+              Plan Ozellikleri
             </h3>
 
             <div className="space-y-2.5">
               {featureList(focusPlan || currentPlan).map((feature) => (
                 <div key={feature} className="flex items-center gap-2.5 text-body-sm text-neutral-700 dark:text-dark-textSecondary">
-                  <div className="w-4 h-4 rounded-full bg-success/10 flex items-center justify-center shrink-0">
-                    <div className="w-1.5 h-1.5 rounded-full bg-success" />
+                  <div className="flex h-4 w-4 items-center justify-center rounded-full bg-success/10">
+                    <div className="h-1.5 w-1.5 rounded-full bg-success" />
                   </div>
                   {feature}
                 </div>
@@ -572,21 +598,21 @@ export default function SubscriptionPage() {
             initial={{ opacity: 0, y: 12 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.35, delay: 0.15 }}
-            className="rounded-2xl border border-neutral-200/50 dark:border-dark-border bg-white dark:bg-dark-surface p-6"
+            className="rounded-2xl border border-neutral-200/50 bg-white p-6 dark:border-dark-border dark:bg-dark-surface"
           >
-            <h3 className="text-h4 font-bold text-neutral-900 dark:text-dark-textPrimary mb-4 flex items-center gap-2">
+            <h3 className="mb-4 flex items-center gap-2 text-h4 font-bold text-neutral-900 dark:text-dark-textPrimary">
               <CreditCard size={18} className="text-neutral-400" />
-              Ödeme
+              Odeme Durumu
             </h3>
 
-            <div className="p-4 rounded-xl bg-neutral-50 dark:bg-dark-surfaceRaised border border-neutral-100 dark:border-dark-border">
+            <div className="rounded-xl border border-neutral-100 bg-neutral-50 p-4 dark:border-dark-border dark:bg-dark-surfaceRaised">
               <p className="text-body-md text-neutral-700 dark:text-dark-textSecondary">
                 {activeSubscription
-                  ? `${statusLabel(activeSubscription.status)} • ${activeSubscription.billingCycle === 'yearly' ? 'Yıllık' : 'Aylık'} plan yönetimi`
-                  : 'Henüz aktif ücretli abonelik bulunmuyor.'}
+                  ? `${statusLabel(activeSubscription.status)} · ${activeSubscription.billingCycle === 'yearly' ? 'Yillik' : 'Aylik'} plan yonetimi`
+                  : 'Henuz aktif ucretli abonelik bulunmuyor.'}
               </p>
-              <p className="text-body-sm text-neutral-400 mt-2">
-                Checkout güvenli iyzico sayfasında açılır. Ödeme sonrası bu ekrana geri dönerek durumu anında görebilirsin.
+              <p className="mt-2 text-body-sm text-neutral-400">
+                Checkout guvenli iyzico sayfasinda acilir. Provider eksikse bu ekran salt okunur olarak calismaya devam eder.
               </p>
             </div>
           </motion.div>
@@ -595,31 +621,46 @@ export default function SubscriptionPage() {
             initial={{ opacity: 0, y: 12 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.35, delay: 0.2 }}
-            className="rounded-2xl border border-neutral-200/50 dark:border-dark-border bg-white dark:bg-dark-surface p-4"
+            className="rounded-2xl border border-neutral-200/50 bg-white p-4 dark:border-dark-border dark:bg-dark-surface"
           >
-            <Link
-              href="/pricing"
-              className="flex items-center justify-between p-3 rounded-xl hover:bg-neutral-50 dark:hover:bg-dark-surfaceRaised transition-colors"
-            >
-              <div className="flex items-center gap-3">
-                <Sparkles size={18} className="text-accent" />
-                <span className="text-body-md font-medium text-neutral-700 dark:text-dark-textPrimary">Planları Karşılaştır</span>
-              </div>
-              <ChevronRight size={16} className="text-neutral-400" />
-            </Link>
-            <Link
-              href="/settings"
-              className="flex items-center justify-between p-3 rounded-xl hover:bg-neutral-50 dark:hover:bg-dark-surfaceRaised transition-colors"
-            >
-              <div className="flex items-center gap-3">
-                <CreditCard size={18} className="text-neutral-400" />
-                <span className="text-body-md font-medium text-neutral-700 dark:text-dark-textPrimary">Hesap Ayarları</span>
-              </div>
-              <ChevronRight size={16} className="text-neutral-400" />
-            </Link>
+            <QuickLink href="/pricing" icon={<Sparkles size={18} className="text-accent" />} label="Planlari Karsilastir" />
+            <QuickLink href="/settings" icon={<CreditCard size={18} className="text-neutral-400" />} label="Profil ve Fatura Bilgileri" />
           </motion.div>
         </div>
       </div>
     </div>
+  );
+}
+
+function Metric({ label, value }: { label: string; value: string }) {
+  return (
+    <div>
+      <p className="text-body-sm text-neutral-500">{label}</p>
+      <p className="mt-1 text-body-md font-semibold text-neutral-900 dark:text-dark-textPrimary">{value}</p>
+    </div>
+  );
+}
+
+function UsageCard({ value, label }: { value: number; label: string }) {
+  return (
+    <div className="rounded-xl bg-neutral-50 p-3 text-center dark:bg-dark-surfaceRaised">
+      <p className="text-h3 font-bold text-neutral-900 dark:text-dark-textPrimary">{value}</p>
+      <p className="text-body-sm text-neutral-500">{label}</p>
+    </div>
+  );
+}
+
+function QuickLink({ href, icon, label }: { href: string; icon: JSX.Element; label: string }) {
+  return (
+    <Link
+      href={href}
+      className="flex items-center justify-between rounded-xl p-3 transition-colors hover:bg-neutral-50 dark:hover:bg-dark-surfaceRaised"
+    >
+      <div className="flex items-center gap-3">
+        {icon}
+        <span className="text-body-md font-medium text-neutral-700 dark:text-dark-textPrimary">{label}</span>
+      </div>
+      <ChevronRight size={16} className="text-neutral-400" />
+    </Link>
   );
 }

@@ -5,6 +5,7 @@ import { PrismaAdapter } from '@auth/prisma-adapter';
 import bcrypt from 'bcryptjs';
 import { prisma } from './prisma';
 import { getSettingsDirect } from './site-settings';
+import { isActiveUserStatus, isInactiveUserStatus } from './user-status';
 
 // Only use PrismaAdapter when Google OAuth is configured
 // Adapter + Credentials + JWT can conflict — adapter tries to create sessions
@@ -40,7 +41,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
           return null;
         }
 
-        if (user.status === 'banned' || user.status === 'suspended') {
+        if (isInactiveUserStatus(user.status)) {
           return null;
         }
 
@@ -94,7 +95,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
           return false;
         }
 
-        if (existingUser?.status === 'banned' || existingUser?.status === 'suspended') {
+        if (existingUser?.status && !isActiveUserStatus(existingUser.status)) {
           return false;
         }
       }
@@ -113,6 +114,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
             companyName: true,
             phone: true,
             city: true,
+            status: true,
           },
         });
         token.id = user.id;
@@ -122,12 +124,13 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
         token.companyName = dbUser?.companyName ?? null;
         token.phone = dbUser?.phone ?? null;
         token.city = dbUser?.city ?? null;
+        token.status = dbUser?.status ?? 'active';
       }
       if (trigger === 'update') {
         // Profile update — refresh from DB
         const dbUser = await prisma.user.findUnique({
           where: { id: token.id as string },
-          select: { role: true, verified: true, badge: true, companyName: true, phone: true, city: true },
+          select: { role: true, verified: true, badge: true, companyName: true, phone: true, city: true, status: true },
         });
         if (dbUser) Object.assign(token, dbUser);
       }
@@ -142,6 +145,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
       user.companyName = token.companyName;
       user.phone = token.phone;
       user.city = token.city;
+      user.status = token.status;
       return session;
     },
   },

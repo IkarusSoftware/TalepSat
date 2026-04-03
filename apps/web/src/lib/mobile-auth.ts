@@ -52,6 +52,7 @@ export async function getMobileUser(userId: string) {
       phone: true,
       companyName: true,
       taxNumber: true,
+      pushNotificationsEnabled: true,
       score: true,
       completedDeals: true,
       status: true,
