@@ -1,4 +1,4 @@
-import { createHmac, randomUUID } from 'crypto';
+import { createHmac, randomUUID, timingSafeEqual } from 'crypto';
 import { prisma } from './prisma';
 
 export type BillingCycle = 'monthly' | 'yearly';
@@ -356,5 +356,14 @@ export function verifyIyzicoWebhookSignature(payload: Record<string, unknown>, s
     .update(message)
     .digest('hex');
 
-  return expected === signatureHeader;
+  try {
+    const expectedBuffer = Buffer.from(expected, 'utf8');
+    const receivedBuffer = Buffer.from(signatureHeader.trim(), 'utf8');
+    if (expectedBuffer.length !== receivedBuffer.length) {
+      return false;
+    }
+    return timingSafeEqual(expectedBuffer, receivedBuffer);
+  } catch {
+    return false;
+  }
 }

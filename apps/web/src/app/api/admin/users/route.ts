@@ -12,7 +12,8 @@ export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
   const search = searchParams.get('search') || '';
   const tab    = searchParams.get('status') || 'all';
-  const limit  = parseInt(searchParams.get('limit') || '100');
+  const requestedLimit = parseInt(searchParams.get('limit') || '100', 10);
+  const limit  = Number.isFinite(requestedLimit) ? Math.min(Math.max(requestedLimit, 1), 200) : 100;
   const sort   = searchParams.get('sort') || 'recent';
 
   const where: Record<string, unknown> = {};

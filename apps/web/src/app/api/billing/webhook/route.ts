@@ -48,6 +48,7 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   const payload = await parsePayload(req);
   const token = typeof payload.token === 'string' ? payload.token : null;
+  const eventType = typeof payload.iyziEventType === 'string' ? payload.iyziEventType : null;
   const subscriptionReferenceCode =
     typeof payload.subscriptionReferenceCode === 'string' ? payload.subscriptionReferenceCode : null;
 
@@ -64,9 +65,17 @@ export async function POST(req: NextRequest) {
     req.headers.get('x-iyz-signature') ||
     req.headers.get('authorization-hash');
 
-  if (process.env.IYZICO_MERCHANT_ID) {
+  const isWebhookEvent = Boolean(subscriptionReferenceCode || eventType);
+  if (isWebhookEvent) {
+    if (!process.env.IYZICO_MERCHANT_ID) {
+      return NextResponse.json(
+        { error: 'Webhook imza dogrulamasi icin IYZICO_MERCHANT_ID gerekli.' },
+        { status: 503 },
+      );
+    }
+
     if (!signature || !verifyIyzicoWebhookSignature(payload, signature)) {
-      return NextResponse.json({ error: 'Geçersiz webhook imzası.' }, { status: 401 });
+      return NextResponse.json({ error: 'Gecersiz webhook imzasi.' }, { status: 401 });
     }
   }
 

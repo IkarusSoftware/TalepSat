@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { motion } from 'framer-motion';
 import Link from 'next/link';
 import {
@@ -401,7 +401,7 @@ function ActionButton({
   disabled,
   tone = 'neutral',
 }: {
-  icon: JSX.Element;
+  icon: ReactNode;
   label: string;
   onClick: () => void;
   disabled?: boolean;

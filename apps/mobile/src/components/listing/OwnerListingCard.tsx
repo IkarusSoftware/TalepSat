@@ -10,12 +10,18 @@ interface OwnerListingCardProps {
   listing: Listing;
   statusLabel: string;
   statusColor: string;
+  pendingOfferCount?: number;
   onOpen: () => void;
+  onEdit?: () => void;
+  onViewOffers?: () => void;
+  onCompare?: () => void;
+  onRecreate?: () => void;
+  recreateLabel?: string;
   onDelete: () => void;
 }
 
 const deliveryLabels: Record<string, string> = {
-  urgent: 'Acil (1-3 gün)',
+  urgent: 'Acil (1-3 gun)',
   week: '1 Hafta',
   two_weeks: '2 Hafta',
   month: '1 Ay',
@@ -34,19 +40,40 @@ function formatBudget(min: number, max: number) {
 function daysLeft(expiresAt: string | null) {
   if (!expiresAt) return '';
   const days = Math.max(0, Math.floor((new Date(expiresAt).getTime() - Date.now()) / 86400000));
-  if (days === 0) return 'Bugün bitiyor';
-  return `${days} gün kaldı`;
+  if (days === 0) return 'Bugun bitiyor';
+  return `${days} gun kaldi`;
 }
 
 export function OwnerListingCard({
   listing,
   statusLabel,
   statusColor,
+  pendingOfferCount = 0,
   onOpen,
+  onEdit,
+  onViewOffers,
+  onCompare,
+  onRecreate,
+  recreateLabel,
   onDelete,
 }: OwnerListingCardProps) {
   const colors = useThemeColors();
   const styles = useMemo(() => makeStyles(colors), [colors]);
+
+  const showCompare = listing.status === 'active' && listing.offerCount > 1 && Boolean(onCompare);
+  const showViewOffers = listing.status === 'active' && Boolean(onViewOffers);
+  const showRecreate = ['rejected', 'expired', 'completed'].includes(listing.status) && Boolean(onRecreate);
+
+  const passiveLead =
+    listing.status === 'pending'
+      ? 'Onay sonrasi yayina alinacak'
+      : listing.status === 'completed'
+        ? `${listing.offerCount} teklif tamamlandi`
+        : listing.status === 'expired'
+          ? 'Ilan suresi doldu, benzer bir ilan acabilirsin'
+          : listing.status === 'rejected'
+            ? 'Yeni ilan acabilir veya detaylari duzenleyebilirsin'
+            : '-';
 
   return (
     <View style={styles.card}>
@@ -92,23 +119,63 @@ export function OwnerListingCard({
         </View>
 
         {listing.status === 'pending' && (
-          <Text style={styles.pendingBanner}>Admin onayı bekleniyor - 24 saat içinde sonuçlanır.</Text>
+          <Text style={styles.pendingBanner}>Admin onayi bekleniyor. Genelde 24 saat icinde sonuc alir.</Text>
         )}
         {listing.status === 'rejected' && (
-          <Text style={styles.rejectedBanner}>İlan reddedildi. Düzenleyip yeniden gönderebilirsin.</Text>
+          <Text style={styles.rejectedBanner}>Ilan reddedildi. Yeni ilan olusturabilir veya detaylari duzenleyebilirsin.</Text>
+        )}
+        {listing.status === 'expired' && (
+          <Text style={styles.expiredBanner}>Talep suresi doldu. Bilgileri kopyalayip yeni bir ilan acabilirsin.</Text>
+        )}
+        {listing.status === 'completed' && (
+          <Text style={styles.completedBanner}>Benzer bir ihtiyacin varsa bu ilani kopyalayip hizlica yeniden yayinlayabilirsin.</Text>
         )}
       </TouchableOpacity>
 
       <View style={styles.footer}>
-        <View style={styles.offerInfo}>
-          <Ionicons name="chatbubble-outline" size={14} color={colors.accent.DEFAULT} />
-          <Text style={styles.offerCount}>{listing.offerCount} teklif</Text>
+        <View style={styles.footerTop}>
+          {listing.status === 'active' ? (
+            <View style={styles.offerInfo}>
+              <Ionicons name="chatbubble-outline" size={14} color={colors.accent.DEFAULT} />
+              <Text style={styles.offerCount}>{listing.offerCount} teklif</Text>
+              {pendingOfferCount > 0 && (
+                <View style={styles.pendingCountBadge}>
+                  <Text style={styles.pendingCountText}>{pendingOfferCount}</Text>
+                </View>
+              )}
+            </View>
+          ) : (
+            <View style={styles.passiveInfo}>
+              <Ionicons name="alert-circle-outline" size={13} color={colors.textSecondary} />
+              <Text style={styles.passiveInfoText}>{passiveLead}</Text>
+            </View>
+          )}
+
+          <View style={styles.primaryActions}>
+            {showCompare && (
+              <TouchableOpacity style={styles.secondaryActionBtn} onPress={onCompare} activeOpacity={0.82}>
+                <Text style={styles.secondaryActionText}>Karsilastir</Text>
+              </TouchableOpacity>
+            )}
+            {showViewOffers && (
+              <TouchableOpacity style={styles.primaryActionBtn} onPress={onViewOffers} activeOpacity={0.82}>
+                <Text style={styles.primaryActionText}>Teklifleri Gor</Text>
+                <Ionicons name="arrow-forward" size={12} color={colors.accent.DEFAULT} />
+              </TouchableOpacity>
+            )}
+            {showRecreate && (
+              <TouchableOpacity style={styles.recreateBtn} onPress={onRecreate} activeOpacity={0.82}>
+                <Text style={styles.recreateText}>{recreateLabel || 'Benzer Ilan Ac'}</Text>
+                <Ionicons name="arrow-forward" size={12} color={colors.error.DEFAULT} />
+              </TouchableOpacity>
+            )}
+          </View>
         </View>
 
         <View style={styles.actions}>
-          <TouchableOpacity style={styles.editBtn} onPress={onOpen} activeOpacity={0.82}>
+          <TouchableOpacity style={styles.editBtn} onPress={onEdit || onOpen} activeOpacity={0.82}>
             <Ionicons name="pencil-outline" size={14} color={colors.textSecondary} />
-            <Text style={styles.editText}>Düzenle</Text>
+            <Text style={styles.editText}>Duzenle</Text>
           </TouchableOpacity>
           <TouchableOpacity style={styles.deleteBtn} onPress={onDelete} activeOpacity={0.82}>
             <Ionicons name="trash-outline" size={15} color={colors.error.DEFAULT} />
@@ -168,7 +235,7 @@ const makeStyles = (colors: any) => StyleSheet.create({
   daysLeft: {
     fontSize: 11,
     fontFamily: fontFamily.semiBold,
-    color: '#D4940A',
+    color: colors.warning.DEFAULT,
   },
   title: {
     fontSize: 16,
@@ -220,29 +287,132 @@ const makeStyles = (colors: any) => StyleSheet.create({
     paddingHorizontal: space.sm,
     paddingVertical: space.sm,
   },
+  expiredBanner: {
+    marginTop: space.sm,
+    borderRadius: borderRadius.md,
+    backgroundColor: colors.warning.light,
+    color: colors.warning.DEFAULT,
+    fontSize: 12,
+    lineHeight: 18,
+    fontFamily: fontFamily.medium,
+    paddingHorizontal: space.sm,
+    paddingVertical: space.sm,
+  },
+  completedBanner: {
+    marginTop: space.sm,
+    borderRadius: borderRadius.md,
+    backgroundColor: colors.success.light,
+    color: colors.success.DEFAULT,
+    fontSize: 12,
+    lineHeight: 18,
+    fontFamily: fontFamily.medium,
+    paddingHorizontal: space.sm,
+    paddingVertical: space.sm,
+  },
   footer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
+    gap: space.sm,
     borderTopWidth: 1,
     borderTopColor: colors.border,
     paddingHorizontal: space.md,
     paddingVertical: space.sm,
+  },
+  footerTop: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
     gap: space.sm,
+    flexWrap: 'wrap',
   },
   offerInfo: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
+    flexShrink: 1,
   },
   offerCount: {
     fontSize: 13,
     fontFamily: fontFamily.semiBold,
     color: colors.accent.DEFAULT,
   },
+  pendingCountBadge: {
+    minWidth: 18,
+    height: 18,
+    paddingHorizontal: 4,
+    borderRadius: borderRadius.full,
+    backgroundColor: colors.accent.DEFAULT,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  pendingCountText: {
+    fontSize: 10,
+    fontFamily: fontFamily.bold,
+    color: colors.white,
+  },
+  passiveInfo: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    flex: 1,
+  },
+  passiveInfoText: {
+    fontSize: 12,
+    fontFamily: fontFamily.medium,
+    color: colors.textSecondary,
+    flexShrink: 1,
+  },
+  primaryActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: space.xs,
+    flexWrap: 'wrap',
+  },
+  secondaryActionBtn: {
+    height: 30,
+    paddingHorizontal: 10,
+    borderRadius: borderRadius.md,
+    borderWidth: 1,
+    borderColor: colors.border,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.surfaceRaised,
+  },
+  secondaryActionText: {
+    fontSize: 12,
+    fontFamily: fontFamily.medium,
+    color: colors.textSecondary,
+  },
+  primaryActionBtn: {
+    height: 30,
+    paddingHorizontal: 10,
+    borderRadius: borderRadius.md,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    backgroundColor: colors.accent.lighter,
+  },
+  primaryActionText: {
+    fontSize: 12,
+    fontFamily: fontFamily.semiBold,
+    color: colors.accent.DEFAULT,
+  },
+  recreateBtn: {
+    height: 30,
+    paddingHorizontal: 10,
+    borderRadius: borderRadius.md,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    backgroundColor: colors.error.light,
+  },
+  recreateText: {
+    fontSize: 12,
+    fontFamily: fontFamily.semiBold,
+    color: colors.error.DEFAULT,
+  },
   actions: {
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'flex-end',
     gap: space.sm,
   },
   editBtn: {

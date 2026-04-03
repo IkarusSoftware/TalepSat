@@ -11,6 +11,7 @@ import {
   Sparkles, Send, X, FileText, Calendar, Banknote,
   Award, Info, Loader2, AlertTriangle, CheckCheck,
 } from 'lucide-react';
+import { isRenderableImageUrl } from '../../../../../../../shared/media';
 
 function formatCurrency(n: number) {
   return new Intl.NumberFormat('tr-TR', { style: 'currency', currency: 'TRY', maximumFractionDigits: 0 }).format(n);
@@ -67,6 +68,7 @@ interface ListingData {
     createdAt: string;
   };
   offers: OfferData[];
+  myOffer?: OfferData | null;
   offerCount: number;
 }
 
@@ -217,6 +219,7 @@ export default function ListingDetailPage() {
   }, [params.id]);
 
   const isOwner = session?.user?.id === listing?.buyerId;
+  const myOffer = !isOwner ? listing?.myOffer ?? null : null;
 
   const handleAcceptOffer = async (offerId: string) => {
     const res = await fetch(`/api/offers/${offerId}`, {
@@ -289,7 +292,12 @@ export default function ListingDetailPage() {
       const newOffer = await res.json();
       setListing((prev) => {
         if (!prev) return prev;
-        return { ...prev, offers: [newOffer, ...prev.offers], offerCount: prev.offerCount + 1 };
+        return {
+          ...prev,
+          offers: isOwner ? [newOffer, ...prev.offers] : prev.offers,
+          myOffer: !isOwner ? newOffer : prev.myOffer,
+          offerCount: prev.offerCount + 1,
+        };
       });
       setShowOfferForm(false);
       setOfferPrice('');
@@ -514,7 +522,7 @@ export default function ListingDetailPage() {
               <div className="mb-6">
                 <h3 className="text-h4 font-semibold text-neutral-900 dark:text-dark-textPrimary mb-3">Görseller</h3>
                 <div className="grid grid-cols-3 sm:grid-cols-4 gap-3">
-                  {listing.images.filter((img) => /\.(jpg|jpeg|png|webp)$/i.test(img)).map((img, i) => (
+                  {listing.images.filter((img) => isRenderableImageUrl(img)).map((img, i) => (
                     <div key={i} className="aspect-square rounded-lg overflow-hidden border border-neutral-200 dark:border-dark-border">
                       <img src={img} alt={`Görsel ${i + 1}`} className="w-full h-full object-cover" />
                     </div>
@@ -584,7 +592,7 @@ export default function ListingDetailPage() {
             </div>
 
             {/* Offer CTA — only for non-owners */}
-            {!isOwner && listing.status === 'active' && (
+            {!isOwner && listing.status === 'active' && !myOffer && (
               <button
                 onClick={() => setShowOfferForm(true)}
                 className="w-full h-12 bg-accent text-white text-body-lg font-semibold rounded-xl hover:bg-accent-600 active:scale-[0.98] transition-all duration-fast shadow-sm hover:shadow-md flex items-center justify-center gap-2"
@@ -596,10 +604,55 @@ export default function ListingDetailPage() {
 
             {/* Offers list */}
             <div className="space-y-3">
-              {listing.offers.length > 0 ? (
+              {isOwner && listing.offers.length > 0 ? (
                 listing.offers.map((offer, i) => (
                   <OfferCard key={offer.id} offer={offer} rank={i} isOwner={isOwner} onAccept={handleAcceptOffer} onReject={handleRejectOffer} />
                 ))
+              ) : !isOwner && myOffer ? (
+                <div className="rounded-xl border border-success/20 bg-success-light/40 dark:bg-success/10 dark:border-success/20 p-5">
+                  <div className="flex items-start justify-between gap-4">
+                    <div>
+                      <p className="text-body-sm text-success font-semibold mb-1">Teklifiniz gonderildi</p>
+                      <p className="text-h3 font-bold text-neutral-900 dark:text-dark-textPrimary">
+                        {formatCurrency(myOffer.price)}
+                      </p>
+                      <p className="text-body-md text-neutral-500 dark:text-dark-textSecondary mt-1">
+                        {myOffer.deliveryDays} gun teslimat
+                      </p>
+                    </div>
+                    <span className={`px-3 py-1 rounded-lg text-body-sm font-semibold ${
+                      myOffer.status === 'accepted'
+                        ? 'bg-success-light text-success'
+                        : myOffer.status === 'rejected'
+                          ? 'bg-red-50 text-error'
+                          : 'bg-accent-lighter text-accent'
+                    }`}>
+                      {myOffer.status === 'pending'
+                        ? 'Beklemede'
+                        : myOffer.status === 'accepted'
+                          ? 'Kabul edildi'
+                          : myOffer.status === 'rejected'
+                            ? 'Reddedildi'
+                            : myOffer.status}
+                    </span>
+                  </div>
+                  {myOffer.note && (
+                    <p className="mt-3 text-body-md text-neutral-600 dark:text-dark-textSecondary">
+                      {myOffer.note}
+                    </p>
+                  )}
+                  <p className="mt-4 text-body-sm text-neutral-500 dark:text-dark-textSecondary">
+                    Bu ilana zaten teklif verdiniz. Durumu guncellenene kadar yeni teklif gonderemezsiniz.
+                  </p>
+                </div>
+              ) : !isOwner && listing.offerCount > 0 ? (
+                <div className="text-center py-12 bg-white dark:bg-dark-surface rounded-xl border border-neutral-200/50 dark:border-dark-border">
+                  <MessageSquare size={32} className="mx-auto mb-3 text-neutral-300" />
+                  <p className="text-body-md text-neutral-500 dark:text-dark-textSecondary">Bu ilanda teklif var</p>
+                  <p className="text-body-sm text-neutral-400 mt-1">
+                    Teklif detaylarini yalnizca ilan sahibi gorebilir.
+                  </p>
+                </div>
               ) : (
                 <div className="text-center py-12 bg-white dark:bg-dark-surface rounded-xl border border-neutral-200/50 dark:border-dark-border">
                   <MessageSquare size={32} className="mx-auto mb-3 text-neutral-300" />

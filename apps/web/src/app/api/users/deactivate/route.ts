@@ -3,11 +3,22 @@ import bcrypt from 'bcryptjs';
 import { getApiSession } from '@/lib/api-session';
 import { prisma } from '@/lib/prisma';
 import { unregisterPushDevice } from '@/lib/push';
+import { consumeRateLimit, createRateLimitResponse } from '@/lib/rate-limit';
+import { getClientIp } from '@/lib/security';
 
 export async function POST(req: NextRequest) {
   const session = await getApiSession(req);
   if (!session?.userId) {
     return NextResponse.json({ error: 'Yetkisiz' }, { status: 401 });
+  }
+
+  const rateLimit = consumeRateLimit({
+    key: `deactivate:${session.userId}:${getClientIp(req)}`,
+    limit: 5,
+    windowMs: 30 * 60 * 1000,
+  });
+  if (!rateLimit.success) {
+    return createRateLimitResponse(rateLimit, 'Cok fazla hesap kapatma denemesi yapildi.');
   }
 
   const body = await req.json().catch(() => null);

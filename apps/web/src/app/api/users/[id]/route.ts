@@ -1,11 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { getApiSession } from '@/lib/api-session';
+import { normalizeResponseMediaUrl, normalizeStoredMediaUrl } from '@/lib/media';
 
 // GET /api/users/[id] — public profile
-export async function GET(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const session = await getApiSession(_req);
+  const session = await getApiSession(req);
   const isSelf = session?.userId === id;
 
   const user = await prisma.user.findUnique({
@@ -45,6 +46,7 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
 
   return NextResponse.json({
     ...user,
+    image: normalizeResponseMediaUrl(user.image, req),
     listingCount,
     totalOffers,
     acceptedOffers,
@@ -63,11 +65,34 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
 
   const body = await req.json();
   const allowedFields = ['name', 'phone', 'bio', 'city', 'companyName', 'taxNumber', 'image'];
-  const data: Record<string, string> = {};
+  const fieldLimits: Record<string, number> = {
+    name: 120,
+    phone: 40,
+    bio: 1500,
+    city: 80,
+    companyName: 140,
+    taxNumber: 40,
+    image: 2048,
+  };
+  const data: Record<string, string | null> = {};
 
   for (const field of allowedFields) {
     if (body[field] !== undefined) {
-      data[field] = body[field];
+      const value = body[field];
+      if (value !== null && typeof value !== 'string') {
+        return NextResponse.json({ error: `${field} alani gecersiz` }, { status: 400 });
+      }
+
+      const sanitized = typeof value === 'string' ? value.trim() : null;
+      if (sanitized && sanitized.length > fieldLimits[field]) {
+        return NextResponse.json({ error: `${field} alani cok uzun` }, { status: 400 });
+      }
+
+      if (field === 'image' && sanitized && !normalizeStoredMediaUrl(sanitized, req)) {
+        return NextResponse.json({ error: 'image alani gecerli bir medya URL olmali' }, { status: 400 });
+      }
+
+      data[field] = field === 'image' && sanitized ? normalizeStoredMediaUrl(sanitized, req) : sanitized;
     }
   }
 
@@ -85,5 +110,8 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     },
   });
 
-  return NextResponse.json(updated);
+  return NextResponse.json({
+    ...updated,
+    image: normalizeResponseMediaUrl(updated.image, req),
+  });
 }

@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { motion } from 'framer-motion';
@@ -650,7 +650,7 @@ function UsageCard({ value, label }: { value: number; label: string }) {
   );
 }
 
-function QuickLink({ href, icon, label }: { href: string; icon: JSX.Element; label: string }) {
+function QuickLink({ href, icon, label }: { href: string; icon: ReactNode; label: string }) {
   return (
     <Link
       href={href}

@@ -1,6 +1,7 @@
 import React from 'react';
 import { View, Text, Image, StyleSheet } from 'react-native';
 import Ionicons from '@expo/vector-icons/Ionicons';
+import { resolveAppMediaUrl } from '../../lib/media';
 import { colors, fontFamily, borderRadius } from '../../theme';
 
 type AvatarSize = 'sm' | 'md' | 'lg';
@@ -26,12 +27,13 @@ function getInitials(name: string): string {
 export function Avatar({ name, image, size = 'md', verified }: AvatarProps) {
   const dim = sizeMap[size];
   const fs = fontSizeMap[size];
+  const resolvedImage = resolveAppMediaUrl(image);
 
   return (
     <View style={{ position: 'relative' }}>
-      {image ? (
+      {resolvedImage ? (
         <Image
-          source={{ uri: image }}
+          source={{ uri: resolvedImage }}
           style={[styles.image, { width: dim, height: dim, borderRadius: dim / 2 }]}
         />
       ) : (

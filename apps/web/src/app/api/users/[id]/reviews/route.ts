@@ -1,8 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { normalizeResponseMediaUrl } from '@/lib/media';
 import { prisma } from '@/lib/prisma';
 
 // GET /api/users/[id]/reviews — get all reviews for a user
-export async function GET(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
 
   const reviews = await prisma.review.findMany({
@@ -20,5 +21,13 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
     orderBy: { createdAt: 'desc' },
   });
 
-  return NextResponse.json(reviews);
+  return NextResponse.json(
+    reviews.map((review) => ({
+      ...review,
+      reviewer: {
+        ...review.reviewer,
+        image: normalizeResponseMediaUrl(review.reviewer.image, req),
+      },
+    })),
+  );
 }

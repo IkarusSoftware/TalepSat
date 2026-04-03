@@ -1,8 +1,45 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getApiSession } from '@/lib/api-session';
+import { normalizeResponseAttachments, normalizeStoredAttachments } from '@/lib/media';
 import { prisma } from '@/lib/prisma';
 import { eventForUser, emitRealtimeEvents } from '@/lib/realtime';
 import { sendPushToUser } from '@/lib/push';
+import { consumeRateLimit, createRateLimitResponse } from '@/lib/rate-limit';
+import { getClientIp } from '@/lib/security';
+
+const MAX_MESSAGE_LENGTH = 4000;
+const MAX_ATTACHMENTS = 5;
+
+type IncomingAttachment = {
+  url: string;
+  name?: string;
+  type?: string;
+  size?: number;
+};
+
+function parseAttachments(value: unknown): IncomingAttachment[] {
+  if (!Array.isArray(value)) return [];
+
+  return value
+    .slice(0, MAX_ATTACHMENTS)
+    .filter((item): item is IncomingAttachment => !!item && typeof item === 'object')
+    .map((item) => ({
+      url: typeof item.url === 'string' ? item.url.trim() : '',
+      name: typeof item.name === 'string' ? item.name.trim().slice(0, 255) : undefined,
+      type: typeof item.type === 'string' ? item.type.trim().slice(0, 120) : undefined,
+      size: typeof item.size === 'number' && Number.isFinite(item.size) && item.size >= 0 ? item.size : undefined,
+    }));
+}
+
+function parseStoredAttachments(raw: string | null, req: NextRequest) {
+  if (!raw) return null;
+
+  try {
+    return normalizeResponseAttachments(JSON.parse(raw), req);
+  } catch {
+    return null;
+  }
+}
 
 // GET /api/conversations/[id]/messages
 export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -11,8 +48,6 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
   const userId = session.userId;
 
   const { id } = await params;
-
-  // Verify user is participant
   const participant = await prisma.conversationParticipant.findUnique({
     where: { conversationId_userId: { conversationId: id, userId } },
   });
@@ -24,7 +59,6 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
     orderBy: { createdAt: 'asc' },
   });
 
-  // Mark as read
   await prisma.conversationParticipant.update({
     where: { conversationId_userId: { conversationId: id, userId } },
     data: { unreadCount: 0 },
@@ -34,24 +68,45 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
     eventForUser(userId, 'conversation.updated', id, { conversationId: id }),
   ]);
 
-  const result = messages.map((m) => ({
-    ...m,
-    attachments: m.attachments ? JSON.parse(m.attachments) : null,
+  const result = messages.map((message) => ({
+    ...message,
+    attachments: parseStoredAttachments(message.attachments, req),
   }));
 
   return NextResponse.json(result);
 }
 
-// POST /api/conversations/[id]/messages — send message
+// POST /api/conversations/[id]/messages - send message
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const session = await getApiSession(req);
   if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   const userId = session.userId;
+  const ip = getClientIp(req);
 
   const { id } = await params;
-  const body = await req.json();
+  const rateLimit = consumeRateLimit({
+    key: `conversation-message:${id}:${userId}:${ip}`,
+    limit: 30,
+    windowMs: 60_000,
+  });
+  if (!rateLimit.success) {
+    return createRateLimitResponse(rateLimit, 'Cok hizli mesaj gonderiyorsunuz.');
+  }
 
-  // Verify user is participant
+  const body = await req.json().catch(() => null);
+  const text = typeof body?.text === 'string' ? body.text.trim() : '';
+  const attachments = normalizeStoredAttachments(parseAttachments(body?.attachments), req);
+
+  if (!text && attachments.length === 0) {
+    return NextResponse.json({ error: 'Mesaj veya ek gerekli' }, { status: 400 });
+  }
+  if (text.length > MAX_MESSAGE_LENGTH) {
+    return NextResponse.json({ error: 'Mesaj cok uzun' }, { status: 400 });
+  }
+  if (Array.isArray(body?.attachments) && attachments.length !== body.attachments.length) {
+    return NextResponse.json({ error: 'Gecersiz ek bilgisi gonderildi' }, { status: 400 });
+  }
+
   const participant = await prisma.conversationParticipant.findUnique({
     where: { conversationId_userId: { conversationId: id, userId } },
   });
@@ -61,18 +116,16 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     data: {
       conversationId: id,
       senderId: userId,
-      text: body.text || '',
-      attachments: body.attachments ? JSON.stringify(body.attachments) : null,
+      text,
+      attachments: attachments.length > 0 ? JSON.stringify(attachments) : null,
     },
     include: { sender: { select: { id: true, name: true } } },
   });
 
-  // Increment unread for other participants
   await prisma.conversationParticipant.updateMany({
     where: { conversationId: id, userId: { not: userId } },
     data: { unreadCount: { increment: 1 } },
   });
-
   await prisma.conversation.update({ where: { id }, data: { updatedAt: new Date() } });
 
   const recipients = await prisma.conversationParticipant.findMany({
@@ -88,10 +141,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     ])),
   ]);
 
-  const pushBody =
-    body.text?.trim()
-      ? body.text.trim()
-      : (body.attachments?.length ? `📎 ${body.attachments[0].name || 'Dosya gönderildi'}` : 'Yeni mesaj');
+  const pushBody = text || (attachments.length > 0 ? `Ek: ${attachments[0].name || 'Dosya gonderildi'}` : 'Yeni mesaj');
 
   await Promise.all(
     recipients.map((recipient) =>
@@ -108,6 +158,6 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
 
   return NextResponse.json({
     ...message,
-    attachments: message.attachments ? JSON.parse(message.attachments) : null,
+    attachments: normalizeResponseAttachments(attachments, req),
   }, { status: 201 });
 }

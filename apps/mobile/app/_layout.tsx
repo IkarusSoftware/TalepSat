@@ -1,4 +1,4 @@
-import { useEffect, useCallback } from 'react';
+﻿import { useEffect, useCallback } from 'react';
 import { Stack, useRouter, useSegments } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
@@ -62,7 +62,7 @@ function RootNavigator() {
           name="dashboard"
           options={{
             headerShown: true,
-            headerTitle: 'Alıcı Paneli',
+            headerTitle: 'Ilanlarim',
             headerBackTitle: 'Geri',
           }}
         />
@@ -71,6 +71,14 @@ function RootNavigator() {
           options={{
             headerShown: true,
             headerTitle: 'İlan Detayı',
+            headerBackTitle: 'Geri',
+          }}
+        />
+        <Stack.Screen
+          name="listing-edit/[id]"
+          options={{
+            headerShown: true,
+            headerTitle: 'İlanı Düzenle',
             headerBackTitle: 'Geri',
           }}
         />

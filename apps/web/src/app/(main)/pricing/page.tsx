@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import Link from 'next/link';
 import { motion } from 'framer-motion';
 import { useSession } from 'next-auth/react';
@@ -337,7 +337,7 @@ function ComparisonRow({
   values,
 }: {
   label: string;
-  icon: JSX.Element;
+  icon: ReactNode;
   values: Array<string | boolean>;
 }) {
   return (

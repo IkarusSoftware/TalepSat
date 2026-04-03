@@ -4,14 +4,30 @@ import { createNotificationAndPublish } from '@/lib/notification-service';
 import { prisma } from '@/lib/prisma';
 import { eventForUser, emitRealtimeEvents } from '@/lib/realtime';
 import { getSettingsDirect } from '@/lib/site-settings';
+import { consumeRateLimit, createRateLimitResponse } from '@/lib/rate-limit';
+import { getClientIp } from '@/lib/security';
 
-// GET /api/offers — list offers for current user (as buyer or seller)
+const MAX_NOTE_LENGTH = 2000;
+
+function parsePrice(value: unknown) {
+  const parsed = typeof value === 'number' ? value : Number(value);
+  if (!Number.isFinite(parsed) || parsed <= 0) return null;
+  return Math.round(parsed * 100) / 100;
+}
+
+function parseDeliveryDays(value: unknown) {
+  const parsed = typeof value === 'number' ? value : Number(value);
+  if (!Number.isInteger(parsed) || parsed < 1 || parsed > 365) return null;
+  return parsed;
+}
+
+// GET /api/offers - list offers for current user
 export async function GET(req: NextRequest) {
   const session = await getApiSession(req);
   if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
   const { searchParams } = new URL(req.url);
-  const role = searchParams.get('role'); // 'buyer' or 'seller'
+  const role = searchParams.get('role');
   const status = searchParams.get('status');
   const listingId = searchParams.get('listingId');
 
@@ -24,7 +40,6 @@ export async function GET(req: NextRequest) {
   } else if (role === 'buyer') {
     where.listing = { buyerId: session.userId };
   } else {
-    // All offers related to user
     where.OR = [
       { sellerId: session.userId },
       { listing: { buyerId: session.userId } },
@@ -44,58 +59,80 @@ export async function GET(req: NextRequest) {
           buyer: { select: { id: true, name: true, verified: true } },
         },
       },
-      seller: { select: { id: true, name: true, score: true, verified: true, badge: true, completedDeals: true, createdAt: true } },
+      seller: {
+        select: {
+          id: true,
+          name: true,
+          score: true,
+          verified: true,
+          badge: true,
+          completedDeals: true,
+          createdAt: true,
+        },
+      },
     },
     orderBy: { createdAt: 'desc' },
   });
 
-  const result = offers.map((o) => ({
-    ...o,
-    listingTitle: o.listing.title,
-    listingCategory: o.listing.category,
-    listingCity: o.listing.city,
-    sellerName: o.seller.name,
-    sellerInitials: o.seller.name.split(' ').map((n: string) => n[0]).join('').toUpperCase().slice(0, 2),
-    sellerScore: o.seller.score,
-    sellerVerified: o.seller.verified,
-    sellerBadge: o.seller.badge,
-    sellerCompletedDeals: o.seller.completedDeals,
-    sellerMemberSince: o.seller.createdAt.toISOString(),
-    buyerName: o.listing.buyer.name,
-    buyerVerified: o.listing.buyer.verified,
+  const result = offers.map((offer) => ({
+    ...offer,
+    listingTitle: offer.listing.title,
+    listingCategory: offer.listing.category,
+    listingCity: offer.listing.city,
+    sellerName: offer.seller.name,
+    sellerInitials: offer.seller.name.split(' ').map((name: string) => name[0]).join('').toUpperCase().slice(0, 2),
+    sellerScore: offer.seller.score,
+    sellerVerified: offer.seller.verified,
+    sellerBadge: offer.seller.badge,
+    sellerCompletedDeals: offer.seller.completedDeals,
+    sellerMemberSince: offer.seller.createdAt.toISOString(),
+    buyerName: offer.listing.buyer.name,
+    buyerVerified: offer.listing.buyer.verified,
   }));
 
   return NextResponse.json(result);
 }
 
-// POST /api/offers — create offer
+// POST /api/offers - create offer
 export async function POST(req: NextRequest) {
   const session = await getApiSession(req);
   if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
-  const body = await req.json();
-  const { listingId, price, deliveryDays, note } = body;
+  const rateLimit = consumeRateLimit({
+    key: `offer-create:${session.userId}:${getClientIp(req)}`,
+    limit: 15,
+    windowMs: 60_000,
+  });
+  if (!rateLimit.success) {
+    return createRateLimitResponse(rateLimit, 'Cok sik teklif gonderiyorsunuz.');
+  }
+
+  const body = await req.json().catch(() => null);
+  const listingId = typeof body?.listingId === 'string' ? body.listingId.trim() : '';
+  const price = parsePrice(body?.price);
+  const deliveryDays = parseDeliveryDays(body?.deliveryDays);
+  const note = typeof body?.note === 'string' ? body.note.trim().slice(0, MAX_NOTE_LENGTH) : null;
 
   if (!listingId || !price || !deliveryDays) {
-    return NextResponse.json({ error: 'Gerekli alanlar eksik' }, { status: 400 });
+    return NextResponse.json({ error: 'Gecerli listing, fiyat ve teslim suresi gerekli' }, { status: 400 });
   }
 
-  // ── Site ayarları — min teklif tutarı ──────────────────────────────────────
   const settings = await getSettingsDirect();
-  if (parseFloat(price) < settings.offer_min_amount) {
+  if (price < settings.offer_min_amount) {
     return NextResponse.json({
-      error: `Minimum teklif tutarı ${settings.offer_min_amount.toLocaleString('tr-TR')} ₺ olmalıdır.`,
+      error: `Minimum teklif tutari ${settings.offer_min_amount.toLocaleString('tr-TR')} TL olmali.`,
     }, { status: 400 });
   }
-  // ───────────────────────────────────────────────────────────────────────────
 
   const listing = await prisma.listing.findUnique({ where: { id: listingId } });
-  if (!listing) return NextResponse.json({ error: 'İlan bulunamadı' }, { status: 404 });
+  if (!listing) return NextResponse.json({ error: 'Ilan bulunamadi' }, { status: 404 });
   if (listing.buyerId === session.userId) {
-    return NextResponse.json({ error: 'Kendi ilanınıza teklif veremezsiniz' }, { status: 400 });
+    return NextResponse.json({ error: 'Kendi ilaniniza teklif veremezsiniz' }, { status: 400 });
+  }
+  if (!['active', 'pending'].includes(listing.status)) {
+    return NextResponse.json({ error: 'Bu ilana teklif verilemez' }, { status: 400 });
   }
 
-  // Check for existing pending offer from this seller
   const existingOffer = await prisma.offer.findFirst({
     where: { listingId, sellerId: session.userId, status: 'pending' },
   });
@@ -103,7 +140,6 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Bu ilana zaten bekleyen bir teklifiniz var' }, { status: 400 });
   }
 
-  // ── Plan limit check (offersPerMonth) ──────────────────────────────────────
   const seller = await prisma.user.findUnique({
     where: { id: session.userId },
     select: { badge: true },
@@ -122,34 +158,43 @@ export async function POST(req: NextRequest) {
 
     if (monthlyOfferCount >= plan.offersPerMonth) {
       return NextResponse.json({
-        error: `Aylık teklif limitinize ulaştınız (${plan.offersPerMonth} teklif). Planınızı yükseltin.`,
+        error: `Aylik teklif limitinize ulastiniz (${plan.offersPerMonth} teklif).`,
         limitReached: true,
         limit: plan.offersPerMonth,
         used: monthlyOfferCount,
       }, { status: 403 });
     }
   }
-  // ───────────────────────────────────────────────────────────────────────────
 
   const offer = await prisma.offer.create({
     data: {
       listingId,
       sellerId: session.userId,
-      price: parseFloat(price),
-      deliveryDays: parseInt(deliveryDays),
-      note: note || null,
+      price,
+      deliveryDays,
+      note,
     },
     include: {
-      seller: { select: { id: true, name: true, score: true, verified: true, badge: true, completedDeals: true, companyName: true, createdAt: true } },
+      seller: {
+        select: {
+          id: true,
+          name: true,
+          score: true,
+          verified: true,
+          badge: true,
+          completedDeals: true,
+          companyName: true,
+          createdAt: true,
+        },
+      },
     },
   });
 
-  // Create notification for listing owner
   await createNotificationAndPublish({
     userId: listing.buyerId,
     type: 'offer_received',
-    title: 'Yeni Teklif Aldınız',
-    description: `"${listing.title}" ilanınıza yeni bir teklif geldi.`,
+    title: 'Yeni teklif aldiniz',
+    description: `"${listing.title}" ilaniniza yeni bir teklif geldi.`,
     link: `/listing/${listing.id}`,
     entityId: offer.id,
   });

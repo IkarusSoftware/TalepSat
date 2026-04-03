@@ -1,17 +1,29 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
-  View, Text, StyleSheet, ScrollView, TouchableOpacity, KeyboardAvoidingView,
-  Platform, Alert, TextInput, LayoutAnimation, UIManager, ActivityIndicator,
+  ActivityIndicator,
+  Alert,
+  KeyboardAvoidingView,
+  LayoutAnimation,
+  Platform,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  UIManager,
+  View,
 } from 'react-native';
-import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useBottomTabBarHeight } from '@react-navigation/bottom-tabs';
-import Ionicons from '@expo/vector-icons/Ionicons';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter } from 'expo-router';
+import Ionicons from '@expo/vector-icons/Ionicons';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import api from '../../src/lib/api';
+import { useAuth } from '../../src/contexts/AuthContext';
 import { useThemeColors } from '../../src/contexts/ThemeContext';
 import { Button, Input } from '../../src/components/ui';
-import { borderRadius, fontFamily, space } from '../../src/theme';
 import { LISTING_CATEGORIES, LISTING_DELIVERY_OPTIONS } from '../../src/features/listing-form';
+import { borderRadius, fontFamily, space } from '../../src/theme';
+import type { Listing } from '../../src/types';
 
 if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
   UIManager.setLayoutAnimationEnabledExperimental(true);
@@ -20,6 +32,8 @@ if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental
 type StepKey = 'category' | 'details' | 'budget' | 'preview';
 type BudgetType = 'range' | 'fixed';
 
+type ListingEditPayload = Listing;
+
 const STEPS: Array<{ key: StepKey; label: string; icon: keyof typeof Ionicons.glyphMap }> = [
   { key: 'category', label: 'Kategori', icon: 'grid-outline' },
   { key: 'details', label: 'Detay', icon: 'document-text-outline' },
@@ -27,10 +41,8 @@ const STEPS: Array<{ key: StepKey; label: string; icon: keyof typeof Ionicons.gl
   { key: 'preview', label: 'Onizleme', icon: 'eye-outline' },
 ];
 
-const DURATION_OPTIONS = [7, 14, 30];
-
 function formatPreviewPrice(value?: string) {
-  if (!value) return '—';
+  if (!value) return '-';
   const parsed = Number(value.replace(',', '.'));
   if (Number.isNaN(parsed)) return value;
   return new Intl.NumberFormat('tr-TR', {
@@ -40,14 +52,19 @@ function formatPreviewPrice(value?: string) {
   }).format(parsed);
 }
 
-export default function CreateListingScreen() {
+function toInputValue(value: number) {
+  return value > 0 ? String(value) : '';
+}
+
+export default function EditListingScreen() {
+  const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
-  const { cloneId } = useLocalSearchParams<{ cloneId?: string }>();
+  const { user } = useAuth();
   const colors = useThemeColors();
   const styles = useMemo(() => makeStyles(colors), [colors]);
-  const insets = useSafeAreaInsets();
-  const tabBarHeight = useBottomTabBarHeight();
-  const scrollRef = useRef<ScrollView>(null);
+  const queryClient = useQueryClient();
+  const hydratedListingId = useRef<string | null>(null);
+
   const [currentStep, setCurrentStep] = useState(0);
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
@@ -58,75 +75,103 @@ export default function CreateListingScreen() {
   const [budgetMax, setBudgetMax] = useState('');
   const [fixedBudget, setFixedBudget] = useState('');
   const [urgency, setUrgency] = useState('two_weeks');
-  const [durationDays, setDurationDays] = useState(14);
-  const [loading, setLoading] = useState(false);
-  const [prefillLoading, setPrefillLoading] = useState(false);
-  const [hydratedCloneId, setHydratedCloneId] = useState<string | null>(null);
   const [errors, setErrors] = useState<Record<string, string>>({});
+
+  const { data: listing, isLoading } = useQuery<ListingEditPayload>({
+    queryKey: ['listing-edit', id],
+    queryFn: async () => {
+      const response = await api.get(`/api/listings/${id}`);
+      return response.data;
+    },
+    enabled: Boolean(id),
+  });
+
+  const saveMutation = useMutation({
+    mutationFn: async () => {
+      const selectedCategory = LISTING_CATEGORIES.find((item) => item.slug === categorySlug);
+      if (!selectedCategory) {
+        throw new Error('Kategori secilmedi.');
+      }
+
+      const minValue = budgetType === 'fixed' ? fixedBudget : budgetMin;
+      const maxValue = budgetType === 'fixed' ? fixedBudget : budgetMax;
+
+      return api.patch(`/api/listings/${id}`, {
+        title: title.trim(),
+        description: description.trim(),
+        category: selectedCategory.label,
+        categorySlug: selectedCategory.slug,
+        city: city.trim(),
+        budgetMin: Number(minValue.replace(',', '.')),
+        budgetMax: Number(maxValue.replace(',', '.')),
+        deliveryUrgency: urgency,
+      });
+    },
+    onSuccess: async () => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['listing', id] }),
+        queryClient.invalidateQueries({ queryKey: ['listing-edit', id] }),
+        queryClient.invalidateQueries({ queryKey: ['listings'] }),
+        queryClient.invalidateQueries({ queryKey: ['my-listings', user?.id] }),
+        queryClient.invalidateQueries({ queryKey: ['buyer-dashboard', user?.id] }),
+      ]);
+
+      Alert.alert('Basarili', 'Ilanin guncellendi.', [
+        {
+          text: 'Tamam',
+          onPress: () => router.replace(`/listing/${id}` as any),
+        },
+      ]);
+    },
+    onError: (error: any) => {
+      Alert.alert('Hata', error?.response?.data?.error || error?.message || 'Ilan guncellenemedi.');
+    },
+  });
+
+  useEffect(() => {
+    if (!listing || hydratedListingId.current === listing.id) return;
+
+    hydratedListingId.current = listing.id;
+    setTitle(listing.title || '');
+    setDescription(listing.description || '');
+    setCategorySlug(listing.categorySlug || '');
+    setCity(listing.city || '');
+    setUrgency(listing.deliveryUrgency || 'two_weeks');
+
+    if (listing.budgetMin === listing.budgetMax && listing.budgetMin > 0) {
+      setBudgetType('fixed');
+      setFixedBudget(toInputValue(listing.budgetMin));
+      setBudgetMin('');
+      setBudgetMax('');
+    } else {
+      setBudgetType('range');
+      setBudgetMin(toInputValue(listing.budgetMin));
+      setBudgetMax(toInputValue(listing.budgetMax));
+      setFixedBudget('');
+    }
+  }, [listing]);
+
+  useEffect(() => {
+    if (!listing || !user?.id) return;
+    if (listing.buyerId !== user.id) {
+      Alert.alert('Yetkisiz', 'Bu ilani duzenleme yetkin yok.', [
+        { text: 'Tamam', onPress: () => router.replace(`/listing/${id}` as any) },
+      ]);
+    }
+  }, [id, listing, router, user?.id]);
 
   const selectedCategory = useMemo(
     () => LISTING_CATEGORIES.find((item) => item.slug === categorySlug) || null,
-    [categorySlug]
+    [categorySlug],
   );
 
+  const currentStepKey = STEPS[currentStep].key;
   const progress = ((currentStep + 1) / STEPS.length) * 100;
-
-  useEffect(() => {
-    if (!cloneId || hydratedCloneId === cloneId) return;
-
-    let cancelled = false;
-
-    const hydrateFromListing = async () => {
-      setPrefillLoading(true);
-      try {
-        const { data } = await api.get(`/api/listings/${cloneId}`);
-        if (cancelled) return;
-
-        const min = Number(data?.budgetMin || 0);
-        const max = Number(data?.budgetMax || 0);
-        const fixed = min > 0 && min === max;
-
-        setTitle(data?.title || '');
-        setDescription(data?.description || '');
-        setCategorySlug(data?.categorySlug || '');
-        setCity(data?.city || '');
-        setBudgetType(fixed ? 'fixed' : 'range');
-        setBudgetMin(fixed ? '' : String(min || ''));
-        setBudgetMax(fixed ? '' : String(max || ''));
-        setFixedBudget(fixed ? String(max || min || '') : '');
-        setUrgency(
-          LISTING_DELIVERY_OPTIONS.some((item) => item.value === data?.deliveryUrgency)
-            ? data.deliveryUrgency
-            : 'two_weeks',
-        );
-        setDurationDays(14);
-        setErrors({});
-        setCurrentStep(data?.categorySlug ? 1 : 0);
-        setHydratedCloneId(cloneId);
-      } catch (error: any) {
-        if (!cancelled) {
-          Alert.alert('Hata', error?.response?.data?.error || 'Ilan bilgileri yuklenemedi.');
-        }
-      } finally {
-        if (!cancelled) {
-          setPrefillLoading(false);
-        }
-      }
-    };
-
-    hydrateFromListing();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [cloneId, hydratedCloneId]);
+  const isOwner = listing?.buyerId === user?.id;
 
   function animateStepChange(nextStep: number) {
     LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
     setCurrentStep(nextStep);
-    requestAnimationFrame(() => {
-      scrollRef.current?.scrollTo({ y: 0, animated: false });
-    });
   }
 
   function validateStep(stepIndex: number) {
@@ -176,69 +221,23 @@ export default function CreateListingScreen() {
     animateStepChange(Math.max(currentStep - 1, 0));
   }
 
-  async function handlePublish() {
+  function handleSave() {
     if (!validateStep(2)) {
       animateStepChange(2);
       return;
     }
-
     if (!selectedCategory) {
       animateStepChange(0);
       return;
     }
-
-    const minValue = budgetType === 'fixed' ? fixedBudget : budgetMin;
-    const maxValue = budgetType === 'fixed' ? fixedBudget : budgetMax;
-
-    setLoading(true);
-    try {
-      const { data } = await api.post('/api/listings', {
-        title: title.trim(),
-        description: description.trim(),
-        category: selectedCategory.label,
-        categorySlug: selectedCategory.slug,
-        city: city.trim(),
-        budgetMin: Number(minValue.replace(',', '.')),
-        budgetMax: Number(maxValue.replace(',', '.')),
-        deliveryUrgency: urgency,
-        expiresInDays: durationDays,
-      });
-
-      Alert.alert(
-        'Basarili',
-        data?.requiresApproval
-          ? 'Ilanin onaya gonderildi. Onaylandiginda yayina alinacak.'
-          : 'Ilanin basariyla yayina alindi.',
-      );
-
-      setCurrentStep(0);
-      setTitle('');
-      setDescription('');
-      setCategorySlug('');
-      setCity('');
-      setBudgetType('range');
-      setBudgetMin('');
-      setBudgetMax('');
-      setFixedBudget('');
-      setUrgency('two_weeks');
-      setDurationDays(14);
-      setErrors({});
-      setHydratedCloneId(null);
-      if (cloneId) {
-        router.replace('/(tabs)/create' as any);
-      }
-    } catch (error: any) {
-      Alert.alert('Hata', error?.response?.data?.error || 'Ilan olusturulamadi.');
-    } finally {
-      setLoading(false);
-    }
+    saveMutation.mutate();
   }
 
   function renderCategoryStep() {
     return (
       <View style={styles.stepContent}>
-        <Text style={styles.stepTitle}>Kategori sec</Text>
-        <Text style={styles.stepSubtitle}>Ihtiyacini en iyi anlatan kategoriyle basla.</Text>
+        <Text style={styles.stepTitle}>Kategori guncelle</Text>
+        <Text style={styles.stepSubtitle}>Ilanin dogru alicilar ve saticilarla eslesmesi icin kategoriyi netlestir.</Text>
 
         <View style={styles.categoryGrid}>
           {LISTING_CATEGORIES.map((item) => {
@@ -274,8 +273,8 @@ export default function CreateListingScreen() {
   function renderDetailsStep() {
     return (
       <View style={styles.stepContent}>
-        <Text style={styles.stepTitle}>Ilan detaylari</Text>
-        <Text style={styles.stepSubtitle}>Web tarafindaki gibi once ihtiyaci netlestiriyoruz.</Text>
+        <Text style={styles.stepTitle}>Detaylari guncelle</Text>
+        <Text style={styles.stepSubtitle}>Webdeki edit akisi gibi baslik, aciklama ve teslim beklentisini birlikte duzelt.</Text>
 
         <Input
           label="Baslik"
@@ -298,7 +297,7 @@ export default function CreateListingScreen() {
                 setDescription(value);
                 if (errors.description) setErrors((prev) => ({ ...prev, description: '' }));
               }}
-              placeholder="Urun, miktar, kalite beklentisi ve teslimat detaylarini yaz..."
+              placeholder="Urun, miktar, kalite beklentisi ve teslim detaylarini yaz..."
               placeholderTextColor={colors.textTertiary}
               multiline
               style={styles.textareaInput}
@@ -322,7 +321,7 @@ export default function CreateListingScreen() {
         />
 
         <View style={styles.fieldBlock}>
-          <Text style={styles.fieldLabel}>Teslimat aciliyeti</Text>
+          <Text style={styles.fieldLabel}>Teslimat beklentisi</Text>
           <View style={styles.urgencyGrid}>
             {LISTING_DELIVERY_OPTIONS.map((option) => {
               const active = option.value === urgency;
@@ -338,8 +337,10 @@ export default function CreateListingScreen() {
                     size={20}
                     color={active ? colors.accent.DEFAULT : colors.textSecondary}
                   />
-                  <Text style={[styles.urgencyLabel, active && styles.urgencyLabelActive]}>{option.label}</Text>
-                  <Text style={styles.urgencyHint}>{option.hint}</Text>
+                  <View style={{ flex: 1 }}>
+                    <Text style={[styles.urgencyLabel, active && styles.urgencyLabelActive]}>{option.label}</Text>
+                    <Text style={styles.urgencyHint}>{option.hint}</Text>
+                  </View>
                 </TouchableOpacity>
               );
             })}
@@ -352,8 +353,8 @@ export default function CreateListingScreen() {
   function renderBudgetStep() {
     return (
       <View style={styles.stepContent}>
-        <Text style={styles.stepTitle}>Butce ve sure</Text>
-        <Text style={styles.stepSubtitle}>Mobilde de daha net teklif almak icin butceyi adimli kuruyoruz.</Text>
+        <Text style={styles.stepTitle}>Butceyi duzenle</Text>
+        <Text style={styles.stepSubtitle}>Web parity icin sabit veya aralik butceyi ayni mantikla koruyoruz.</Text>
 
         <View style={styles.toggleRow}>
           {[
@@ -424,29 +425,10 @@ export default function CreateListingScreen() {
           />
         )}
 
-        <View style={styles.fieldBlock}>
-          <Text style={styles.fieldLabel}>Ilan suresi</Text>
-          <View style={styles.durationRow}>
-            {DURATION_OPTIONS.map((days) => {
-              const active = durationDays === days;
-              return (
-                <TouchableOpacity
-                  key={days}
-                  style={[styles.durationChip, active && styles.durationChipActive]}
-                  onPress={() => setDurationDays(days)}
-                  activeOpacity={0.85}
-                >
-                  <Text style={[styles.durationChipText, active && styles.durationChipTextActive]}>{days} gun</Text>
-                </TouchableOpacity>
-              );
-            })}
-          </View>
-        </View>
-
         <View style={styles.tipCard}>
-          <Ionicons name="sparkles-outline" size={18} color={colors.accent.DEFAULT} />
+          <Ionicons name="create-outline" size={18} color={colors.accent.DEFAULT} />
           <Text style={styles.tipText}>
-            Web akisindaki gibi butceyi netlestirmek daha kaliteli teklif almani saglar.
+            Duzenleme sonrasi liste ve detay ekranlari otomatik olarak yenilenir.
           </Text>
         </View>
       </View>
@@ -463,7 +445,16 @@ export default function CreateListingScreen() {
     return (
       <View style={styles.stepContent}>
         <Text style={styles.stepTitle}>Son kontrol</Text>
-        <Text style={styles.stepSubtitle}>Yayinlamadan once mobil onizlemeyi kontrol et.</Text>
+        <Text style={styles.stepSubtitle}>Detaya donmeden once yeni gorunumu kontrol et.</Text>
+
+        {listing?.status === 'rejected' && (
+          <View style={styles.warningCard}>
+            <Ionicons name="alert-circle-outline" size={18} color={colors.error.DEFAULT} />
+            <Text style={styles.warningText}>
+              Bu ilan reddedilmis durumda. Duzenleme sonrasi ayrintilari tekrar gozden gecirebilirsin.
+            </Text>
+          </View>
+        )}
 
         <View style={styles.previewCard}>
           <View style={styles.previewBadge}>
@@ -484,12 +475,12 @@ export default function CreateListingScreen() {
               <Text style={styles.previewInfoValue}>{city || 'Sehir yok'}</Text>
             </View>
             <View style={styles.previewInfoBox}>
-              <Text style={styles.previewInfoLabel}>Aciliyet</Text>
+              <Text style={styles.previewInfoLabel}>Teslimat</Text>
               <Text style={styles.previewInfoValue}>{urgencyLabel}</Text>
             </View>
             <View style={styles.previewInfoBox}>
-              <Text style={styles.previewInfoLabel}>Yayinda kalma</Text>
-              <Text style={styles.previewInfoValue}>{durationDays} gun</Text>
+              <Text style={styles.previewInfoLabel}>Durum</Text>
+              <Text style={styles.previewInfoValue}>{listing?.status || '-'}</Text>
             </View>
           </View>
         </View>
@@ -497,33 +488,39 @@ export default function CreateListingScreen() {
     );
   }
 
-  const currentStepKey = STEPS[currentStep].key;
-  const tabBarGap = Platform.OS === 'ios' ? 24 : 16;
-  const footerBottomSpacing = tabBarHeight + tabBarGap + Math.max(insets.bottom - 4, 0) + space.md;
-  const scrollBottomPadding = footerBottomSpacing;
+  if (isLoading) {
+    return (
+      <View style={styles.center}>
+        <ActivityIndicator size="large" color={colors.accent.DEFAULT} />
+      </View>
+    );
+  }
+
+  if (!listing || !isOwner) {
+    return (
+      <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
+        <View style={styles.emptyState}>
+          <Ionicons name="document-text-outline" size={30} color={colors.textTertiary} />
+          <Text style={styles.emptyTitle}>Ilan duzenlenemedi</Text>
+          <Text style={styles.emptyText}>Bu ilan silinmis olabilir veya bu ekrana erisim yetkin olmayabilir.</Text>
+          <Button title="Ilan detayina don" onPress={() => router.replace(`/listing/${id}` as any)} />
+        </View>
+      </SafeAreaView>
+    );
+  }
 
   return (
     <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
       <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={styles.flex}>
         <ScrollView
-          ref={scrollRef}
-          contentContainerStyle={[styles.scroll, { paddingBottom: scrollBottomPadding }]}
+          contentContainerStyle={styles.scroll}
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
         >
           <View style={styles.header}>
-            <Text style={styles.headerTitle}>Ilan olustur</Text>
-            <Text style={styles.headerSubtitle}>
-              {cloneId ? 'Mevcut ilani kopyalayip hizlica yeni bir talep olusturuyorsun.' : 'Web deneyimindeki gibi adim adim ilerleyelim.'}
-            </Text>
+            <Text style={styles.headerTitle}>Ilani duzenle</Text>
+            <Text style={styles.headerSubtitle}>Mobilde de webdeki gibi adim adim duzenleme akisina geciyoruz.</Text>
           </View>
-
-          {prefillLoading && (
-            <View style={styles.prefillBanner}>
-              <ActivityIndicator size="small" color={colors.accent.DEFAULT} />
-              <Text style={styles.prefillText}>Ilan bilgileri yeni taslak icin yukleniyor...</Text>
-            </View>
-          )}
 
           <View style={styles.progressCard}>
             <View style={styles.progressHeader}>
@@ -538,25 +535,20 @@ export default function CreateListingScreen() {
                     onPress={() => completed && animateStepChange(index)}
                     activeOpacity={0.85}
                   >
-                    <View style={[
-                      styles.progressCircle,
-                      active && styles.progressCircleActive,
-                      completed && styles.progressCircleDone,
-                    ]}
+                    <View
+                      style={[
+                        styles.progressCircle,
+                        active && styles.progressCircleActive,
+                        completed && styles.progressCircleDone,
+                      ]}
                     >
                       {completed ? (
                         <Ionicons name="checkmark" size={16} color={colors.white} />
                       ) : (
-                        <Ionicons
-                          name={step.icon}
-                          size={16}
-                          color={active ? colors.white : colors.textTertiary}
-                        />
+                        <Ionicons name={step.icon} size={16} color={active ? colors.white : colors.textTertiary} />
                       )}
                     </View>
-                    <Text style={[styles.progressLabel, active && styles.progressLabelActive]}>
-                      {step.label}
-                    </Text>
+                    <Text style={[styles.progressLabel, active && styles.progressLabelActive]}>{step.label}</Text>
                   </TouchableOpacity>
                 );
               })}
@@ -573,12 +565,12 @@ export default function CreateListingScreen() {
             {currentStepKey === 'preview' && renderPreviewStep()}
           </View>
 
-          <View style={[styles.footer, { marginBottom: footerBottomSpacing }]}>
+          <View style={styles.footer}>
             <Button
-              title="Geri"
+              title={currentStep === 0 ? 'Detaya don' : 'Geri'}
               variant="secondary"
-              onPress={handleBack}
-              disabled={currentStep === 0 || loading}
+              onPress={currentStep === 0 ? () => router.replace(`/listing/${id}` as any) : handleBack}
+              disabled={saveMutation.isPending}
               style={{ flex: 1 }}
             />
 
@@ -586,22 +578,20 @@ export default function CreateListingScreen() {
               <Button
                 title="Ileri"
                 onPress={handleNext}
-                disabled={prefillLoading}
                 iconRight={<Ionicons name="arrow-forward" size={16} color={colors.white} />}
                 style={{ flex: 1 }}
               />
             ) : (
               <Button
-                title="Ilani Yayinla"
-                onPress={handlePublish}
-                loading={loading || prefillLoading}
-                icon={<Ionicons name="checkmark-circle-outline" size={16} color={colors.white} />}
+                title="Degisiklikleri Kaydet"
+                onPress={handleSave}
+                loading={saveMutation.isPending}
+                icon={<Ionicons name="save-outline" size={16} color={colors.white} />}
                 style={{ flex: 1 }}
               />
             )}
           </View>
         </ScrollView>
-
       </KeyboardAvoidingView>
     </SafeAreaView>
   );
@@ -610,28 +600,16 @@ export default function CreateListingScreen() {
 const makeStyles = (colors: any) => StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.background },
   flex: { flex: 1 },
-  scroll: { paddingHorizontal: space.lg, paddingTop: space.md },
+  center: { flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.background },
+  scroll: { paddingHorizontal: space.lg, paddingTop: space.md, paddingBottom: space.xl },
   header: { marginBottom: space.lg },
   headerTitle: { fontSize: 28, fontFamily: fontFamily.extraBold, color: colors.textPrimary },
-  headerSubtitle: { fontSize: 14, lineHeight: 20, fontFamily: fontFamily.regular, color: colors.textSecondary, marginTop: 4 },
-  prefillBanner: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-    backgroundColor: colors.accent.lighter,
-    borderRadius: borderRadius.lg,
-    borderWidth: 1,
-    borderColor: colors.accent.DEFAULT + '33',
-    paddingHorizontal: space.md,
-    paddingVertical: space.sm,
-    marginBottom: space.md,
-  },
-  prefillText: {
-    flex: 1,
-    fontSize: 13,
-    lineHeight: 18,
-    fontFamily: fontFamily.medium,
-    color: colors.accent.DEFAULT,
+  headerSubtitle: {
+    fontSize: 14,
+    lineHeight: 20,
+    fontFamily: fontFamily.regular,
+    color: colors.textSecondary,
+    marginTop: 4,
   },
   progressCard: {
     backgroundColor: colors.surface,
@@ -702,7 +680,7 @@ const makeStyles = (colors: any) => StyleSheet.create({
     backgroundColor: colors.surface,
   },
   categoryIconWrapActive: { backgroundColor: colors.white },
-  categoryLabel: { fontSize: 13, fontFamily: fontFamily.semiBold, color: colors.textPrimary },
+  categoryLabel: { fontSize: 13, fontFamily: fontFamily.semiBold, color: colors.textPrimary, textAlign: 'center' },
   categoryLabelActive: { color: colors.accent.DEFAULT },
   errorText: { fontSize: 12, fontFamily: fontFamily.regular, color: colors.error.DEFAULT },
   textareaWrap: { gap: 6 },
@@ -760,21 +738,6 @@ const makeStyles = (colors: any) => StyleSheet.create({
   toggleBtnText: { fontSize: 13, fontFamily: fontFamily.semiBold, color: colors.textSecondary },
   toggleBtnTextActive: { color: colors.accent.DEFAULT },
   budgetRow: { flexDirection: 'row', alignItems: 'flex-start' },
-  durationRow: { flexDirection: 'row', gap: space.sm },
-  durationChip: {
-    flex: 1,
-    paddingVertical: space.sm,
-    borderRadius: borderRadius.full,
-    alignItems: 'center',
-    backgroundColor: colors.surfaceRaised,
-  },
-  durationChipActive: {
-    backgroundColor: colors.accent.lighter,
-    borderWidth: 1,
-    borderColor: colors.accent.DEFAULT,
-  },
-  durationChipText: { fontSize: 12, fontFamily: fontFamily.semiBold, color: colors.textSecondary },
-  durationChipTextActive: { color: colors.accent.DEFAULT },
   tipCard: {
     flexDirection: 'row',
     gap: 10,
@@ -783,6 +746,14 @@ const makeStyles = (colors: any) => StyleSheet.create({
     backgroundColor: colors.accent.lighter,
   },
   tipText: { flex: 1, fontSize: 13, lineHeight: 19, fontFamily: fontFamily.medium, color: colors.accent.DEFAULT },
+  warningCard: {
+    flexDirection: 'row',
+    gap: 10,
+    padding: space.md,
+    borderRadius: borderRadius.lg,
+    backgroundColor: colors.error.light,
+  },
+  warningText: { flex: 1, fontSize: 13, lineHeight: 19, fontFamily: fontFamily.medium, color: colors.error.DEFAULT },
   previewCard: {
     gap: space.md,
     padding: space.md,
@@ -815,5 +786,21 @@ const makeStyles = (colors: any) => StyleSheet.create({
     flexDirection: 'row',
     gap: space.sm,
     marginTop: space.md,
+  },
+  emptyState: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: space.xl,
+    gap: space.sm,
+  },
+  emptyTitle: { fontSize: 22, fontFamily: fontFamily.bold, color: colors.textPrimary },
+  emptyText: {
+    fontSize: 14,
+    lineHeight: 21,
+    textAlign: 'center',
+    fontFamily: fontFamily.regular,
+    color: colors.textSecondary,
+    marginBottom: space.md,
   },
 });

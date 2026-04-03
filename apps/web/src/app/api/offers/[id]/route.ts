@@ -3,20 +3,56 @@ import { getApiSession } from '@/lib/api-session';
 import { createNotificationAndPublish } from '@/lib/notification-service';
 import { prisma } from '@/lib/prisma';
 import { eventForUser, emitRealtimeEvents } from '@/lib/realtime';
+import { consumeRateLimit, createRateLimitResponse } from '@/lib/rate-limit';
+import { getClientIp } from '@/lib/security';
 
-// GET /api/offers/[id]
-export async function GET(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  const { id } = await params;
+const MAX_NOTE_LENGTH = 2000;
+const MAX_REASON_LENGTH = 500;
+const VALID_ACTIONS = new Set(['accept', 'reject', 'counter', 'withdraw', 'edit', 'confirm']);
 
+function parsePrice(value: unknown) {
+  const parsed = typeof value === 'number' ? value : Number(value);
+  if (!Number.isFinite(parsed) || parsed <= 0) return null;
+  return Math.round(parsed * 100) / 100;
+}
+
+function parseDeliveryDays(value: unknown) {
+  const parsed = typeof value === 'number' ? value : Number(value);
+  if (!Number.isInteger(parsed) || parsed < 1 || parsed > 365) return null;
+  return parsed;
+}
+
+function normalizeOptionalText(value: unknown, maxLength: number) {
+  if (value === undefined || value === null || value === '') return null;
+  if (typeof value !== 'string') return null;
+
+  const trimmed = value.trim();
+  if (!trimmed) return null;
+  return trimmed.slice(0, maxLength);
+}
+
+async function getAuthorizedOffer(offerId: string, userId: string) {
   const offer = await prisma.offer.findUnique({
-    where: { id },
+    where: { id: offerId },
     include: {
       listing: {
         include: {
           buyer: { select: { id: true, name: true, score: true, verified: true } },
         },
       },
-      seller: { select: { id: true, name: true, score: true, verified: true, badge: true, completedDeals: true, companyName: true, createdAt: true, city: true } },
+      seller: {
+        select: {
+          id: true,
+          name: true,
+          score: true,
+          verified: true,
+          badge: true,
+          completedDeals: true,
+          companyName: true,
+          createdAt: true,
+          city: true,
+        },
+      },
       reviews: {
         include: {
           reviewer: { select: { id: true, name: true } },
@@ -25,27 +61,66 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
     },
   });
 
-  if (!offer) return NextResponse.json({ error: 'Teklif bulunamadı' }, { status: 404 });
+  if (!offer) return { offer: null, authorized: false };
+  const authorized = offer.sellerId === userId || offer.listing.buyerId === userId;
+  return { offer, authorized };
+}
+
+// GET /api/offers/[id]
+export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const session = await getApiSession(req);
+  if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+
+  const { id } = await params;
+  const { offer, authorized } = await getAuthorizedOffer(id, session.userId);
+
+  if (!offer) return NextResponse.json({ error: 'Teklif bulunamadi' }, { status: 404 });
+  if (!authorized) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+
   return NextResponse.json(offer);
 }
 
-// PATCH /api/offers/[id] — accept, reject, counter, withdraw
+// PATCH /api/offers/[id] - accept, reject, counter, withdraw, edit, confirm
 export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const session = await getApiSession(req);
   if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
   const { id } = await params;
-  const offer = await prisma.offer.findUnique({
-    where: { id },
-    include: { listing: true },
+  const rateLimit = consumeRateLimit({
+    key: `offer-action:${id}:${session.userId}:${getClientIp(req)}`,
+    limit: 20,
+    windowMs: 60_000,
   });
-  if (!offer) return NextResponse.json({ error: 'Teklif bulunamadı' }, { status: 404 });
+  if (!rateLimit.success) {
+    return createRateLimitResponse(rateLimit, 'Cok sik teklif islemi yapiyorsunuz.');
+  }
 
-  const body = await req.json();
-  const { action, rejectedReason, counterPrice, counterDays, counterNote } = body;
+  const { offer, authorized } = await getAuthorizedOffer(id, session.userId);
+  if (!offer) return NextResponse.json({ error: 'Teklif bulunamadi' }, { status: 404 });
+  if (!authorized) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
 
-  // Seller can withdraw their own offer
-  if (action === 'withdraw' && offer.sellerId === session.userId) {
+  const body = await req.json().catch(() => null);
+  const action = typeof body?.action === 'string' ? body.action.trim() : '';
+  if (!VALID_ACTIONS.has(action)) {
+    return NextResponse.json({ error: 'Gecersiz islem' }, { status: 400 });
+  }
+
+  const rejectedReason = normalizeOptionalText(body?.rejectedReason, MAX_REASON_LENGTH);
+  const counterNote = normalizeOptionalText(body?.counterNote, MAX_NOTE_LENGTH);
+  const note = normalizeOptionalText(body?.note, MAX_NOTE_LENGTH);
+  const parsedPrice = body?.price !== undefined ? parsePrice(body.price) : null;
+  const parsedDeliveryDays = body?.deliveryDays !== undefined ? parseDeliveryDays(body.deliveryDays) : null;
+  const parsedCounterPrice = body?.counterPrice !== undefined ? parsePrice(body.counterPrice) : null;
+  const parsedCounterDays = body?.counterDays !== undefined ? parseDeliveryDays(body.counterDays) : null;
+
+  const isBuyerOfListing = offer.listing.buyerId === session.userId;
+  const isSellerOfOffer = offer.sellerId === session.userId;
+
+  if (action === 'withdraw') {
+    if (!isSellerOfOffer || !['pending', 'counter_offered'].includes(offer.status)) {
+      return NextResponse.json({ error: 'Bu teklif geri cekilemez' }, { status: 400 });
+    }
+
     const updated = await prisma.offer.update({ where: { id }, data: { status: 'withdrawn' } });
     emitRealtimeEvents([
       eventForUser(offer.sellerId, 'offer.updated', offer.id),
@@ -54,12 +129,16 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     return NextResponse.json(updated);
   }
 
-  // Seller can edit their pending offer
-  if (action === 'edit' && offer.sellerId === session.userId && offer.status === 'pending') {
+  if (action === 'edit' && isSellerOfOffer && offer.status === 'pending') {
+    if ((body?.price !== undefined && !parsedPrice) || (body?.deliveryDays !== undefined && !parsedDeliveryDays)) {
+      return NextResponse.json({ error: 'Gecersiz fiyat veya teslim suresi' }, { status: 400 });
+    }
+
     const updateData: Record<string, unknown> = {};
-    if (body.price) updateData.price = parseFloat(body.price);
-    if (body.deliveryDays) updateData.deliveryDays = parseInt(body.deliveryDays);
-    if (body.note !== undefined) updateData.note = body.note || null;
+    if (body?.price !== undefined) updateData.price = parsedPrice;
+    if (body?.deliveryDays !== undefined) updateData.deliveryDays = parsedDeliveryDays;
+    if (body?.note !== undefined) updateData.note = note;
+
     const updated = await prisma.offer.update({
       where: { id },
       data: updateData,
@@ -69,7 +148,19 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
             buyer: { select: { id: true, name: true, score: true, verified: true } },
           },
         },
-        seller: { select: { id: true, name: true, score: true, verified: true, badge: true, completedDeals: true, companyName: true, createdAt: true, city: true } },
+        seller: {
+          select: {
+            id: true,
+            name: true,
+            score: true,
+            verified: true,
+            badge: true,
+            completedDeals: true,
+            companyName: true,
+            createdAt: true,
+            city: true,
+          },
+        },
       },
     });
     emitRealtimeEvents([
@@ -79,25 +170,19 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     return NextResponse.json(updated);
   }
 
-  // Confirm delivery (both buyer and seller must confirm) — before buyerId check
   if (action === 'confirm') {
     if (offer.status !== 'accepted') {
-      return NextResponse.json({ error: 'Sadece kabul edilmiş siparişler onaylanabilir' }, { status: 400 });
+      return NextResponse.json({ error: 'Sadece kabul edilmis siparisler onaylanabilir' }, { status: 400 });
     }
-
-    const isBuyerOfOffer = offer.listing.buyerId === session.userId;
-    const isSellerOfOffer = offer.sellerId === session.userId;
-
-    if (!isBuyerOfOffer && !isSellerOfOffer) {
+    if (!isBuyerOfListing && !isSellerOfOffer) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 
     const updateData: Record<string, unknown> = {};
-    if (isBuyerOfOffer) updateData.buyerConfirmed = true;
+    if (isBuyerOfListing) updateData.buyerConfirmed = true;
     if (isSellerOfOffer) updateData.sellerConfirmed = true;
 
-    // Check if both will be confirmed after this update
-    const willBuyerConfirm = isBuyerOfOffer ? true : offer.buyerConfirmed;
+    const willBuyerConfirm = isBuyerOfListing ? true : offer.buyerConfirmed;
     const willSellerConfirm = isSellerOfOffer ? true : offer.sellerConfirmed;
     const bothConfirmed = willBuyerConfirm && willSellerConfirm;
 
@@ -115,17 +200,27 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
             buyer: { select: { id: true, name: true, score: true, verified: true } },
           },
         },
-        seller: { select: { id: true, name: true, score: true, verified: true, badge: true, completedDeals: true, companyName: true, createdAt: true, city: true } },
+        seller: {
+          select: {
+            id: true,
+            name: true,
+            score: true,
+            verified: true,
+            badge: true,
+            completedDeals: true,
+            companyName: true,
+            createdAt: true,
+            city: true,
+          },
+        },
         reviews: { include: { reviewer: { select: { id: true, name: true } } } },
       },
     });
 
-    // Notify the other party
-    const notifyUserId = isBuyerOfOffer ? offer.sellerId : offer.listing.buyerId;
-    const confirmerRole = isBuyerOfOffer ? 'Alıcı' : 'Satıcı';
+    const notifyUserId = isBuyerOfListing ? offer.sellerId : offer.listing.buyerId;
+    const confirmerRole = isBuyerOfListing ? 'Alici' : 'Satici';
 
     if (bothConfirmed) {
-      // Both confirmed — order is complete
       await prisma.user.update({
         where: { id: offer.sellerId },
         data: { completedDeals: { increment: 1 } },
@@ -138,16 +233,16 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
         createNotificationAndPublish({
           userId: offer.sellerId,
           type: 'system',
-          title: 'Sipariş Tamamlandı',
-          description: `"${offer.listing.title}" siparişi başarıyla tamamlandı.`,
+          title: 'Siparis tamamlandi',
+          description: `"${offer.listing.title}" siparisi basariyla tamamlandi.`,
           link: '/orders',
           entityId: offer.id,
         }),
         createNotificationAndPublish({
           userId: offer.listing.buyerId,
           type: 'system',
-          title: 'Sipariş Tamamlandı',
-          description: `"${offer.listing.title}" siparişi tamamlandı. Satıcıyı değerlendirmeyi unutmayın!`,
+          title: 'Siparis tamamlandi',
+          description: `"${offer.listing.title}" siparisi tamamlandi. Degerlendirme yapmayi unutmayin.`,
           link: '/orders',
           entityId: offer.id,
         }),
@@ -156,8 +251,8 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
       await createNotificationAndPublish({
         userId: notifyUserId,
         type: 'system',
-        title: `${confirmerRole} Teslimatı Onayladı`,
-        description: `"${offer.listing.title}" siparişi için ${confirmerRole.toLowerCase()} teslimatı onayladı. Siz de onaylayın.`,
+        title: `${confirmerRole} teslimati onayladi`,
+        description: `"${offer.listing.title}" siparisi icin ${confirmerRole.toLowerCase()} teslimati onayladi.`,
         link: '/orders',
         entityId: offer.id,
       });
@@ -173,22 +268,18 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     return NextResponse.json(updated);
   }
 
-  const isBuyerOfListing = offer.listing.buyerId === session.userId;
-  const isSellerOfOffer = offer.sellerId === session.userId;
-
-  // Seller can accept/reject counter-offer from buyer
   if (isSellerOfOffer && offer.status === 'counter_offered') {
     if (action === 'accept') {
-      // Seller accepts buyer's counter-offer → update price/days and mark accepted
       const updateData: Record<string, unknown> = { status: 'accepted' };
       if (offer.counterPrice) updateData.price = offer.counterPrice;
       if (offer.counterDays) updateData.deliveryDays = offer.counterDays;
+
       const updated = await prisma.offer.update({ where: { id }, data: updateData });
       await createNotificationAndPublish({
         userId: offer.listing.buyerId,
         type: 'offer_accepted',
-        title: 'Karşı Teklifiniz Kabul Edildi',
-        description: `"${offer.listing.title}" ilanındaki karşı teklifiniz satıcı tarafından kabul edildi.`,
+        title: 'Karsi teklif kabul edildi',
+        description: `"${offer.listing.title}" ilanindaki karsi teklif kabul edildi.`,
         link: `/offers/${offer.id}`,
         entityId: offer.id,
       });
@@ -202,12 +293,15 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     }
 
     if (action === 'reject') {
-      const updated = await prisma.offer.update({ where: { id }, data: { status: 'rejected', rejectedReason: rejectedReason || 'Karşı teklif satıcı tarafından reddedildi' } });
+      const updated = await prisma.offer.update({
+        where: { id },
+        data: { status: 'rejected', rejectedReason: rejectedReason || 'Karsi teklif satici tarafindan reddedildi' },
+      });
       await createNotificationAndPublish({
         userId: offer.listing.buyerId,
         type: 'offer_rejected',
-        title: 'Satıcı Karşı Teklifinizi Reddetti',
-        description: `"${offer.listing.title}" ilanındaki karşı teklifiniz reddedildi.`,
+        title: 'Karsi teklif reddedildi',
+        description: `"${offer.listing.title}" ilanindaki karsi teklif reddedildi.`,
         link: `/offers/${offer.id}`,
         entityId: offer.id,
       });
@@ -218,18 +312,29 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
       return NextResponse.json(updated);
     }
 
-    // Seller revises their offer in response to counter
     if (action === 'edit') {
-      const updateData: Record<string, unknown> = { status: 'pending', counterPrice: null, counterDays: null, counterNote: null, counterAt: null, revisionCount: { increment: 1 } };
-      if (body.price) updateData.price = parseFloat(body.price);
-      if (body.deliveryDays) updateData.deliveryDays = parseInt(body.deliveryDays);
-      if (body.note !== undefined) updateData.note = body.note || null;
+      if ((body?.price !== undefined && !parsedPrice) || (body?.deliveryDays !== undefined && !parsedDeliveryDays)) {
+        return NextResponse.json({ error: 'Gecersiz fiyat veya teslim suresi' }, { status: 400 });
+      }
+
+      const updateData: Record<string, unknown> = {
+        status: 'pending',
+        counterPrice: null,
+        counterDays: null,
+        counterNote: null,
+        counterAt: null,
+        revisionCount: { increment: 1 },
+      };
+      if (body?.price !== undefined) updateData.price = parsedPrice;
+      if (body?.deliveryDays !== undefined) updateData.deliveryDays = parsedDeliveryDays;
+      if (body?.note !== undefined) updateData.note = note;
+
       const updated = await prisma.offer.update({ where: { id }, data: updateData });
       await createNotificationAndPublish({
         userId: offer.listing.buyerId,
         type: 'offer_updated',
-        title: 'Satıcı Teklifini Güncelledi',
-        description: `"${offer.listing.title}" ilanındaki teklif satıcı tarafından revize edildi.`,
+        title: 'Teklif guncellendi',
+        description: `"${offer.listing.title}" ilanindaki teklif revize edildi.`,
         link: `/offers/${offer.id}`,
         entityId: offer.id,
       });
@@ -241,9 +346,11 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     }
   }
 
-  // Only listing owner (buyer) can accept/reject/counter from here
   if (!isBuyerOfListing) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+  }
+  if (!['pending', 'counter_offered'].includes(offer.status) && action !== 'confirm') {
+    return NextResponse.json({ error: 'Bu teklif icin bu islem artik yapilamaz' }, { status: 400 });
   }
 
   if (action === 'accept') {
@@ -251,8 +358,8 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     await createNotificationAndPublish({
       userId: offer.sellerId,
       type: 'offer_accepted',
-      title: 'Teklifiniz Kabul Edildi',
-      description: `"${offer.listing.title}" ilanındaki teklifiniz kabul edildi.`,
+      title: 'Teklifiniz kabul edildi',
+      description: `"${offer.listing.title}" ilanindaki teklifiniz kabul edildi.`,
       link: `/offers/${offer.id}`,
       entityId: offer.id,
     });
@@ -266,12 +373,15 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   }
 
   if (action === 'reject') {
-    const updated = await prisma.offer.update({ where: { id }, data: { status: 'rejected', rejectedReason } });
+    const updated = await prisma.offer.update({
+      where: { id },
+      data: { status: 'rejected', rejectedReason },
+    });
     await createNotificationAndPublish({
       userId: offer.sellerId,
       type: 'offer_rejected',
-      title: 'Teklifiniz Reddedildi',
-      description: `"${offer.listing.title}" ilanındaki teklifiniz reddedildi.`,
+      title: 'Teklifiniz reddedildi',
+      description: `"${offer.listing.title}" ilanindaki teklifiniz reddedildi.`,
       link: `/offers/${offer.id}`,
       entityId: offer.id,
     });
@@ -283,12 +393,22 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   }
 
   if (action === 'counter') {
+    if (
+      (body?.counterPrice !== undefined && !parsedCounterPrice) ||
+      (body?.counterDays !== undefined && !parsedCounterDays)
+    ) {
+      return NextResponse.json({ error: 'Gecersiz karsi teklif bilgisi' }, { status: 400 });
+    }
+    if (!parsedCounterPrice && !parsedCounterDays && !counterNote) {
+      return NextResponse.json({ error: 'En az bir karsi teklif alani gonderilmeli' }, { status: 400 });
+    }
+
     const updated = await prisma.offer.update({
       where: { id },
       data: {
         status: 'counter_offered',
-        counterPrice: counterPrice ? parseFloat(counterPrice) : null,
-        counterDays: counterDays ? parseInt(counterDays) : null,
+        counterPrice: parsedCounterPrice,
+        counterDays: parsedCounterDays,
         counterNote,
         counterAt: new Date(),
         revisionCount: { increment: 1 },
@@ -297,8 +417,8 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     await createNotificationAndPublish({
       userId: offer.sellerId,
       type: 'counter_offer',
-      title: 'Karşı Teklif Aldınız',
-      description: `"${offer.listing.title}" ilanındaki teklifinize karşı teklif yapıldı.`,
+      title: 'Karsi teklif aldiniz',
+      description: `"${offer.listing.title}" ilanindaki teklifinize karsi teklif yapildi.`,
       link: `/offers/${offer.id}`,
       entityId: offer.id,
     });
@@ -309,5 +429,5 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     return NextResponse.json(updated);
   }
 
-  return NextResponse.json({ error: 'Geçersiz işlem' }, { status: 400 });
+  return NextResponse.json({ error: 'Gecersiz islem' }, { status: 400 });
 }

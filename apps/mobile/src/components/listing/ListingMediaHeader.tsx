@@ -12,6 +12,7 @@ import {
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { Image } from 'expo-image';
 import { useThemeColors } from '../../contexts/ThemeContext';
+import { isRenderableAppImageUrl, resolveAppMediaUrls } from '../../lib/media';
 import { borderRadius, fontFamily, space } from '../../theme';
 
 interface ListingMediaHeaderProps {
@@ -24,11 +25,8 @@ interface ListingMediaHeaderProps {
   isFavorited?: boolean;
 }
 
-const IMAGE_PATTERN = /\.(avif|gif|jpe?g|png|webp)(\?.*)?$/i;
-
 function getValidImages(images?: string[]) {
-  return (images ?? [])
-    .filter((item) => typeof item === 'string' && (item.startsWith('data:image/') || IMAGE_PATTERN.test(item)));
+  return resolveAppMediaUrls(images).filter((item) => isRenderableAppImageUrl(item));
 }
 
 function getCategoryPalette(category: string, colors: any) {

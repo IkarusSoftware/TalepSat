@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getApiSession } from '@/lib/api-session';
+import { normalizeResponseMediaUrl, normalizeResponseMediaUrls } from '@/lib/media';
 import { prisma } from '@/lib/prisma';
 
 // GET /api/listings/favorites — current user's favorited listings
@@ -24,12 +25,12 @@ export async function GET(req: NextRequest) {
 
   const result = favorites.map(({ listing: l }) => ({
     ...l,
-    images: JSON.parse(l.images || '[]'),
+    images: normalizeResponseMediaUrls(JSON.parse(l.images || '[]'), req),
     offerCount: l._count.offers,
     buyerName: l.buyer.name,
     buyerScore: l.buyer.score,
     buyerVerified: l.buyer.verified,
-    buyerImage: l.buyer.image,
+    buyerImage: normalizeResponseMediaUrl(l.buyer.image, req),
     buyerInitials: l.buyer.name
       .split(' ')
       .map((n: string) => n[0])

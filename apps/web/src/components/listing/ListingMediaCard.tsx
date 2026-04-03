@@ -1,6 +1,6 @@
 'use client';
 
-import type { PointerEvent as ReactPointerEvent, UIEvent } from 'react';
+import type { PointerEvent as ReactPointerEvent, ReactNode, UIEvent } from 'react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import clsx from 'clsx';
 import Link from 'next/link';
@@ -16,6 +16,7 @@ import {
   MessageSquare,
   Star,
 } from 'lucide-react';
+import { isRenderableImageUrl } from '../../../../../shared/media';
 
 type CardVariant = 'full' | 'compact';
 
@@ -65,12 +66,10 @@ interface ListingOwnerCardProps {
   status: { label: string; dotClassName: string; textClassName: string };
   deliveryLabel: string;
   href?: string;
-  infoBanner?: JSX.Element | null;
-  footerLead: JSX.Element;
-  footerActions?: JSX.Element | null;
+  infoBanner?: ReactNode;
+  footerLead: ReactNode;
+  footerActions?: ReactNode;
 }
-
-const IMAGE_PATTERN = /\.(avif|gif|jpe?g|png|webp)(\?.*)?$/i;
 
 function formatCurrency(value: number) {
   return new Intl.NumberFormat('tr-TR', {
@@ -96,7 +95,7 @@ function getTimeLeft(expiresAt?: string | null) {
 
 function getValidImages(images?: string[]) {
   return (images ?? [])
-    .filter((item) => typeof item === 'string' && (item.startsWith('data:image/') || IMAGE_PATTERN.test(item)));
+    .filter((item) => isRenderableImageUrl(item));
 }
 
 function getCategoryTone(category: string) {

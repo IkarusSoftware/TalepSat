@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getMobileSession, getMobileUser } from '@/lib/mobile-auth';
+import { normalizeResponseMediaUrl } from '@/lib/media';
 import { isActiveUserStatus } from '@/lib/user-status';
 
 export async function GET(req: NextRequest) {
@@ -17,5 +18,8 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: 'Oturumunuz artik aktif degil.' }, { status: 401 });
   }
 
-  return NextResponse.json(user);
+  return NextResponse.json({
+    ...user,
+    image: normalizeResponseMediaUrl(user.image, req),
+  });
 }

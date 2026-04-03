@@ -7,7 +7,7 @@ type PushMessage = {
   sound?: 'default';
 };
 
-function isExpoPushToken(token: string) {
+export function isExpoPushToken(token: string) {
   return token.startsWith('ExponentPushToken[') || token.startsWith('ExpoPushToken[');
 }
 

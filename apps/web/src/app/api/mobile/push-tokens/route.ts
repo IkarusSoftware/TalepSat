@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getApiSession } from '@/lib/api-session';
-import { registerPushDevice, unregisterPushDevice } from '@/lib/push';
+import { isExpoPushToken, registerPushDevice, unregisterPushDevice } from '@/lib/push';
 
 export async function POST(req: NextRequest) {
   const session = await getApiSession(req);
@@ -13,6 +13,14 @@ export async function POST(req: NextRequest) {
 
   if (!expoPushToken || !platform) {
     return NextResponse.json({ error: 'expoPushToken ve platform gerekli' }, { status: 400 });
+  }
+
+  if (!isExpoPushToken(expoPushToken)) {
+    return NextResponse.json({ error: 'Gecersiz Expo push token' }, { status: 400 });
+  }
+
+  if (!['ios', 'android'].includes(platform)) {
+    return NextResponse.json({ error: 'Gecersiz platform' }, { status: 400 });
   }
 
   const device = await registerPushDevice({

@@ -24,6 +24,7 @@ import api from '../../src/lib/api';
 import { useAuth } from '../../src/contexts/AuthContext';
 import { useThemeColors } from '../../src/contexts/ThemeContext';
 import { ListingMediaHeader } from '../../src/components/listing/ListingMediaHeader';
+import { isRenderableAppImageUrl, resolveAppMediaUrl, resolveAppMediaUrls } from '../../src/lib/media';
 import { Button } from '../../src/components/ui';
 import { borderRadius, fontFamily, space } from '../../src/theme';
 import type { Listing } from '../../src/types';
@@ -80,6 +81,9 @@ export default function ListingDetailScreen() {
 
   const urgencyLabels: Record<string, { label: string; color: string }> = {
     urgent: { label: 'Acil', color: colors.error.DEFAULT },
+    week: { label: '1 Hafta', color: colors.primary.DEFAULT },
+    two_weeks: { label: '2 Hafta', color: colors.primary.DEFAULT },
+    month: { label: '1 Ay', color: colors.warning.DEFAULT },
     normal: { label: 'Normal', color: colors.primary.DEFAULT },
     flexible: { label: 'Esnek', color: colors.success.DEFAULT },
   };
@@ -125,7 +129,11 @@ export default function ListingDetailScreen() {
     },
   });
 
-  const galleryImages = listing?.images ?? [];
+  const galleryImages = useMemo(
+    () => resolveAppMediaUrls(listing?.images).filter((item) => isRenderableAppImageUrl(item)),
+    [listing?.images],
+  );
+  const buyerImage = resolveAppMediaUrl(listing?.buyerImage ?? listing?.buyer?.image ?? null);
 
   function openGallery(startIndex = 0) {
     if (!galleryImages.length) return;
@@ -169,7 +177,7 @@ export default function ListingDetailScreen() {
           listingId={listing.id}
           title={listing.title}
           category={listing.category}
-          images={listing.images}
+          images={galleryImages}
           onPress={() => openGallery(0)}
         />
 
@@ -201,8 +209,8 @@ export default function ListingDetailScreen() {
             onPress={() => listing.buyer?.id && router.push(`/user/${listing.buyer.id}` as any)}
           >
             <View style={styles.buyerAvatar}>
-              {listing.buyerImage ? (
-                <Image source={listing.buyerImage} style={styles.buyerAvatarImage} contentFit="cover" />
+              {buyerImage ? (
+                <Image source={buyerImage} style={styles.buyerAvatarImage} contentFit="cover" />
               ) : (
                 <Text style={styles.buyerAvatarText}>
                   {listing.buyer?.name.split(' ').map((n: string) => n[0]).join('').toUpperCase().slice(0, 2)}
@@ -260,19 +268,28 @@ export default function ListingDetailScreen() {
 
       <View style={styles.bottomBar}>
         {isOwner ? (
-          offers.length > 0 ? (
+          <View style={styles.ownerActions}>
             <Button
-              title={`Teklifleri Karşılaştır (${offers.length})`}
-              onPress={() => router.push(`/listing-compare/${id}` as any)}
+              title="Düzenle"
+              variant="secondary"
+              onPress={() => router.push(`/listing-edit/${id}` as any)}
               size="lg"
-              fullWidth
+              style={styles.ownerEditBtn}
             />
-          ) : (
-            <View style={styles.myOfferBanner}>
-              <Ionicons name="hourglass-outline" size={20} color={colors.textTertiary} />
-              <Text style={[styles.myOfferText, { color: colors.textSecondary }]}>Henüz karşılaştıracak teklif yok</Text>
-            </View>
-          )
+            {offers.length > 0 ? (
+              <Button
+                title={`Teklifleri Karşılaştır (${offers.length})`}
+                onPress={() => router.push(`/listing-compare/${id}` as any)}
+                size="lg"
+                style={styles.ownerPrimaryBtn}
+              />
+            ) : (
+              <View style={[styles.myOfferBanner, styles.ownerPrimaryBtn]}>
+                <Ionicons name="hourglass-outline" size={20} color={colors.textTertiary} />
+                <Text style={[styles.myOfferText, { color: colors.textSecondary }]}>Henüz karşılaştıracak teklif yok</Text>
+              </View>
+            )}
+          </View>
         ) : myOffer ? (
           <View style={styles.myOfferBanner}>
             <Ionicons name="checkmark-circle" size={20} color={colors.success.DEFAULT} />
@@ -611,6 +628,17 @@ const makeStyles = (colors: any) => StyleSheet.create({
     backgroundColor: colors.surface,
     borderTopWidth: 1,
     borderTopColor: colors.border,
+  },
+  ownerActions: {
+    flexDirection: 'row',
+    alignItems: 'stretch',
+    gap: space.sm,
+  },
+  ownerEditBtn: {
+    width: 120,
+  },
+  ownerPrimaryBtn: {
+    flex: 1,
   },
   myOfferBanner: {
     flexDirection: 'row',

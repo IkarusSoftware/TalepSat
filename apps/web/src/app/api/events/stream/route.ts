@@ -1,7 +1,9 @@
 import { randomUUID } from 'crypto';
 import { NextRequest, NextResponse } from 'next/server';
 import { getApiSession } from '@/lib/api-session';
-import { subscribeUserEvents } from '@/lib/event-bus';
+import { canSubscribeUserEvents, subscribeUserEvents } from '@/lib/event-bus';
+import { consumeRateLimit, createRateLimitResponse } from '@/lib/rate-limit';
+import { getClientIp } from '@/lib/security';
 
 export const dynamic = 'force-dynamic';
 
@@ -15,6 +17,19 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
+  const ip = getClientIp(req);
+  const rateLimit = consumeRateLimit({
+    key: `events-stream:${session.userId}:${ip}`,
+    limit: 12,
+    windowMs: 60_000,
+  });
+  if (!rateLimit.success) {
+    return createRateLimitResponse(rateLimit, 'Canli baglanti limiti asildi.');
+  }
+  if (!canSubscribeUserEvents(session.userId)) {
+    return NextResponse.json({ error: 'Maksimum canli baglanti sayisina ulastiniz.' }, { status: 429 });
+  }
+
   const encoder = new TextEncoder();
   const subscriptionId = randomUUID();
 
@@ -26,6 +41,10 @@ export async function GET(req: NextRequest) {
       const unsubscribe = subscribeUserEvents(session.userId, subscriptionId, (event) => {
         controller.enqueue(encoder.encode(encodeEvent('update', event)));
       });
+      if (!unsubscribe) {
+        controller.close();
+        return;
+      }
 
       const heartbeat = setInterval(() => {
         controller.enqueue(encoder.encode(`: heartbeat ${Date.now()}\n\n`));
