@@ -21,6 +21,7 @@ const SECTIONS = [
   { id: 'ilan',        label: 'İlan Ayarları',   icon: FileText   },
   { id: 'teklif',      label: 'Teklif Ayarları', icon: Handshake  },
   { id: 'bildirim',    label: 'Bildirimler',      icon: Bell       },
+  { id: 'smtp',        label: 'SMTP & E-posta',   icon: Mail       },
   { id: 'seo',         label: 'SEO',              icon: Search     },
   { id: 'bakim',       label: 'Bakım Modu',       icon: Wrench     },
 ];
@@ -182,6 +183,10 @@ export default function AdminSettingsPage() {
   const [saving, setSaving]     = useState<Record<string, boolean>>({});
   const [saved, setSaved]       = useState<Record<string, boolean>>({});
   const [activeSection, setActiveSection] = useState('genel');
+  const [smtpTestEmail, setSmtpTestEmail] = useState('');
+  const [smtpTesting, setSmtpTesting] = useState(false);
+  const [smtpFeedback, setSmtpFeedback] = useState<string | null>(null);
+  const [smtpFeedbackError, setSmtpFeedbackError] = useState<string | null>(null);
   const contentRef = useRef<HTMLDivElement>(null);
 
   // Load all settings
@@ -190,7 +195,10 @@ export default function AdminSettingsPage() {
       .then((r) => r.json())
       .then((data) => {
         if (data.error) setError(data.error);
-        else setSettings(data);
+        else {
+          setSettings(data);
+          setSmtpTestEmail(data.admin_notification_email || '');
+        }
       })
       .catch(() => setError('Sunucuya ulaşılamadı'))
       .finally(() => setLoading(false));
@@ -240,6 +248,34 @@ export default function AdminSettingsPage() {
       setSaving((p) => ({ ...p, [sectionId]: false }));
     }
   }, [settings]);
+
+  const sendSmtpTest = useCallback(async () => {
+    setSmtpTesting(true);
+    setSmtpFeedback(null);
+    setSmtpFeedbackError(null);
+
+    try {
+      const res = await fetch('/api/admin/settings/test-email', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          to: smtpTestEmail.trim() || undefined,
+        }),
+      });
+
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        const details = Array.isArray(data?.details) ? ` ${data.details.join(' ')}` : '';
+        throw new Error((data?.error || 'Test e-postasi gonderilemedi') + details);
+      }
+
+      setSmtpFeedback(`Test e-postasi ${data?.sentTo || smtpTestEmail || 'hedef adrese'} gonderildi.`);
+    } catch (err) {
+      setSmtpFeedbackError(err instanceof Error ? err.message : 'Test e-postasi gonderilemedi.');
+    } finally {
+      setSmtpTesting(false);
+    }
+  }, [smtpTestEmail]);
 
   function scrollTo(id: string) {
     document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -445,6 +481,77 @@ export default function AdminSettingsPage() {
           </Section>
 
           {/* ── 7. SEO ────────────────────────────────────────────────────────── */}
+          <Section
+            id="smtp" icon={Mail} title="SMTP ve Gonderici Bilgileri"
+            description="Gercek e-posta teslimati icin SMTP sunucusunu burada yonet."
+            onSave={() => saveSection('smtp', ['smtp_host', 'smtp_port', 'smtp_secure', 'smtp_user', 'smtp_pass', 'smtp_from_email', 'smtp_from_name', 'smtp_reply_to'])}
+            saving={!!saving.smtp} saved={!!saved.smtp}
+          >
+            <FieldRow>
+              <Field label="SMTP Host" hint="ornek: smtp.resend.com veya smtp.gmail.com">
+                <TextInput value={get('smtp_host')} onChange={(v) => set('smtp_host', v)} placeholder="smtp.ornek.com" icon={Link} />
+              </Field>
+              <Field label="SMTP Port" hint="Genelde 587 veya 465">
+                <NumberInput value={get('smtp_port', '587')} onChange={(v) => set('smtp_port', v)} min={1} max={65535} />
+              </Field>
+              <Field label="SMTP Kullanici Adi" hint="Gerekliyse e-posta veya API key girin">
+                <TextInput value={get('smtp_user')} onChange={(v) => set('smtp_user', v)} placeholder="smtp-kullanici" icon={Mail} />
+              </Field>
+              <Field label="SMTP Sifresi" hint="Kaydedilen ayarlarla test gonderimi yapilir">
+                <TextInput value={get('smtp_pass')} onChange={(v) => set('smtp_pass', v)} placeholder="smtp-sifre" icon={Shield} type="password" />
+              </Field>
+              <Field label="Gonderici E-postasi" hint="Kullanicilarin gelen kutusunda gorcegi adres">
+                <TextInput value={get('smtp_from_email')} onChange={(v) => set('smtp_from_email', v)} placeholder="noreply@talepsat.com" icon={Mail} type="email" />
+              </Field>
+              <Field label="Gonderici Adi" hint="Marka ismi olarak gorunur">
+                <TextInput value={get('smtp_from_name', 'TalepSat')} onChange={(v) => set('smtp_from_name', v)} placeholder="TalepSat" icon={Hash} />
+              </Field>
+              <Field label="Reply-To" hint="Opsiyonel. Bos kalirsa gonderici adresi kullanilir">
+                <TextInput value={get('smtp_reply_to')} onChange={(v) => set('smtp_reply_to', v)} placeholder="destek@talepsat.com" icon={Mail} type="email" />
+              </Field>
+            </FieldRow>
+
+            <div className="space-y-3 pt-1">
+              <Toggle
+                value={bool('smtp_secure')}
+                onChange={(v) => setBool('smtp_secure', v)}
+                label="SSL/TLS (secure) kullan"
+                description="465 portu icin genelde acik, 587 icin genelde kapali olur."
+              />
+            </div>
+
+            <div className="rounded-2xl border border-neutral-200/70 bg-neutral-50 px-4 py-4 dark:border-dark-border dark:bg-dark-surfaceRaised">
+              <div className="flex flex-col gap-4 md:flex-row md:items-end">
+                <div className="flex-1">
+                  <Field label="Test E-postasi" hint="Once SMTP ayarlarini kaydedin. Bossa admin bildirim adresi kullanilir.">
+                    <TextInput value={smtpTestEmail} onChange={setSmtpTestEmail} placeholder="test@ornek.com" icon={Mail} type="email" />
+                  </Field>
+                </div>
+                <button
+                  type="button"
+                  onClick={sendSmtpTest}
+                  disabled={smtpTesting}
+                  className="inline-flex h-10 items-center justify-center gap-2 rounded-xl border border-primary/20 bg-white px-4 text-body-sm font-semibold text-primary transition-colors hover:bg-primary/5 disabled:cursor-wait disabled:opacity-60 dark:bg-dark-bg"
+                >
+                  {smtpTesting ? <Loader2 size={14} className="animate-spin" /> : <RefreshCw size={14} />}
+                  {smtpTesting ? 'Test gonderiliyor' : 'Test e-postasi gonder'}
+                </button>
+              </div>
+
+              {smtpFeedback && (
+                <div className="mt-3 rounded-xl border border-success/20 bg-success/10 px-3 py-2 text-body-sm font-medium text-success">
+                  {smtpFeedback}
+                </div>
+              )}
+
+              {smtpFeedbackError && (
+                <div className="mt-3 rounded-xl border border-error/20 bg-error/10 px-3 py-2 text-body-sm font-medium text-error">
+                  {smtpFeedbackError}
+                </div>
+              )}
+            </div>
+          </Section>
+
           <Section
             id="seo" icon={Search} title="SEO"
             description="Arama motoru ve sosyal medya meta etiketleri"

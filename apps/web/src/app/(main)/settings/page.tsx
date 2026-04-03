@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef, useState, type ChangeEvent, type FormEvent } from 'react';
+import { useEffect, useRef, useState, type ChangeEvent, type FormEvent, type ReactNode } from 'react';
 import { signOut, useSession } from 'next-auth/react';
 import { motion } from 'framer-motion';
 import {
@@ -11,7 +11,6 @@ import {
   Eye,
   EyeOff,
   FileText,
-  Info,
   Loader2,
   Lock,
   Mail,
@@ -76,7 +75,7 @@ export default function SettingsPage() {
   const [notifications, setNotifications] = useState<NotificationState>(initialNotifications);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [savingPush, setSavingPush] = useState(false);
+  const [savingNotificationKey, setSavingNotificationKey] = useState<keyof NotificationState | null>(null);
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState('');
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -121,6 +120,9 @@ export default function SettingsPage() {
 
         setNotifications((prev) => ({
           ...prev,
+          emailNewOffer: typeof preferencesData?.emailNewOffer === 'boolean' ? preferencesData.emailNewOffer : prev.emailNewOffer,
+          emailStatusChange: typeof preferencesData?.emailStatusChange === 'boolean' ? preferencesData.emailStatusChange : prev.emailStatusChange,
+          emailExpiry: typeof preferencesData?.emailExpiry === 'boolean' ? preferencesData.emailExpiry : prev.emailExpiry,
           push: Boolean(preferencesData?.push),
         }));
       })
@@ -259,16 +261,17 @@ export default function SettingsPage() {
     }
   };
 
-  const handlePushToggle = async () => {
-    const nextValue = !notifications.push;
-    setSavingPush(true);
+  const handleNotificationToggle = async (key: keyof NotificationState) => {
+    const nextValue = !notifications[key];
+    setSavingNotificationKey(key);
     setError('');
+    setNotifications((prev) => ({ ...prev, [key]: nextValue }));
 
     try {
       const res = await fetch('/api/users/preferences', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ push: nextValue }),
+        body: JSON.stringify({ [key]: nextValue }),
       });
 
       if (!res.ok) {
@@ -276,11 +279,20 @@ export default function SettingsPage() {
         throw new Error(data.error || 'Bildirim tercihi kaydedilemedi');
       }
 
-      setNotifications((prev) => ({ ...prev, push: nextValue }));
+      const data = await res.json().catch(() => null);
+      if (data) {
+        setNotifications({
+          emailNewOffer: Boolean(data.emailNewOffer),
+          emailStatusChange: Boolean(data.emailStatusChange),
+          emailExpiry: Boolean(data.emailExpiry),
+          push: Boolean(data.push),
+        });
+      }
     } catch (err) {
+      setNotifications((prev) => ({ ...prev, [key]: !nextValue }));
       setError(err instanceof Error ? err.message : 'Bildirim tercihi kaydedilemedi');
     } finally {
-      setSavingPush(false);
+      setSavingNotificationKey(null);
     }
   };
 
@@ -435,39 +447,29 @@ export default function SettingsPage() {
               {
                 key: 'emailNewOffer' as const,
                 label: 'Yeni teklif e-postalari',
-                desc: 'E-posta teslim kurallari bu fazda devrede degil. Bu satir daha sonra hesap ayarina donecek.',
-                interactive: false,
+                desc: 'Ilanlarina yeni teklif geldiginde e-posta gonderilir.',
               },
               {
                 key: 'emailStatusChange' as const,
                 label: 'Durum degisimi e-postalari',
-                desc: 'Teklif ve siparis hareketleri icin e-posta tercihi daha sonra yonetilecek.',
-                interactive: false,
+                desc: 'Kabul, red, karsi teklif ve siparis durumu degisimlerinde e-posta al.',
               },
               {
                 key: 'emailExpiry' as const,
                 label: 'Sure hatirlatma e-postalari',
-                desc: 'Suresi dolacak ilanlar icin e-posta akisi simdilik kapali.',
-                interactive: false,
+                desc: '24 saat icinde sona erecek ilanlar icin hatirlatma e-postasi al.',
               },
               {
                 key: 'push' as const,
                 label: 'Mobil push bildirimleri',
                 desc: 'Tarayici push yok. Bu ayar yalnizca mobil cihaz bildirim teslimatini kontrol eder.',
-                interactive: true,
               },
             ].map((item) => (
               <div key={item.key} className="flex items-start justify-between gap-4 rounded-lg p-3 transition-colors hover:bg-neutral-50 dark:hover:bg-dark-surfaceRaised">
                 <div>
                   <div className="flex items-center gap-2">
                     <p className="text-body-md font-medium text-neutral-900 dark:text-dark-textPrimary">{item.label}</p>
-                    {!item.interactive && (
-                      <span className="inline-flex items-center gap-1 rounded-full bg-neutral-100 px-2 py-0.5 text-[11px] font-semibold text-neutral-500 dark:bg-dark-surfaceRaised dark:text-dark-textSecondary">
-                        <Info size={11} />
-                        Yakinda
-                      </span>
-                    )}
-                    {item.interactive && (
+                    {item.key === 'push' && (
                       <span className="inline-flex items-center gap-1 rounded-full bg-accent/10 px-2 py-0.5 text-[11px] font-semibold text-accent">
                         <Smartphone size={11} />
                         Ortak ayar
@@ -477,11 +479,11 @@ export default function SettingsPage() {
                   <p className="mt-0.5 text-body-sm text-neutral-500">{item.desc}</p>
                 </div>
                 <button
-                  onClick={item.interactive ? handlePushToggle : undefined}
-                  disabled={!item.interactive || savingPush}
+                  onClick={() => handleNotificationToggle(item.key)}
+                  disabled={Boolean(savingNotificationKey)}
                   className={`relative h-6 w-11 shrink-0 rounded-full transition-colors ${
                     notifications[item.key] ? 'bg-accent' : 'bg-neutral-200 dark:bg-dark-border'
-                  } ${!item.interactive ? 'cursor-not-allowed opacity-50' : ''} ${savingPush && item.interactive ? 'cursor-wait opacity-60' : ''}`}
+                  } ${savingNotificationKey ? 'cursor-wait opacity-60' : ''}`}
                 >
                   <div
                     className="absolute top-0.5 h-5 w-5 rounded-full bg-white shadow-sm transition-transform"
@@ -659,7 +661,7 @@ function Field({
   label: string;
   value: string;
   onChange?: (value: string) => void;
-  icon?: JSX.Element;
+  icon?: ReactNode;
   disabled?: boolean;
   type?: string;
 }) {

@@ -24,6 +24,9 @@ model User {
   badge               String?
   status              String                    @default("active")
   pushNotificationsEnabled Boolean              @default(false)
+  emailNewOfferEnabled Boolean                  @default(true)
+  emailStatusChangeEnabled Boolean              @default(true)
+  emailExpiryEnabled Boolean                    @default(true)
   score               Float                     @default(0)
   completedDeals      Int                       @default(0)
   lastSeen            DateTime?

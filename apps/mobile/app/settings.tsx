@@ -15,7 +15,6 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import * as ImagePicker from 'expo-image-picker';
-import * as SecureStore from 'expo-secure-store';
 import { useLocalSearchParams } from 'expo-router';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import api from '../src/lib/api';
@@ -24,8 +23,6 @@ import { useAuth, type AuthUser } from '../src/contexts/AuthContext';
 import { useThemeColors } from '../src/contexts/ThemeContext';
 import { Avatar, Button, EmptyState, Input } from '../src/components/ui';
 import { borderRadius, fontFamily, space } from '../src/theme';
-
-const NOTIFICATION_PREFS_KEY = 'talepsat_notif_prefs';
 
 type NotificationPrefs = {
   emailNewOffer: boolean;
@@ -71,19 +68,19 @@ export default function SettingsScreen() {
   useEffect(() => {
     let active = true;
 
-    Promise.all([
-      SecureStore.getItemAsync(NOTIFICATION_PREFS_KEY).catch(() => null),
-      api.get('/api/users/preferences').catch(() => null),
-    ])
-      .then(([stored, prefsRes]) => {
-        const localPrefs = stored ? { ...defaultNotificationPrefs, ...JSON.parse(stored) } : defaultNotificationPrefs;
-        const serverPush = prefsRes?.data?.push;
-
+    api.get('/api/users/preferences')
+      .then((prefsRes) => {
         if (!active) return;
         setNotificationPrefs({
-          ...localPrefs,
-          push: typeof serverPush === 'boolean' ? serverPush : localPrefs.push,
+          emailNewOffer: typeof prefsRes?.data?.emailNewOffer === 'boolean' ? prefsRes.data.emailNewOffer : defaultNotificationPrefs.emailNewOffer,
+          emailStatusChange: typeof prefsRes?.data?.emailStatusChange === 'boolean' ? prefsRes.data.emailStatusChange : defaultNotificationPrefs.emailStatusChange,
+          emailExpiry: typeof prefsRes?.data?.emailExpiry === 'boolean' ? prefsRes.data.emailExpiry : defaultNotificationPrefs.emailExpiry,
+          push: typeof prefsRes?.data?.push === 'boolean' ? prefsRes.data.push : defaultNotificationPrefs.push,
         });
+      })
+      .catch(() => {
+        if (!active) return;
+        setNotificationPrefs(defaultNotificationPrefs);
       })
       .finally(() => {
         if (active) {
@@ -97,16 +94,33 @@ export default function SettingsScreen() {
   }, []);
 
   useEffect(() => {
-    SecureStore.setItemAsync(NOTIFICATION_PREFS_KEY, JSON.stringify(notificationPrefs)).catch(() => {});
-  }, [notificationPrefs]);
-
-  useEffect(() => {
     if (!notificationPrefsLoaded || !user?.id) return;
 
     syncPushPreference(notificationPrefs.push).catch(() => {
       // Preference save stays local even if device registration cannot complete right now.
     });
   }, [notificationPrefs.push, notificationPrefsLoaded, user?.id]);
+
+  async function handleNotificationToggle(key: keyof NotificationPrefs, value: boolean) {
+    const previous = notificationPrefs;
+    setNotificationPrefs((prev) => ({ ...prev, [key]: value }));
+
+    try {
+      const { data } = await api.patch('/api/users/preferences', {
+        [key]: value,
+      });
+
+      setNotificationPrefs({
+        emailNewOffer: Boolean(data.emailNewOffer),
+        emailStatusChange: Boolean(data.emailStatusChange),
+        emailExpiry: Boolean(data.emailExpiry),
+        push: Boolean(data.push),
+      });
+    } catch (error: any) {
+      setNotificationPrefs(previous);
+      Alert.alert('Hata', error?.response?.data?.error || 'Bildirim tercihi kaydedilemedi.');
+    }
+  }
 
   useEffect(() => {
     if (!authUser) return;
@@ -323,7 +337,7 @@ export default function SettingsScreen() {
               </View>
               <Switch
                 value={notificationPrefs[item.key]}
-                onValueChange={(value) => setNotificationPrefs((prev) => ({ ...prev, [item.key]: value }))}
+                onValueChange={(value) => handleNotificationToggle(item.key, value)}
                 trackColor={{ false: colors.border, true: colors.accent.DEFAULT }}
                 thumbColor={colors.white}
               />

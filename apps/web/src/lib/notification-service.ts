@@ -1,6 +1,7 @@
 import { prisma } from './prisma';
 import { eventForUser, emitRealtimeEvent } from './realtime';
 import { sendPushToUser } from './push';
+import { sendNotificationEmailToUser, type UserEmailPreferenceKey } from './email';
 
 type CreateNotificationInput = {
   userId: string;
@@ -10,7 +11,27 @@ type CreateNotificationInput = {
   link?: string | null;
   entityId?: string;
   pushBody?: string;
+  emailPreference?: UserEmailPreferenceKey | null;
+  emailSubject?: string;
+  emailCtaLabel?: string;
 };
+
+function getDefaultEmailPreference(type: string): UserEmailPreferenceKey | null {
+  switch (type) {
+    case 'offer_received':
+      return 'emailNewOfferEnabled';
+    case 'listing_expiry':
+      return 'emailExpiryEnabled';
+    case 'offer_accepted':
+    case 'offer_rejected':
+    case 'counter_offer':
+    case 'offer_updated':
+    case 'system':
+      return 'emailStatusChangeEnabled';
+    default:
+      return null;
+  }
+}
 
 export async function createNotificationAndPublish(input: CreateNotificationInput) {
   const notification = await prisma.notification.create({
@@ -32,11 +53,28 @@ export async function createNotificationAndPublish(input: CreateNotificationInpu
     ),
   );
 
-  await sendPushToUser(input.userId, {
-    title: input.title,
-    body: input.pushBody ?? input.description,
-    data: input.link ? { link: input.link } : undefined,
-  });
+  const emailPreference = input.emailPreference === undefined
+    ? getDefaultEmailPreference(input.type)
+    : input.emailPreference;
+
+  await Promise.all([
+    sendPushToUser(input.userId, {
+      title: input.title,
+      body: input.pushBody ?? input.description,
+      data: input.link ? { link: input.link } : undefined,
+    }),
+    emailPreference
+      ? sendNotificationEmailToUser({
+          userId: input.userId,
+          preferenceKey: emailPreference,
+          subject: input.emailSubject ?? input.title,
+          heading: input.title,
+          body: input.description,
+          ctaUrl: input.link ?? null,
+          ctaLabel: input.emailCtaLabel,
+        })
+      : Promise.resolve(null),
+  ]);
 
   return notification;
 }
