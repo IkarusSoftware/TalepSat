@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
   View,
   Text,
@@ -9,6 +9,8 @@ import {
   RefreshControl,
   TextInput,
   Alert,
+  Modal,
+  Pressable,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Ionicons from '@expo/vector-icons/Ionicons';
@@ -18,6 +20,7 @@ import api from '../../src/lib/api';
 import { useAuth } from '../../src/contexts/AuthContext';
 import { useThemeColors } from '../../src/contexts/ThemeContext';
 import { Button } from '../../src/components/ui';
+import { getOfferActionState } from '../../src/features/offer-actions';
 import { borderRadius, fontFamily, space } from '../../src/theme';
 
 type OfferDetail = {
@@ -110,6 +113,10 @@ export default function OfferDetailScreen() {
   const styles = useMemo(() => makeStyles(colors), [colors]);
   const [rating, setRating] = useState(0);
   const [comment, setComment] = useState('');
+  const [editModalOpen, setEditModalOpen] = useState(false);
+  const [editPrice, setEditPrice] = useState('');
+  const [editDays, setEditDays] = useState('');
+  const [editNote, setEditNote] = useState('');
 
   const { data: offer, isLoading, refetch, isRefetching } = useQuery<OfferDetail>({
     queryKey: ['offer-detail', id],
@@ -121,12 +128,31 @@ export default function OfferDetailScreen() {
   });
 
   const actionMutation = useMutation({
-    mutationFn: async ({ action, rejectedReason }: { action: 'confirm' | 'withdraw' | 'accept' | 'reject'; rejectedReason?: string }) => {
-      const payload = rejectedReason ? { action, rejectedReason } : { action };
+    mutationFn: async ({
+      action,
+      rejectedReason,
+      price,
+      deliveryDays,
+      note,
+    }: {
+      action: 'confirm' | 'withdraw' | 'accept' | 'reject' | 'edit';
+      rejectedReason?: string;
+      price?: number;
+      deliveryDays?: number;
+      note?: string;
+    }) => {
+      const payload: Record<string, unknown> = { action };
+      if (rejectedReason) payload.rejectedReason = rejectedReason;
+      if (typeof price === 'number') payload.price = price;
+      if (typeof deliveryDays === 'number') payload.deliveryDays = deliveryDays;
+      if (note !== undefined) payload.note = note;
       const { data } = await api.patch(`/api/offers/${id}`, payload);
       return data;
     },
-    onSuccess: async () => {
+    onSuccess: async (_data, variables) => {
+      if (variables.action === 'edit') {
+        setEditModalOpen(false);
+      }
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ['offer-detail', id] }),
         queryClient.invalidateQueries({ queryKey: ['my-offers'] }),
@@ -160,6 +186,13 @@ export default function OfferDetailScreen() {
     },
   });
 
+  useEffect(() => {
+    if (!offer || !editModalOpen) return;
+    setEditPrice(String(offer.price));
+    setEditDays(String(offer.deliveryDays));
+    setEditNote(offer.note || '');
+  }, [editModalOpen, offer]);
+
   if (isLoading || !offer) {
     return (
       <SafeAreaView style={styles.safe} edges={['bottom']}>
@@ -174,10 +207,13 @@ export default function OfferDetailScreen() {
   const isSeller = offer.seller.id === user?.id;
   const myConfirmed = isBuyer ? offer.buyerConfirmed : offer.sellerConfirmed;
   const otherConfirmed = isBuyer ? offer.sellerConfirmed : offer.buyerConfirmed;
-  const needsConfirmation = offer.status === 'accepted' && !myConfirmed;
-  const canWithdraw = isSeller && ['pending', 'counter_offered'].includes(offer.status);
-  const canRespondCounter = isSeller && offer.status === 'counter_offered';
   const myReview = offer.reviews.find((review) => review.reviewer.id === user?.id);
+  const actionState = getOfferActionState({
+    status: offer.status,
+    isSeller,
+    isBuyer,
+    myConfirmed,
+  });
 
   const statusConfig = {
     pending: { label: 'Bekliyor', bg: colors.warning.light, color: colors.warning.DEFAULT },
@@ -301,12 +337,19 @@ export default function OfferDetailScreen() {
               </Text>
               {!!offer.counterNote && <Text style={styles.counterNote}>{offer.counterNote}</Text>}
 
-              {canRespondCounter && (
+              {actionState.canRespondCounter && (
                 <View style={styles.actionStack}>
                   <Button
                     title="Karşı Teklifi Kabul Et"
                     onPress={() => confirmAction('accept')}
                     loading={actionMutation.isPending}
+                    fullWidth
+                  />
+                  <Button
+                    title="Teklifimi Revize Et"
+                    variant="secondary"
+                    onPress={() => setEditModalOpen(true)}
+                    style={styles.inlineAction}
                     fullWidth
                   />
                   <Button
@@ -322,7 +365,7 @@ export default function OfferDetailScreen() {
           </View>
         )}
 
-        {(offer.status === 'accepted' || offer.status === 'completed') && (
+        {actionState.showOrderStatus && (
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Sipariş Durumu</Text>
             <View style={styles.statusCard}>
@@ -343,7 +386,7 @@ export default function OfferDetailScreen() {
                 <Text style={styles.statusLineText}>Satıcı {offer.sellerConfirmed ? 'onayladı' : 'bekliyor'}</Text>
               </View>
 
-              {needsConfirmation && (
+              {actionState.needsConfirmation && (
                 <View style={styles.noticeBox}>
                   <Ionicons name="alert-circle-outline" size={16} color={colors.accent.DEFAULT} />
                   <Text style={styles.noticeText}>
@@ -352,7 +395,7 @@ export default function OfferDetailScreen() {
                 </View>
               )}
 
-              {needsConfirmation && (
+              {actionState.needsConfirmation && (
                 <Button
                   title="Teslimatı Onayla"
                   onPress={() => confirmAction('confirm')}
@@ -383,13 +426,34 @@ export default function OfferDetailScreen() {
           </View>
         )}
 
-        {canWithdraw && (
+        {actionState.canEditOffer && (
+          <View style={styles.section}>
+            <Button
+              title={offer.status === 'counter_offered' ? 'Teklifimi Revize Et' : 'Teklifi Düzenle'}
+              variant="secondary"
+              onPress={() => setEditModalOpen(true)}
+              fullWidth
+            />
+          </View>
+        )}
+
+        {actionState.canWithdraw && (
           <View style={styles.section}>
             <Button
               title="Teklifi Geri Çek"
               variant="ghost"
               onPress={() => confirmAction('withdraw')}
               loading={actionMutation.isPending}
+              fullWidth
+            />
+          </View>
+        )}
+
+        {actionState.canCreateNewOffer && (
+          <View style={styles.section}>
+            <Button
+              title="İlana Yeniden Git"
+              onPress={() => router.push(`/listing/${offer.listing.id}` as any)}
               fullWidth
             />
           </View>
@@ -402,7 +466,7 @@ export default function OfferDetailScreen() {
           </View>
         </View>
 
-        {offer.status === 'completed' && (
+        {actionState.canReview && (
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Değerlendirme</Text>
 
@@ -498,6 +562,93 @@ export default function OfferDetailScreen() {
           />
         </View>
       </ScrollView>
+
+      <Modal visible={editModalOpen} transparent animationType="fade" onRequestClose={() => setEditModalOpen(false)}>
+        <Pressable style={styles.overlay} onPress={() => setEditModalOpen(false)}>
+          <Pressable style={styles.editCard}>
+            <Text style={styles.editTitle}>{offer.status === 'counter_offered' ? 'Teklifimi Revize Et' : 'Teklifi Düzenle'}</Text>
+            <Text style={styles.editSubtitle}>
+              {offer.status === 'counter_offered'
+                ? 'Karşı teklife göre fiyat, teslimat veya notunu güncelleyebilirsin.'
+                : 'Bekleyen teklifini düzenleyip alıcıya daha net bir teklif sunabilirsin.'}
+            </Text>
+
+            <View style={styles.fieldGroup}>
+              <Text style={styles.fieldLabel}>Teklif Tutarı</Text>
+              <TextInput
+                value={editPrice}
+                onChangeText={setEditPrice}
+                keyboardType="numeric"
+                placeholder="Örn. 1500"
+                placeholderTextColor={colors.textTertiary}
+                style={styles.fieldInput}
+                selectionColor={colors.accent.DEFAULT}
+              />
+            </View>
+
+            <View style={styles.fieldGroup}>
+              <Text style={styles.fieldLabel}>Teslimat Süresi (gün)</Text>
+              <TextInput
+                value={editDays}
+                onChangeText={setEditDays}
+                keyboardType="number-pad"
+                placeholder="Örn. 3"
+                placeholderTextColor={colors.textTertiary}
+                style={styles.fieldInput}
+                selectionColor={colors.accent.DEFAULT}
+              />
+            </View>
+
+            <View style={styles.fieldGroup}>
+              <Text style={styles.fieldLabel}>Teklif Notu</Text>
+              <TextInput
+                value={editNote}
+                onChangeText={setEditNote}
+                multiline
+                placeholder="Teklifinle ilgili kısa bir not bırakabilirsin"
+                placeholderTextColor={colors.textTertiary}
+                style={styles.noteInput}
+                selectionColor={colors.accent.DEFAULT}
+              />
+            </View>
+
+            <View style={styles.modalActions}>
+              <Button
+                title="Vazgeç"
+                variant="secondary"
+                onPress={() => setEditModalOpen(false)}
+                style={{ flex: 1 }}
+              />
+              <Button
+                title="Güncelle"
+                onPress={() => {
+                  const normalizedPrice = Number(String(editPrice).replace(/\./g, '').replace(',', '.'));
+                  const normalizedDays = Number(editDays);
+
+                  if (!Number.isFinite(normalizedPrice) || normalizedPrice <= 0) {
+                    Alert.alert('Hata', 'Geçerli bir teklif tutarı gir.');
+                    return;
+                  }
+
+                  if (!Number.isInteger(normalizedDays) || normalizedDays < 1) {
+                    Alert.alert('Hata', 'Teslimat süresi en az 1 gün olmalı.');
+                    return;
+                  }
+
+                  actionMutation.mutate({
+                    action: 'edit',
+                    price: normalizedPrice,
+                    deliveryDays: normalizedDays,
+                    note: editNote.trim(),
+                  });
+                }}
+                loading={actionMutation.isPending}
+                style={{ flex: 1 }}
+              />
+            </View>
+          </Pressable>
+        </Pressable>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -627,6 +778,51 @@ const makeStyles = (colors: any) => StyleSheet.create({
     color: colors.textPrimary,
     textAlignVertical: 'top',
   },
+  overlay: {
+    flex: 1,
+    backgroundColor: colors.overlay,
+    justifyContent: 'center',
+    padding: space.lg,
+  },
+  editCard: {
+    backgroundColor: colors.surface,
+    borderRadius: borderRadius.xl,
+    borderWidth: 1,
+    borderColor: colors.border,
+    padding: space.lg,
+    gap: space.md,
+  },
+  editTitle: { fontSize: 18, fontFamily: fontFamily.bold, color: colors.textPrimary },
+  editSubtitle: { fontSize: 13, lineHeight: 19, fontFamily: fontFamily.regular, color: colors.textSecondary },
+  fieldGroup: { gap: 6 },
+  fieldLabel: { fontSize: 13, fontFamily: fontFamily.semiBold, color: colors.textPrimary },
+  fieldInput: {
+    height: 46,
+    borderRadius: borderRadius.lg,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.surfaceRaised,
+    paddingHorizontal: space.md,
+    fontSize: 14,
+    fontFamily: fontFamily.regular,
+    color: colors.textPrimary,
+  },
+  noteInput: {
+    minHeight: 100,
+    borderRadius: borderRadius.lg,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.surfaceRaised,
+    paddingHorizontal: space.md,
+    paddingVertical: space.sm + 2,
+    fontSize: 14,
+    lineHeight: 20,
+    fontFamily: fontFamily.regular,
+    color: colors.textPrimary,
+    textAlignVertical: 'top',
+  },
+  modalActions: { flexDirection: 'row', gap: space.sm },
+  inlineAction: { marginTop: 0 },
   reviewList: { gap: space.sm },
   reviewItem: {
     backgroundColor: colors.surface,
