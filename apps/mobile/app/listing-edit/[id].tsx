@@ -37,7 +37,7 @@ type ListingEditPayload = Listing;
 const STEPS: Array<{ key: StepKey; label: string; icon: keyof typeof Ionicons.glyphMap }> = [
   { key: 'category', label: 'Kategori', icon: 'grid-outline' },
   { key: 'details', label: 'Detay', icon: 'document-text-outline' },
-  { key: 'budget', label: 'Butce', icon: 'wallet-outline' },
+  { key: 'budget', label: 'Bütçe', icon: 'wallet-outline' },
   { key: 'preview', label: 'Onizleme', icon: 'eye-outline' },
 ];
 
@@ -116,7 +116,7 @@ export default function EditListingScreen() {
         queryClient.invalidateQueries({ queryKey: ['buyer-dashboard', user?.id] }),
       ]);
 
-      Alert.alert('Basarili', 'Ilanin guncellendi.', [
+      Alert.alert('Başarılı', 'İlanın güncellendi.', [
         {
           text: 'Tamam',
           onPress: () => router.replace(`/listing/${id}` as any),
@@ -124,7 +124,7 @@ export default function EditListingScreen() {
       ]);
     },
     onError: (error: any) => {
-      Alert.alert('Hata', error?.response?.data?.error || error?.message || 'Ilan guncellenemedi.');
+      Alert.alert('Hata', error?.response?.data?.error || error?.message || 'İlan güncellenemedi.');
     },
   });
 
@@ -154,7 +154,7 @@ export default function EditListingScreen() {
   useEffect(() => {
     if (!listing || !user?.id) return;
     if (listing.buyerId !== user.id) {
-      Alert.alert('Yetkisiz', 'Bu ilani duzenleme yetkin yok.', [
+      Alert.alert('Yetkisiz', 'Bu ilanı düzenleme yetkin yok.', [
         { text: 'Tamam', onPress: () => router.replace(`/listing/${id}` as any) },
       ]);
     }
@@ -188,7 +188,7 @@ export default function EditListingScreen() {
       if (!description.trim()) nextErrors.description = 'Aciklama gerekli.';
       else if (description.trim().length < 30) nextErrors.description = 'Aciklama en az 30 karakter olmali.';
 
-      if (!city.trim()) nextErrors.city = 'Sehir gerekli.';
+      if (!city.trim()) nextErrors.city = 'Şehir gerekli.';
     }
 
     if (stepIndex === 2) {
@@ -236,8 +236,8 @@ export default function EditListingScreen() {
   function renderCategoryStep() {
     return (
       <View style={styles.stepContent}>
-        <Text style={styles.stepTitle}>Kategori guncelle</Text>
-        <Text style={styles.stepSubtitle}>Ilanin dogru alicilar ve saticilarla eslesmesi icin kategoriyi netlestir.</Text>
+        <Text style={styles.stepTitle}>Kategori güncelle</Text>
+        <Text style={styles.stepSubtitle}>İlanın doğru alıcılar ve satıcılarla eşleşmesi için kategoriyi netleştir.</Text>
 
         <View style={styles.categoryGrid}>
           {LISTING_CATEGORIES.map((item) => {
@@ -273,7 +273,7 @@ export default function EditListingScreen() {
   function renderDetailsStep() {
     return (
       <View style={styles.stepContent}>
-        <Text style={styles.stepTitle}>Detaylari guncelle</Text>
+        <Text style={styles.stepTitle}>Detayları güncelle</Text>
         <Text style={styles.stepSubtitle}>Webdeki edit akisi gibi baslik, aciklama ve teslim beklentisini birlikte duzelt.</Text>
 
         <Input
@@ -309,7 +309,7 @@ export default function EditListingScreen() {
         </View>
 
         <Input
-          label="Sehir"
+          label="Şehir"
           value={city}
           onChangeText={(value) => {
             setCity(value);
@@ -353,8 +353,8 @@ export default function EditListingScreen() {
   function renderBudgetStep() {
     return (
       <View style={styles.stepContent}>
-        <Text style={styles.stepTitle}>Butceyi duzenle</Text>
-        <Text style={styles.stepSubtitle}>Web parity icin sabit veya aralik butceyi ayni mantikla koruyoruz.</Text>
+        <Text style={styles.stepTitle}>Bütçeyi düzenle</Text>
+        <Text style={styles.stepSubtitle}>Web parity için sabit veya aralık bütçeyi aynı mantıkla koruyoruz.</Text>
 
         <View style={styles.toggleRow}>
           {[
@@ -462,17 +462,17 @@ export default function EditListingScreen() {
             <Text style={styles.previewBadgeText}>{selectedCategory?.label || 'Kategori secilmedi'}</Text>
           </View>
 
-          <Text style={styles.previewTitle}>{title || 'Ilan basligi burada gorunecek'}</Text>
-          <Text style={styles.previewDescription}>{description || 'Ilan aciklamasi burada gorunecek.'}</Text>
+          <Text style={styles.previewTitle}>{title || 'İlan başlığı burada görünecek'}</Text>
+          <Text style={styles.previewDescription}>{description || 'İlan açıklaması burada görünecek.'}</Text>
 
           <View style={styles.previewGrid}>
             <View style={styles.previewInfoBox}>
-              <Text style={styles.previewInfoLabel}>Butce</Text>
+              <Text style={styles.previewInfoLabel}>Bütçe</Text>
               <Text style={styles.previewInfoValue}>{priceSummary}</Text>
             </View>
             <View style={styles.previewInfoBox}>
-              <Text style={styles.previewInfoLabel}>Sehir</Text>
-              <Text style={styles.previewInfoValue}>{city || 'Sehir yok'}</Text>
+              <Text style={styles.previewInfoLabel}>Şehir</Text>
+              <Text style={styles.previewInfoValue}>{city || 'Şehir yok'}</Text>
             </View>
             <View style={styles.previewInfoBox}>
               <Text style={styles.previewInfoLabel}>Teslimat</Text>
@@ -501,9 +501,9 @@ export default function EditListingScreen() {
       <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
         <View style={styles.emptyState}>
           <Ionicons name="document-text-outline" size={30} color={colors.textTertiary} />
-          <Text style={styles.emptyTitle}>Ilan duzenlenemedi</Text>
-          <Text style={styles.emptyText}>Bu ilan silinmis olabilir veya bu ekrana erisim yetkin olmayabilir.</Text>
-          <Button title="Ilan detayina don" onPress={() => router.replace(`/listing/${id}` as any)} />
+          <Text style={styles.emptyTitle}>İlan düzenlenemedi</Text>
+          <Text style={styles.emptyText}>Bu ilan silinmiş olabilir veya bu ekrana erişim yetkin olmayabilir.</Text>
+          <Button title="İlan detayına dön" onPress={() => router.replace(`/listing/${id}` as any)} />
         </View>
       </SafeAreaView>
     );
@@ -518,8 +518,8 @@ export default function EditListingScreen() {
           showsVerticalScrollIndicator={false}
         >
           <View style={styles.header}>
-            <Text style={styles.headerTitle}>Ilani duzenle</Text>
-            <Text style={styles.headerSubtitle}>Mobilde de webdeki gibi adim adim duzenleme akisina geciyoruz.</Text>
+            <Text style={styles.headerTitle}>İlanı düzenle</Text>
+            <Text style={styles.headerSubtitle}>Mobilde de webdeki gibi adım adım düzenleme akışına geçiyoruz.</Text>
           </View>
 
           <View style={styles.progressCard}>

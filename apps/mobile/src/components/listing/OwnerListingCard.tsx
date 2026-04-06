@@ -66,13 +66,13 @@ export function OwnerListingCard({
 
   const passiveLead =
     listing.status === 'pending'
-      ? 'Onay sonrasi yayina alinacak'
+      ? 'Onay sonrası yayına alınacak'
       : listing.status === 'completed'
         ? `${listing.offerCount} teklif tamamlandi`
         : listing.status === 'expired'
-          ? 'Ilan suresi doldu, benzer bir ilan acabilirsin'
+          ? 'İlan süresi doldu, benzer bir ilan açabilirsin'
           : listing.status === 'rejected'
-            ? 'Yeni ilan acabilir veya detaylari duzenleyebilirsin'
+            ? 'Yeni ilan açabilir veya detayları düzenleyebilirsin'
             : '-';
 
   return (
@@ -122,13 +122,13 @@ export function OwnerListingCard({
           <Text style={styles.pendingBanner}>Admin onayi bekleniyor. Genelde 24 saat icinde sonuc alir.</Text>
         )}
         {listing.status === 'rejected' && (
-          <Text style={styles.rejectedBanner}>Ilan reddedildi. Yeni ilan olusturabilir veya detaylari duzenleyebilirsin.</Text>
+          <Text style={styles.rejectedBanner}>İlan reddedildi. Yeni ilan oluşturabilir veya detayları düzenleyebilirsin.</Text>
         )}
         {listing.status === 'expired' && (
-          <Text style={styles.expiredBanner}>Talep suresi doldu. Bilgileri kopyalayip yeni bir ilan acabilirsin.</Text>
+          <Text style={styles.expiredBanner}>Talep süresi doldu. Bilgileri kopyalayıp yeni bir ilan açabilirsin.</Text>
         )}
         {listing.status === 'completed' && (
-          <Text style={styles.completedBanner}>Benzer bir ihtiyacin varsa bu ilani kopyalayip hizlica yeniden yayinlayabilirsin.</Text>
+          <Text style={styles.completedBanner}>Benzer bir ihtiyacın varsa bu ilanı kopyalayıp hızlıca yeniden yayınlayabilirsin.</Text>
         )}
       </TouchableOpacity>
 
@@ -154,7 +154,7 @@ export function OwnerListingCard({
           <View style={styles.primaryActions}>
             {showCompare && (
               <TouchableOpacity style={styles.secondaryActionBtn} onPress={onCompare} activeOpacity={0.82}>
-                <Text style={styles.secondaryActionText}>Karsilastir</Text>
+                <Text style={styles.secondaryActionText}>Karşılaştır</Text>
               </TouchableOpacity>
             )}
             {showViewOffers && (
@@ -165,7 +165,7 @@ export function OwnerListingCard({
             )}
             {showRecreate && (
               <TouchableOpacity style={styles.recreateBtn} onPress={onRecreate} activeOpacity={0.82}>
-                <Text style={styles.recreateText}>{recreateLabel || 'Benzer Ilan Ac'}</Text>
+                <Text style={styles.recreateText}>{recreateLabel || 'Benzer İlan Aç'}</Text>
                 <Ionicons name="arrow-forward" size={12} color={colors.error.DEFAULT} />
               </TouchableOpacity>
             )}

@@ -40,7 +40,7 @@ const defaultNotificationPrefs: NotificationPrefs = {
 
 export default function SettingsScreen() {
   const { section } = useLocalSearchParams<{ section?: string }>();
-  const { user, refreshUser } = useAuth();
+  const { user, refreshUser, logout } = useAuth();
   const colors = useThemeColors();
   const styles = useMemo(() => makeStyles(colors), [colors]);
   const qc = useQueryClient();
@@ -58,6 +58,8 @@ export default function SettingsScreen() {
   const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
+  const [deactivateModalOpen, setDeactivateModalOpen] = useState(false);
+  const [deactivatePassword, setDeactivatePassword] = useState('');
 
   const { data: authUser, isLoading, refetch } = useQuery<AuthUser>({
     queryKey: ['auth-user'],
@@ -137,6 +139,9 @@ export default function SettingsScreen() {
     if (section === 'password') {
       setPasswordModalOpen(true);
     }
+    if (section === 'deactivate') {
+      setDeactivateModalOpen(true);
+    }
   }, [section]);
 
   const saveProfile = useMutation({
@@ -174,6 +179,32 @@ export default function SettingsScreen() {
     },
     onError: (error: any) => {
       Alert.alert('Hata', error?.response?.data?.error || 'Şifre değiştirilemedi.');
+    },
+  });
+
+  const deactivateAccount = useMutation({
+    mutationFn: async () => (await api.post('/api/users/deactivate', {
+      currentPassword: deactivatePassword,
+    })).data,
+    onSuccess: () => {
+      setDeactivateModalOpen(false);
+      setDeactivatePassword('');
+      Alert.alert(
+        'Hesap Kapatıldı',
+        'Hesabın devre dışı bırakıldı. Tekrar giriş için yönetici desteği gerekiyor.',
+        [
+          {
+            text: 'Tamam',
+            onPress: () => {
+              void logout();
+            },
+          },
+        ],
+        { cancelable: false },
+      );
+    },
+    onError: (error: any) => {
+      Alert.alert('Hata', error?.response?.data?.error || 'Hesap kapatılamadı.');
     },
   });
 
@@ -230,6 +261,15 @@ export default function SettingsScreen() {
       return;
     }
     changePassword.mutate();
+  }
+
+  function handleDeactivateSubmit() {
+    if (!deactivatePassword.trim()) {
+      Alert.alert('Eksik bilgi', 'Hesabı kapatmak için mevcut şifreni girmen gerekiyor.');
+      return;
+    }
+
+    deactivateAccount.mutate();
   }
 
   if (isLoading) {
@@ -323,8 +363,8 @@ export default function SettingsScreen() {
             },
             {
               key: 'push' as const,
-              title: 'Push bildirimleri',
-              description: 'Mesaj, teklif ve sipariş hareketleri için cihaz kaydın açık tutulur.',
+              title: 'Mobil push bildirimleri',
+              description: 'Tarayıcı push yok. Bu ayar yalnızca mobil cihaz bildirim teslimatını kontrol eder.',
             },
           ].map((item, index, arr) => (
             <View
@@ -364,14 +404,17 @@ export default function SettingsScreen() {
           <TouchableOpacity
             style={styles.actionRow}
             activeOpacity={0.85}
-            onPress={() => Alert.alert('Yakında', 'Hesap silme akışı web ve mobilde birlikte açılacak.')}
+            onPress={() => {
+              setDeactivatePassword('');
+              setDeactivateModalOpen(true);
+            }}
           >
             <View style={[styles.actionIcon, { backgroundColor: colors.error.DEFAULT + '18' }]}>
               <Ionicons name="trash-outline" size={18} color={colors.error.DEFAULT} />
             </View>
             <View style={{ flex: 1 }}>
-              <Text style={[styles.actionTitle, { color: colors.error.DEFAULT }]}>Hesabı Sil</Text>
-              <Text style={styles.actionText}>Şimdilik pasif; sessiz no-op yerine açık bilgilendirme veriyoruz.</Text>
+              <Text style={[styles.actionTitle, { color: colors.error.DEFAULT }]}>Hesabı Kapat</Text>
+              <Text style={styles.actionText}>Hesabın devre dışı bırakılır ve yeniden açma işlemi şu an yönetici desteği gerektirir.</Text>
             </View>
           </TouchableOpacity>
         </View>
@@ -403,6 +446,54 @@ export default function SettingsScreen() {
                 title="Güncelle"
                 onPress={handlePasswordSubmit}
                 loading={changePassword.isPending}
+                style={{ flex: 1 }}
+              />
+            </View>
+          </Pressable>
+        </Pressable>
+      </Modal>
+
+      <Modal visible={deactivateModalOpen} transparent animationType="fade" onRequestClose={() => setDeactivateModalOpen(false)}>
+        <Pressable style={styles.overlay} onPress={() => setDeactivateModalOpen(false)}>
+          <Pressable style={[styles.passwordCard, styles.dangerCard]}>
+            <View style={styles.dangerHeader}>
+              <View style={styles.dangerIcon}>
+                <Ionicons name="alert-circle-outline" size={18} color={colors.error.DEFAULT} />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.passwordTitle}>Hesabı Kapat</Text>
+                <Text style={styles.dangerText}>Bu işlem hesabı silmez; devre dışı bırakır ve mevcut oturumu kapatır.</Text>
+              </View>
+            </View>
+
+            <View style={styles.warningBox}>
+              <Text style={styles.warningText}>
+                İçeriklerin korunur ancak tekrar erişmek için şu an yönetici desteği gerekir.
+              </Text>
+            </View>
+
+            <Input
+              label="Mevcut Şifre"
+              value={deactivatePassword}
+              onChangeText={setDeactivatePassword}
+              isPassword
+            />
+
+            <View style={styles.passwordActions}>
+              <Button
+                title="Vazgeç"
+                variant="secondary"
+                onPress={() => {
+                  setDeactivateModalOpen(false);
+                  setDeactivatePassword('');
+                }}
+                style={{ flex: 1 }}
+              />
+              <Button
+                title="Hesabı Kapat"
+                variant="destructive"
+                onPress={handleDeactivateSubmit}
+                loading={deactivateAccount.isPending}
                 style={{ flex: 1 }}
               />
             </View>
@@ -480,4 +571,40 @@ const makeStyles = (colors: any) => StyleSheet.create({
   },
   passwordTitle: { fontSize: 18, fontFamily: fontFamily.bold, color: colors.textPrimary },
   passwordActions: { flexDirection: 'row', gap: space.sm },
+  dangerCard: {
+    borderColor: colors.error.DEFAULT + '26',
+  },
+  dangerHeader: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: space.md,
+  },
+  dangerIcon: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.error.DEFAULT + '14',
+  },
+  dangerText: {
+    fontSize: 13,
+    lineHeight: 19,
+    fontFamily: fontFamily.regular,
+    color: colors.textSecondary,
+    marginTop: 4,
+  },
+  warningBox: {
+    borderRadius: borderRadius.lg,
+    borderWidth: 1,
+    borderColor: colors.error.DEFAULT + '24',
+    backgroundColor: colors.error.DEFAULT + '10',
+    padding: space.md,
+  },
+  warningText: {
+    fontSize: 13,
+    lineHeight: 19,
+    fontFamily: fontFamily.medium,
+    color: colors.error.DEFAULT,
+  },
 });

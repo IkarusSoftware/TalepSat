@@ -23,7 +23,7 @@ type BudgetType = 'range' | 'fixed';
 const STEPS: Array<{ key: StepKey; label: string; icon: keyof typeof Ionicons.glyphMap }> = [
   { key: 'category', label: 'Kategori', icon: 'grid-outline' },
   { key: 'details', label: 'Detay', icon: 'document-text-outline' },
-  { key: 'budget', label: 'Butce', icon: 'wallet-outline' },
+  { key: 'budget', label: 'Bütçe', icon: 'wallet-outline' },
   { key: 'preview', label: 'Onizleme', icon: 'eye-outline' },
 ];
 
@@ -105,7 +105,7 @@ export default function CreateListingScreen() {
         setHydratedCloneId(cloneId);
       } catch (error: any) {
         if (!cancelled) {
-          Alert.alert('Hata', error?.response?.data?.error || 'Ilan bilgileri yuklenemedi.');
+          Alert.alert('Hata', error?.response?.data?.error || 'İlan bilgileri yüklenemedi.');
         }
       } finally {
         if (!cancelled) {
@@ -143,7 +143,7 @@ export default function CreateListingScreen() {
       if (!description.trim()) nextErrors.description = 'Aciklama gerekli.';
       else if (description.trim().length < 30) nextErrors.description = 'Aciklama en az 30 karakter olmali.';
 
-      if (!city.trim()) nextErrors.city = 'Sehir gerekli.';
+      if (!city.trim()) nextErrors.city = 'Şehir gerekli.';
     }
 
     if (stepIndex === 2) {
@@ -205,10 +205,10 @@ export default function CreateListingScreen() {
       });
 
       Alert.alert(
-        'Basarili',
+        'Başarılı',
         data?.requiresApproval
-          ? 'Ilanin onaya gonderildi. Onaylandiginda yayina alinacak.'
-          : 'Ilanin basariyla yayina alindi.',
+          ? 'İlanın onaya gönderildi. Onaylandığında yayına alınacak.'
+          : 'İlanın başarıyla yayına alındı.',
       );
 
       setCurrentStep(0);
@@ -228,7 +228,7 @@ export default function CreateListingScreen() {
         router.replace('/(tabs)/create' as any);
       }
     } catch (error: any) {
-      Alert.alert('Hata', error?.response?.data?.error || 'Ilan olusturulamadi.');
+      Alert.alert('Hata', error?.response?.data?.error || 'İlan oluşturulamadı.');
     } finally {
       setLoading(false);
     }
@@ -274,7 +274,7 @@ export default function CreateListingScreen() {
   function renderDetailsStep() {
     return (
       <View style={styles.stepContent}>
-        <Text style={styles.stepTitle}>Ilan detaylari</Text>
+        <Text style={styles.stepTitle}>İlan detayları</Text>
         <Text style={styles.stepSubtitle}>Web tarafindaki gibi once ihtiyaci netlestiriyoruz.</Text>
 
         <Input
@@ -310,7 +310,7 @@ export default function CreateListingScreen() {
         </View>
 
         <Input
-          label="Sehir"
+          label="Şehir"
           value={city}
           onChangeText={(value) => {
             setCity(value);
@@ -352,7 +352,7 @@ export default function CreateListingScreen() {
   function renderBudgetStep() {
     return (
       <View style={styles.stepContent}>
-        <Text style={styles.stepTitle}>Butce ve sure</Text>
+        <Text style={styles.stepTitle}>Bütçe ve süre</Text>
         <Text style={styles.stepSubtitle}>Mobilde de daha net teklif almak icin butceyi adimli kuruyoruz.</Text>
 
         <View style={styles.toggleRow}>
@@ -425,7 +425,7 @@ export default function CreateListingScreen() {
         )}
 
         <View style={styles.fieldBlock}>
-          <Text style={styles.fieldLabel}>Ilan suresi</Text>
+          <Text style={styles.fieldLabel}>İlan süresi</Text>
           <View style={styles.durationRow}>
             {DURATION_OPTIONS.map((days) => {
               const active = durationDays === days;
@@ -463,7 +463,7 @@ export default function CreateListingScreen() {
     return (
       <View style={styles.stepContent}>
         <Text style={styles.stepTitle}>Son kontrol</Text>
-        <Text style={styles.stepSubtitle}>Yayinlamadan once mobil onizlemeyi kontrol et.</Text>
+        <Text style={styles.stepSubtitle}>Yayınlamadan önce mobil önizlemeyi kontrol et.</Text>
 
         <View style={styles.previewCard}>
           <View style={styles.previewBadge}>
@@ -471,24 +471,24 @@ export default function CreateListingScreen() {
             <Text style={styles.previewBadgeText}>{selectedCategory?.label || 'Kategori secilmedi'}</Text>
           </View>
 
-          <Text style={styles.previewTitle}>{title || 'Ilan basligi burada gorunecek'}</Text>
-          <Text style={styles.previewDescription}>{description || 'Ilan aciklamasi burada gorunecek.'}</Text>
+          <Text style={styles.previewTitle}>{title || 'İlan başlığı burada görünecek'}</Text>
+          <Text style={styles.previewDescription}>{description || 'İlan açıklaması burada görünecek.'}</Text>
 
           <View style={styles.previewGrid}>
             <View style={styles.previewInfoBox}>
-              <Text style={styles.previewInfoLabel}>Butce</Text>
+              <Text style={styles.previewInfoLabel}>Bütçe</Text>
               <Text style={styles.previewInfoValue}>{priceSummary}</Text>
             </View>
             <View style={styles.previewInfoBox}>
-              <Text style={styles.previewInfoLabel}>Sehir</Text>
-              <Text style={styles.previewInfoValue}>{city || 'Sehir yok'}</Text>
+              <Text style={styles.previewInfoLabel}>Şehir</Text>
+              <Text style={styles.previewInfoValue}>{city || 'Şehir yok'}</Text>
             </View>
             <View style={styles.previewInfoBox}>
               <Text style={styles.previewInfoLabel}>Aciliyet</Text>
               <Text style={styles.previewInfoValue}>{urgencyLabel}</Text>
             </View>
             <View style={styles.previewInfoBox}>
-              <Text style={styles.previewInfoLabel}>Yayinda kalma</Text>
+              <Text style={styles.previewInfoLabel}>Yayında kalma</Text>
               <Text style={styles.previewInfoValue}>{durationDays} gun</Text>
             </View>
           </View>
@@ -512,16 +512,16 @@ export default function CreateListingScreen() {
           showsVerticalScrollIndicator={false}
         >
           <View style={styles.header}>
-            <Text style={styles.headerTitle}>Ilan olustur</Text>
+            <Text style={styles.headerTitle}>İlan oluştur</Text>
             <Text style={styles.headerSubtitle}>
-              {cloneId ? 'Mevcut ilani kopyalayip hizlica yeni bir talep olusturuyorsun.' : 'Web deneyimindeki gibi adim adim ilerleyelim.'}
+              {cloneId ? 'Mevcut ilanı kopyalayıp hızlıca yeni bir talep oluşturuyorsun.' : 'Web deneyimindeki gibi adım adım ilerleyelim.'}
             </Text>
           </View>
 
           {prefillLoading && (
             <View style={styles.prefillBanner}>
               <ActivityIndicator size="small" color={colors.accent.DEFAULT} />
-              <Text style={styles.prefillText}>Ilan bilgileri yeni taslak icin yukleniyor...</Text>
+              <Text style={styles.prefillText}>İlan bilgileri yeni taslak için yükleniyor...</Text>
             </View>
           )}
 
@@ -592,7 +592,7 @@ export default function CreateListingScreen() {
               />
             ) : (
               <Button
-                title="Ilani Yayinla"
+                title="İlanı Yayınla"
                 onPress={handlePublish}
                 loading={loading || prefillLoading}
                 icon={<Ionicons name="checkmark-circle-outline" size={16} color={colors.white} />}

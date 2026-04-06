@@ -19,7 +19,7 @@ import { borderRadius, fontFamily, space } from '../../src/theme';
 
 const roles = [
   { key: 'buyer' as const, label: 'Alici', icon: 'cart-outline' as const, desc: 'Urun veya hizmet talep et' },
-  { key: 'seller' as const, label: 'Satici', icon: 'storefront-outline' as const, desc: 'Teklif ver' },
+  { key: 'seller' as const, label: 'Satıcı', icon: 'storefront-outline' as const, desc: 'Teklif ver' },
   { key: 'both' as const, label: 'Her Ikisi', icon: 'swap-horizontal-outline' as const, desc: 'Hem al hem sat' },
 ];
 

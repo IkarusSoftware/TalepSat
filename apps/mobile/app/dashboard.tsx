@@ -28,8 +28,8 @@ const statusConfig: Record<string, { label: string; color: string }> = {
   active: { label: 'Aktif', color: '#1A8754' },
   pending: { label: 'Onay Bekliyor', color: '#D4940A' },
   rejected: { label: 'Reddedildi', color: '#C93B3B' },
-  completed: { label: 'Tamamlandi', color: '#1B2B4B' },
-  expired: { label: 'Suresi Doldu', color: '#7A7668' },
+  completed: { label: 'Tamamlandı', color: '#1B2B4B' },
+  expired: { label: 'Süresi Doldu', color: '#7A7668' },
 };
 
 const tabs = [
@@ -37,7 +37,7 @@ const tabs = [
   { value: 'pending', label: 'Onay Bekliyor' },
   { value: 'rejected', label: 'Reddedildi' },
   { value: 'completed', label: 'Tamamlanan' },
-  { value: 'expired', label: 'Suresi Dolan' },
+  { value: 'expired', label: 'Süresi Dolan' },
 ];
 
 export default function BuyerDashboardScreen() {
@@ -137,7 +137,7 @@ export default function BuyerDashboardScreen() {
 
   const handleDelete = useCallback((listing: Listing) => {
     Alert.alert(
-      'Ilani Sil',
+      'İlanı Sil',
       `"${listing.title}" ilanini silmek istedigine emin misin? Bu islem geri alinamaz.`,
       [
         { text: 'Iptal', style: 'cancel' },
@@ -156,8 +156,8 @@ export default function BuyerDashboardScreen() {
       item.status === 'rejected'
         ? 'Yeniden Olustur'
         : item.status === 'expired'
-          ? 'Yeniden Yayinla'
-          : 'Benzer Ilan Ac';
+          ? 'Yeniden Yayınla'
+          : 'Benzer İlan Aç';
 
     return (
       <OwnerListingCard
@@ -190,8 +190,8 @@ export default function BuyerDashboardScreen() {
     <SafeAreaView style={styles.safe} edges={['top']}>
       <View style={styles.hero}>
         <View style={styles.heroCopy}>
-          <Text style={styles.heroOverline}>Ilan Yonetimi</Text>
-          <Text style={styles.heroTitle}>Ilanlarini ve tekliflerini tek ekranda yonet</Text>
+          <Text style={styles.heroOverline}>İlan Yönetimi</Text>
+          <Text style={styles.heroTitle}>İlanlarını ve tekliflerini tek ekranda yönet</Text>
           <Text style={styles.heroText}>
             Tum owner aksiyonlarini bu merkezde topladik. Aktif, reddedilen ve suresi dolan ilanlarini buradan takip edebilirsin.
           </Text>
@@ -208,7 +208,7 @@ export default function BuyerDashboardScreen() {
             style={styles.searchInput}
             value={searchQuery}
             onChangeText={setSearchQuery}
-            placeholder="Baslik, kategori veya sehir ara"
+            placeholder="Başlık, kategori veya şehir ara"
             placeholderTextColor={colors.textTertiary}
             selectionColor={colors.accent.DEFAULT}
           />
@@ -237,8 +237,8 @@ export default function BuyerDashboardScreen() {
           {[
             { key: 'newest', label: 'En yeni' },
             { key: 'offers', label: 'Teklif' },
-            { key: 'budget', label: 'Butce' },
-            { key: 'expires', label: 'Sure' },
+            { key: 'budget', label: 'Bütçe' },
+            { key: 'expires', label: 'Süre' },
           ].map((item) => {
             const active = sortBy === item.key;
             return (
@@ -265,7 +265,7 @@ export default function BuyerDashboardScreen() {
       </View>
 
       <View style={styles.statsRow}>
-        <StatCard label="Aktif Ilan" value={totals.active} accent={colors.accent.DEFAULT} styles={styles} />
+        <StatCard label="Aktif İlan" value={totals.active} accent={colors.accent.DEFAULT} styles={styles} />
         <StatCard label="Toplam Teklif" value={totals.totalOffers} accent={colors.primary.DEFAULT} styles={styles} />
         <StatCard label="Bekleyen Teklif" value={totals.totalPending} accent={colors.warning.DEFAULT} styles={styles} />
         <StatCard label="Tamamlanan" value={totals.completed} accent={colors.success.DEFAULT} styles={styles} />
@@ -323,7 +323,7 @@ export default function BuyerDashboardScreen() {
                     ? 'Reddedilen ilan yok'
                     : activeTab === 'completed'
                       ? 'Tamamlanan ilan yok'
-                      : 'Suresi dolan ilan yok'
+                      : 'Süresi dolan ilan yok'
             }
             subtitle="Yeni bir talep ac ve satici tekliflerini toplamaya basla."
           />

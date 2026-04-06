@@ -212,7 +212,7 @@ export default function ConversationScreen() {
     setAttachmentSheetOpen(false);
     const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (!permission.granted) {
-      Alert.alert('Izin gerekli', 'Gorsel gondermek icin galeri izni vermen gerekiyor.');
+      Alert.alert('İzin gerekli', 'Görsel göndermek için galeri izni vermen gerekiyor.');
       return;
     }
     const result = await ImagePicker.launchImageLibraryAsync({
@@ -230,7 +230,7 @@ export default function ConversationScreen() {
       size: asset.fileSize || 0,
     }));
 
-    await uploadSelectedAssets(assets, 'Gorsel yukleniyor...', 'Gorsel yuklenemedi.');
+    await uploadSelectedAssets(assets, 'Görsel yükleniyor...', 'Görsel yüklenemedi.');
   }
 
   async function handlePickDocuments() {
@@ -422,7 +422,7 @@ export default function ConversationScreen() {
               style={styles.input}
               value={draft}
               onChangeText={setDraft}
-              placeholder="Mesaj yazin..."
+              placeholder="Mesaj yazın..."
               placeholderTextColor={colors.textTertiary}
               multiline
               selectionColor={colors.accent.DEFAULT}
@@ -439,7 +439,7 @@ export default function ConversationScreen() {
               <TouchableOpacity style={styles.sheetItem} onPress={handlePickImages} activeOpacity={0.8}>
                 <Ionicons name="image-outline" size={18} color={colors.textPrimary} />
                 <View style={styles.sheetCopy}>
-                  <Text style={styles.sheetText}>Galeriden Gorsel</Text>
+                  <Text style={styles.sheetText}>Galeriden Görsel</Text>
                   <Text style={styles.sheetSubtext}>Bir veya daha fazla gorsel sec.</Text>
                 </View>
               </TouchableOpacity>
@@ -546,7 +546,11 @@ const makeStyles = (colors: any) => StyleSheet.create({
   msgRowOther: { justifyContent: 'flex-start' },
   bubble: { maxWidth: '82%', paddingHorizontal: space.md, paddingVertical: space.sm + 2, borderRadius: borderRadius.xl },
   bubbleMine: { backgroundColor: '#d9fdd3' },
-  bubbleOther: { backgroundColor: colors.surface },
+  bubbleOther: {
+    backgroundColor: colors.surfaceRaised,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
   mineTail: { borderTopRightRadius: borderRadius.sm },
   otherTail: { borderTopLeftRadius: borderRadius.sm },
   preview: { width: 220, height: 170, borderRadius: borderRadius.lg, backgroundColor: colors.surfaceRaised, marginBottom: 6 },
@@ -555,7 +559,7 @@ const makeStyles = (colors: any) => StyleSheet.create({
   fileMeta: { fontSize: 11, fontFamily: fontFamily.regular, color: colors.textSecondary, marginTop: 2 },
   msgText: { fontSize: 15, fontFamily: fontFamily.regular, lineHeight: 21 },
   msgTextMine: { color: '#111827' },
-  msgTextOther: { color: colors.white },
+  msgTextOther: { color: colors.textPrimary },
   metaRow: { flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 4 },
   metaRowMine: { alignSelf: 'flex-end' },
   metaText: { fontSize: 10, fontFamily: fontFamily.regular, color: colors.textSecondary },

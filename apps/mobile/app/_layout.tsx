@@ -62,7 +62,7 @@ function RootNavigator() {
           name="dashboard"
           options={{
             headerShown: true,
-            headerTitle: 'Ilanlarim',
+            headerTitle: 'İlanlarım',
             headerBackTitle: 'Geri',
           }}
         />

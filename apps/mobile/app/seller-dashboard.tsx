@@ -77,7 +77,7 @@ export default function SellerDashboardScreen() {
     return (
       <SafeAreaView style={styles.safe} edges={['bottom']}>
         <View style={styles.center}>
-          <EmptyState icon="storefront-outline" title="Satici paneli sana acik degil" subtitle="Bu panel sadece satici hesaplari icin hazirlanmistir." />
+          <EmptyState icon="storefront-outline" title="Satıcı paneli sana açık değil" subtitle="Bu panel sadece satıcı hesapları için hazırlanmıştır." />
         </View>
       </SafeAreaView>
     );
@@ -178,7 +178,7 @@ export default function SellerDashboardScreen() {
       >
         <View style={styles.header}>
           <View style={styles.badge}><Ionicons name="analytics-outline" size={14} color={colors.accent.DEFAULT} /><Text style={styles.badgeText}>{analyticsTierFeatureTitle(snapshot.tier)}</Text></View>
-          <Text style={styles.headerTitle}>Satici Paneli</Text>
+          <Text style={styles.headerTitle}>Satıcı Paneli</Text>
           <Text style={styles.headerSubtitle}>Teklif performansini ve planina acilan raporlari burada gor.</Text>
         </View>
 
@@ -196,7 +196,7 @@ export default function SellerDashboardScreen() {
           <>
             {advanced ? (
               <View style={styles.heroPanel}>
-                <Text style={styles.heroTitle}>{pro ? 'Pro Yonetim ve Analitik Merkezi' : 'Plus Performans Merkezi'}</Text>
+                <Text style={styles.heroTitle}>{pro ? 'Pro Yönetim ve Analitik Merkezi' : 'Plus Performans Merkezi'}</Text>
                 <Text style={styles.heroText}>{pro ? 'Kritik filtreler, karsilastirmalar ve operasyonel tablolarla daha derin bir seller paneli.' : 'Trendler, kategori momentumu ve ilan performanslarini tek panelde toplayan daha zengin gorunum.'}</Text>
                 <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.rangeRow}>
                   {(['7d', '30d', '90d'] as RangeValue[]).map((item) => (
@@ -232,7 +232,7 @@ export default function SellerDashboardScreen() {
                   {snapshot.breakdowns?.byCategory?.map((item) => <TouchableOpacity key={item.key} style={[styles.filterChip, category === item.key && styles.filterChipActive]} onPress={() => setCategory(item.key)}><Text style={[styles.filterChipText, category === item.key && styles.filterChipTextActive]}>{item.label}</Text></TouchableOpacity>)}
                 </ScrollView>
                 <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filterScroll}>
-                  <TouchableOpacity style={[styles.filterChip, !city && styles.filterChipActive]} onPress={() => setCity('')}><Text style={[styles.filterChipText, !city && styles.filterChipTextActive]}>Tum sehirler</Text></TouchableOpacity>
+                  <TouchableOpacity style={[styles.filterChip, !city && styles.filterChipActive]} onPress={() => setCity('')}><Text style={[styles.filterChipText, !city && styles.filterChipTextActive]}>Tüm şehirler</Text></TouchableOpacity>
                   {snapshot.breakdowns?.byCity?.map((item) => <TouchableOpacity key={item.key} style={[styles.filterChip, city === item.label && styles.filterChipActive]} onPress={() => setCity(item.label)}><Text style={[styles.filterChipText, city === item.label && styles.filterChipTextActive]}>{item.label}</Text></TouchableOpacity>)}
                 </ScrollView>
                 <View style={styles.actionRow}>
@@ -258,9 +258,9 @@ export default function SellerDashboardScreen() {
               <View style={styles.metricRow}><Text style={styles.metricLabel}>Kabul orani</Text><Text style={styles.metricValue}>%{snapshot.summary.acceptanceRate}</Text></View>
               <View style={styles.progressTrack}><View style={[styles.progressFill, { width: `${snapshot.summary.acceptanceRate}%` }]} /></View>
               <View style={styles.metricRow}><Text style={styles.metricLabel}>Reddedilen</Text><Text style={styles.metricValue}>{snapshot.summary.rejectedOffers}</Text></View>
-              <View style={styles.metricRow}><Text style={styles.metricLabel}>Karsi teklif</Text><Text style={styles.metricValue}>{snapshot.summary.counterOffers}</Text></View>
+              <View style={styles.metricRow}><Text style={styles.metricLabel}>Karşı teklif</Text><Text style={styles.metricValue}>{snapshot.summary.counterOffers}</Text></View>
               <View style={styles.metricRow}><Text style={styles.metricLabel}>Ortalama puan</Text><Text style={styles.metricValue}>{snapshot.summary.averageScore > 0 ? snapshot.summary.averageScore.toFixed(1) : '-'}</Text></View>
-              <View style={styles.metricRow}><Text style={styles.metricLabel}>Goruntulenme</Text><Text style={styles.metricValue}>{snapshot.summary.totalViews}</Text></View>
+              <View style={styles.metricRow}><Text style={styles.metricLabel}>Görüntülenme</Text><Text style={styles.metricValue}>{snapshot.summary.totalViews}</Text></View>
             </View>
 
             {advanced && (
@@ -268,7 +268,7 @@ export default function SellerDashboardScreen() {
                 <View style={styles.section}>
                   <Text style={styles.sectionTitle}>Donusum huni</Text>
                   {[
-                    { label: 'Goruntulenme', value: derived.funnel.views, width: 100, color: colors.primary.DEFAULT, note: 'Ilk dikkat seviyesi' },
+                    { label: 'Görüntülenme', value: derived.funnel.views, width: 100, color: colors.primary.DEFAULT, note: 'İlk dikkat seviyesi' },
                     { label: 'Teklif', value: derived.funnel.offers, width: Math.max(12, derived.funnel.offerToViewRate), color: colors.accent.DEFAULT, note: `%${derived.funnel.offerToViewRate} teklif donusumu` },
                     { label: 'Kabul', value: derived.funnel.accepted, width: Math.max(12, derived.funnel.acceptanceRate), color: colors.success.DEFAULT, note: `%${derived.funnel.acceptanceRate} kabul orani` },
                   ].map((item) => (
@@ -357,7 +357,7 @@ export default function SellerDashboardScreen() {
                     <View style={styles.listingPerformanceGrid}>
                       <View><Text style={styles.metricLabel}>Teklif</Text><Text style={styles.metricValue}>{item.count}</Text></View>
                       <View><Text style={styles.metricLabel}>Kabul</Text><Text style={styles.metricValue}>%{item.acceptanceRate}</Text></View>
-                      <View><Text style={styles.metricLabel}>Goruntulenme</Text><Text style={styles.metricValue}>{item.views}</Text></View>
+                      <View><Text style={styles.metricLabel}>Görüntülenme</Text><Text style={styles.metricValue}>{item.views}</Text></View>
                       <View><Text style={styles.metricLabel}>Pay</Text><Text style={styles.metricValue}>%{item.revenueShare}</Text></View>
                     </View>
                   </TouchableOpacity>
@@ -367,7 +367,7 @@ export default function SellerDashboardScreen() {
 
             {advanced && (
               <View style={styles.section}>
-                <Text style={styles.sectionTitle}>Yonetim notlari</Text>
+                <Text style={styles.sectionTitle}>Yönetim notları</Text>
                 {derived.insights.length === 0 ? <Text style={styles.emptyText}>Su an icin belirgin bir risk veya firsat sinyali yok.</Text> : derived.insights.map((item) => (
                   <View key={item.title} style={styles.insightCard}>
                     <View style={styles.metricRow}><Text style={styles.insightTitle}>{item.title}</Text><Text style={[styles.insightTone, { color: item.tone === 'success' ? colors.success.DEFAULT : item.tone === 'warning' ? colors.warning.DEFAULT : item.tone === 'danger' ? colors.error.DEFAULT : colors.accent.DEFAULT }]}>{item.tone === 'success' ? 'Firsat' : item.tone === 'danger' ? 'Risk' : item.tone === 'warning' ? 'Dikkat' : 'Sinyal'}</Text></View>
@@ -394,7 +394,7 @@ export default function SellerDashboardScreen() {
 
             {pro && derived.cityShares.length > 0 && (
               <View style={styles.section}>
-                <Text style={styles.sectionTitle}>Sehir kirilimi</Text>
+                <Text style={styles.sectionTitle}>Şehir kırılımı</Text>
                 {derived.cityShares.slice(0, 5).map((item) => (
                   <View key={item.key} style={styles.barGroup}>
                     <View style={styles.metricRow}><Text style={styles.metricValue}>{item.label}</Text><Text style={styles.metricLabel}>{item.count} teklif · %{item.share}</Text></View>
