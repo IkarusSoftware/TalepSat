@@ -153,6 +153,7 @@ export default function CreateListingPage() {
   const stripSeparators = (v: string) => v.replace(/[.,]/g, '');
 
   const handlePublish = async () => {
+    return handlePublishSafe();
     setPublishError(null);
     setPublishing(true);
     const selectedCat = categories.find((c) => c.id === form.categoryId);
