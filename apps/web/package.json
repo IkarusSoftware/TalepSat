@@ -9,7 +9,8 @@
     "start": "next start",
     "lint": "next lint",
     "type-check": "tsc --noEmit",
-    "media:normalize": "node scripts/normalize-media-urls.cjs"
+    "media:normalize": "node scripts/normalize-media-urls.cjs",
+    "bootstrap:production": "node scripts/bootstrap-production.cjs"
   },
   "dependencies": {
     "@auth/prisma-adapter": "^2.11.1",
