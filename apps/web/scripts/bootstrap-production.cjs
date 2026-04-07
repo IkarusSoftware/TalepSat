@@ -1,3 +1,6 @@
+const path = require('path');
+require('dotenv').config({ path: path.join(process.cwd(), '.env') });
+
 const { Client } = require('pg');
 
 async function main() {
