@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { signIn, useSession } from 'next-auth/react';
+import { signIn, signOut, useSession } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
 import { Eye, EyeOff, Loader2, Lock, Mail, ChevronDown } from 'lucide-react';
 import { motion } from 'framer-motion';
@@ -193,9 +193,19 @@ export default function AdminLoginPage() {
     if (!email || !password) return;
     setLoading(true);
     setError('');
+    if (status === 'authenticated') {
+      await signOut({ redirect: false });
+    }
     const result = await signIn('credentials', { email, password, redirect: false });
     if (result?.error) {
       setError('E-posta veya şifre hatalı.');
+      setLoading(false);
+      return;
+    }
+    const sessionRes = await fetch('/api/auth/session', { cache: 'no-store' });
+    const sessionData = await sessionRes.json().catch(() => null);
+    if ((sessionData?.user as { role?: string } | undefined)?.role !== 'admin') {
+      setError('Bu hesap admin yetkisine sahip değil.');
       setLoading(false);
       return;
     }
