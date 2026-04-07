@@ -202,6 +202,9 @@ export default function AdminLoginPage() {
       setLoading(false);
       return;
     }
+    router.replace('/admin');
+    router.refresh();
+    return;
     const sessionRes = await fetch('/api/auth/session', { cache: 'no-store' });
     const sessionData = await sessionRes.json().catch(() => null);
     if ((sessionData?.user as { role?: string } | undefined)?.role !== 'admin') {
