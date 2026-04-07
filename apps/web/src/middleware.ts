@@ -25,9 +25,6 @@ async function isMaintenanceActive(requestUrl: string): Promise<boolean> {
 
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
-  const forwardedProto = request.headers.get('x-forwarded-proto');
-  const isSecureRequest =
-    request.nextUrl.protocol === 'https:' || forwardedProto === 'https';
 
   // Her zaman geç: API rotaları, static dosyalar, auth, bakım sayfası
   const isApiRoute       = pathname.startsWith('/api/');
@@ -59,12 +56,19 @@ export async function middleware(request: NextRequest) {
 
   if (!isProtectedRoute) return NextResponse.next();
 
-  const token = await getToken({
-    req: request,
-    secret: process.env.AUTH_SECRET,
-    salt: isSecureRequest ? '__Secure-authjs.session-token' : 'authjs.session-token',
-    secureCookie: isSecureRequest,
-  });
+  const token =
+    (await getToken({
+      req: request,
+      secret: process.env.AUTH_SECRET,
+      salt: '__Secure-authjs.session-token',
+      secureCookie: true,
+    }).catch(() => null)) ||
+    (await getToken({
+      req: request,
+      secret: process.env.AUTH_SECRET,
+      salt: 'authjs.session-token',
+      secureCookie: false,
+    }).catch(() => null));
 
   if (!token) {
     if (isAdminRoute) {
