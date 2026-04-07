@@ -10,11 +10,12 @@ const MAX_TITLE_LENGTH = 160;
 const MAX_DESCRIPTION_LENGTH = 5000;
 const MAX_CITY_LENGTH = 100;
 const MAX_IMAGES = 10;
-const ALLOWED_DELIVERY_URGENCY = new Set(['urgent', 'normal', 'flexible']);
+const ALLOWED_DELIVERY_URGENCY = new Set(['urgent', 'normal', 'flexible', 'week', 'two_weeks', 'month']);
 
-function parseAmount(value: unknown) {
+function parseAmount(value: unknown, { allowZero = false }: { allowZero?: boolean } = {}) {
   const parsed = typeof value === 'number' ? value : Number(value);
-  if (!Number.isFinite(parsed) || parsed <= 0) return null;
+  if (!Number.isFinite(parsed)) return null;
+  if (allowZero ? parsed < 0 : parsed <= 0) return null;
   return Math.round(parsed * 100) / 100;
 }
 
@@ -102,8 +103,8 @@ export async function POST(req: NextRequest) {
   const category = typeof body?.category === 'string' ? body.category.trim().slice(0, 120) : '';
   const categorySlug = typeof body?.categorySlug === 'string' ? body.categorySlug.trim().toLowerCase() : '';
   const city = typeof body?.city === 'string' ? body.city.trim().slice(0, MAX_CITY_LENGTH) : '';
-  const budgetMin = parseAmount(body?.budgetMin);
-  const budgetMax = parseAmount(body?.budgetMax);
+  const budgetMin = parseAmount(body?.budgetMin, { allowZero: true });
+  const budgetMax = parseAmount(body?.budgetMax, { allowZero: true });
   const deliveryUrgency =
     typeof body?.deliveryUrgency === 'string' && ALLOWED_DELIVERY_URGENCY.has(body.deliveryUrgency)
       ? body.deliveryUrgency
@@ -111,11 +112,14 @@ export async function POST(req: NextRequest) {
   const images = parseImages(body?.images, req);
   const requestedExpiresInDays = Number(body?.expiresInDays);
 
-  if (!title || !description || !category || !categorySlug || !city || !budgetMin || !budgetMax) {
+  if (!title || !description || !category || !categorySlug || !city || budgetMin === null || budgetMax === null) {
     return NextResponse.json({ error: 'Gerekli alanlar eksik veya gecersiz' }, { status: 400 });
   }
   if (!/^[a-z0-9-]{2,80}$/i.test(categorySlug)) {
     return NextResponse.json({ error: 'Gecersiz kategori slug' }, { status: 400 });
+  }
+  if ((budgetMin === 0) !== (budgetMax === 0)) {
+    return NextResponse.json({ error: 'Acik butce icin minimum ve maksimum alanlari birlikte bos birakilmalidir' }, { status: 400 });
   }
   if (budgetMin > budgetMax) {
     return NextResponse.json({ error: 'Minimum butce maksimum butceden buyuk olamaz' }, { status: 400 });
@@ -125,7 +129,7 @@ export async function POST(req: NextRequest) {
   }
 
   const settings = await getSettingsDirect();
-  if (budgetMax > settings.listing_max_budget) {
+  if (budgetMax > 0 && budgetMax > settings.listing_max_budget) {
     return NextResponse.json({
       error: `Maksimum butce ${settings.listing_max_budget.toLocaleString('tr-TR')} TL olabilir.`,
     }, { status: 400 });

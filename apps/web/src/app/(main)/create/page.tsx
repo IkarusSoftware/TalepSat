@@ -55,6 +55,7 @@ export default function CreateListingPage() {
   } | null>(null);
   const imageInputRef = useRef<HTMLInputElement>(null);
   const docInputRef = useRef<HTMLInputElement>(null);
+  const publishErrorRef = useRef<HTMLDivElement>(null);
 
   const [form, setForm] = useState({
     categoryId: '',
@@ -187,6 +188,74 @@ export default function CreateListingPage() {
         limit: err.limit,
         used: err.used,
       });
+    }
+  };
+
+  const showPublishError = (error: {
+    message: string;
+    limitReached?: boolean;
+    limit?: number;
+    used?: number;
+  }) => {
+    setPublishError(error);
+    requestAnimationFrame(() => {
+      publishErrorRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    });
+  };
+
+  const readJsonSafely = async (res: Response) => {
+    try {
+      return await res.json() as Record<string, unknown>;
+    } catch {
+      return null;
+    }
+  };
+
+  const handlePublishSafe = async () => {
+    setPublishError(null);
+    setPublishing(true);
+
+    try {
+      const selectedCat = categories.find((c) => c.id === form.categoryId);
+      const budgetMin = stripSeparators(form.budgetType === 'range' ? form.budgetMin : form.budgetType === 'fixed' ? form.budgetFixed : '0');
+      const budgetMax = stripSeparators(form.budgetType === 'range' ? form.budgetMax : form.budgetType === 'fixed' ? form.budgetFixed : '0');
+
+      const res = await fetch('/api/listings', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          title: form.title,
+          description: form.description,
+          category: selectedCat?.label || '',
+          categorySlug: form.categoryId,
+          budgetMin,
+          budgetMax,
+          city: form.city,
+          deliveryUrgency: form.deliveryUrgency,
+          images: [...form.images.map((i) => i.url), ...form.docs.map((d) => d.url)],
+          expiresInDays: parseInt(form.durationDays),
+        }),
+      });
+
+      if (res.ok) {
+        const data = await readJsonSafely(res);
+        setPublishResult({ requiresApproval: Boolean(data?.requiresApproval) });
+        return;
+      }
+
+      const err = await readJsonSafely(res);
+      showPublishError({
+        message: typeof err?.error === 'string' ? err.error : 'Ä°lan oluÅŸturulamadÄ±. LÃ¼tfen tekrar deneyin.',
+        limitReached: Boolean(err?.limitReached),
+        limit: typeof err?.limit === 'number' ? err.limit : undefined,
+        used: typeof err?.used === 'number' ? err.used : undefined,
+      });
+    } catch {
+      showPublishError({
+        message: 'Ä°lan oluÅŸturulurken bir baÄŸlantÄ± veya sunucu hatasÄ± oluÅŸtu. LÃ¼tfen tekrar deneyin.',
+      });
+    } finally {
+      setPublishing(false);
     }
   };
 
@@ -671,11 +740,14 @@ export default function CreateListingPage() {
 
       {/* Publish Error Banner */}
       {publishError && (
-        <div className={`mt-6 rounded-xl border p-4 flex gap-3 ${
+        <div
+          ref={publishErrorRef}
+          className={`mt-6 rounded-xl border p-4 flex gap-3 ${
           publishError.limitReached
             ? 'bg-amber-50 dark:bg-amber-950/30 border-amber-200 dark:border-amber-800'
             : 'bg-red-50 dark:bg-red-950/30 border-red-200 dark:border-red-800'
-        }`}>
+          }`}
+        >
           {publishError.limitReached ? (
             <Crown size={20} className="text-amber-500 shrink-0 mt-0.5" />
           ) : (

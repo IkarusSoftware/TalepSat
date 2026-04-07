@@ -10,7 +10,7 @@ const MAX_TITLE_LENGTH = 160;
 const MAX_DESCRIPTION_LENGTH = 5000;
 const MAX_CITY_LENGTH = 100;
 const MAX_IMAGES = 10;
-const ALLOWED_DELIVERY_URGENCY = new Set(['urgent', 'normal', 'flexible']);
+const ALLOWED_DELIVERY_URGENCY = new Set(['urgent', 'normal', 'flexible', 'week', 'two_weeks', 'month']);
 const ALLOWED_STATUSES = new Set(['active', 'pending', 'expired', 'completed', 'rejected']);
 
 function getVisitorHash(req: NextRequest): string {
@@ -26,9 +26,10 @@ function parseImages(value: unknown, req: NextRequest) {
   return normalizeStoredMediaUrls(value.slice(0, MAX_IMAGES), req);
 }
 
-function parseAmount(value: unknown) {
+function parseAmount(value: unknown, { allowZero = false }: { allowZero?: boolean } = {}) {
   const parsed = typeof value === 'number' ? value : Number(value);
-  if (!Number.isFinite(parsed) || parsed <= 0) return null;
+  if (!Number.isFinite(parsed)) return null;
+  if (allowZero ? parsed < 0 : parsed <= 0) return null;
   return Math.round(parsed * 100) / 100;
 }
 
@@ -164,22 +165,28 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   }
 
   if (body?.budgetMin !== undefined) {
-    const budgetMin = parseAmount(body.budgetMin);
-    if (!budgetMin) return NextResponse.json({ error: 'Gecerli minimum butce gerekli' }, { status: 400 });
+    const budgetMin = parseAmount(body.budgetMin, { allowZero: true });
+    if (budgetMin === null) return NextResponse.json({ error: 'Gecerli minimum butce gerekli' }, { status: 400 });
     updateData.budgetMin = budgetMin;
   }
 
   if (body?.budgetMax !== undefined) {
-    const budgetMax = parseAmount(body.budgetMax);
-    if (!budgetMax) return NextResponse.json({ error: 'Gecerli maksimum butce gerekli' }, { status: 400 });
+    const budgetMax = parseAmount(body.budgetMax, { allowZero: true });
+    if (budgetMax === null) return NextResponse.json({ error: 'Gecerli maksimum butce gerekli' }, { status: 400 });
     updateData.budgetMax = budgetMax;
   }
 
-  if (
-    (updateData.budgetMin !== undefined || updateData.budgetMax !== undefined) &&
-    Number(updateData.budgetMin ?? listing.budgetMin) > Number(updateData.budgetMax ?? listing.budgetMax)
-  ) {
-    return NextResponse.json({ error: 'Minimum butce maksimum butceden buyuk olamaz' }, { status: 400 });
+  if (updateData.budgetMin !== undefined || updateData.budgetMax !== undefined) {
+    const nextBudgetMin = Number(updateData.budgetMin ?? listing.budgetMin);
+    const nextBudgetMax = Number(updateData.budgetMax ?? listing.budgetMax);
+
+    if ((nextBudgetMin === 0) !== (nextBudgetMax === 0)) {
+      return NextResponse.json({ error: 'Acik butce icin minimum ve maksimum alanlari birlikte bos birakmalisiniz' }, { status: 400 });
+    }
+
+    if (nextBudgetMin > nextBudgetMax) {
+      return NextResponse.json({ error: 'Minimum butce maksimum butceden buyuk olamaz' }, { status: 400 });
+    }
   }
 
   if (body?.city !== undefined) {
