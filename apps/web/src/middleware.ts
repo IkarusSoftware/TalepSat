@@ -2,8 +2,6 @@ import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 import { getToken } from 'next-auth/jwt';
 
-const isProduction = process.env.NODE_ENV === 'production';
-
 // ── Maintenance mode cache ────────────────────────────────────────────────────
 let maintenanceCache: { active: boolean; ts: number } | null = null;
 const MAINTENANCE_TTL = 8000;
@@ -27,6 +25,9 @@ async function isMaintenanceActive(requestUrl: string): Promise<boolean> {
 
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
+  const forwardedProto = request.headers.get('x-forwarded-proto');
+  const isSecureRequest =
+    request.nextUrl.protocol === 'https:' || forwardedProto === 'https';
 
   // Her zaman geç: API rotaları, static dosyalar, auth, bakım sayfası
   const isApiRoute       = pathname.startsWith('/api/');
@@ -61,8 +62,8 @@ export async function middleware(request: NextRequest) {
   const token = await getToken({
     req: request,
     secret: process.env.AUTH_SECRET,
-    salt: isProduction ? '__Secure-authjs.session-token' : 'authjs.session-token',
-    secureCookie: isProduction,
+    salt: isSecureRequest ? '__Secure-authjs.session-token' : 'authjs.session-token',
+    secureCookie: isSecureRequest,
   });
 
   if (!token) {
