@@ -16,6 +16,7 @@ const useAdapter = googleProviderConfigured;
 
 export const { handlers, signIn, signOut, auth } = NextAuth({
   ...(useAdapter ? { adapter: PrismaAdapter(prisma) } : {}),
+  trustHost: true,
   session: { strategy: 'jwt' },
   pages: {
     signIn: '/login',
