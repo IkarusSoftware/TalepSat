@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useRef, useEffect, useCallback, useMemo, Suspense } from 'react';
+import { useState, useRef, useEffect, useCallback, useMemo, Suspense, type ChangeEvent, type FormEvent } from 'react';
 import Link from 'next/link';
 import { useSession } from 'next-auth/react';
 import { useSearchParams, useRouter } from 'next/navigation';
@@ -10,6 +10,7 @@ import {
   ChevronDown, VolumeX, Volume2, Flag, ShieldBan, Trash2, X, AlertTriangle, CheckCircle, Star,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { realtimeWindowEventName } from '@/components/realtime-provider';
 
 /* ─────────────────────────────────────────
    Helpers
@@ -218,7 +219,7 @@ function MessagesPage() {
 
   useEffect(() => {
     fetchConversations().then(() => setLoading(false));
-    const interval = setInterval(fetchConversations, 5000);
+    const interval = setInterval(fetchConversations, 60000);
     return () => clearInterval(interval);
   }, [fetchConversations]);
 
@@ -277,9 +278,42 @@ function MessagesPage() {
     if (!selectedId) return;
     setMessages([]);
     fetchMessages();
-    const interval = setInterval(fetchMessages, 2000);
+    const interval = setInterval(fetchMessages, 60000);
     return () => clearInterval(interval);
   }, [selectedId, fetchMessages]);
+
+  useEffect(() => {
+    const handleRealtime = (event: Event) => {
+      const payload = (event as CustomEvent<{
+        type?: string;
+        conversationId?: string | null;
+        entityId?: string;
+      }>).detail;
+
+      if (!payload?.type) return;
+
+      if (
+        payload.type === 'message.created' ||
+        payload.type === 'conversation.updated' ||
+        payload.type === 'presence.updated'
+      ) {
+        fetchConversations();
+      }
+
+      if (
+        selectedId &&
+        (payload.type === 'message.created' || payload.type === 'conversation.updated') &&
+        (!payload.conversationId || payload.conversationId === selectedId || payload.entityId === selectedId)
+      ) {
+        fetchMessages();
+      }
+    };
+
+    window.addEventListener(realtimeWindowEventName, handleRealtime as EventListener);
+    return () => {
+      window.removeEventListener(realtimeWindowEventName, handleRealtime as EventListener);
+    };
+  }, [fetchConversations, fetchMessages, selectedId]);
 
   /* ── Scroll chat container to bottom (without moving the page) ── */
   const userSentRef = useRef(false);
@@ -371,7 +405,7 @@ function MessagesPage() {
   }, []);
 
   const handleSend = useCallback(
-    async (e: React.FormEvent) => {
+    async (e: FormEvent) => {
       e.preventDefault();
       if (!newMessage.trim() || !selectedId || sending) return;
       const text = newMessage.trim();
@@ -425,7 +459,7 @@ function MessagesPage() {
   );
 
   /* ── File upload handler ── */
-  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileUpload = async (e: ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
     const convId = selectedId; // capture current value
     if (!files?.length || !convId) {

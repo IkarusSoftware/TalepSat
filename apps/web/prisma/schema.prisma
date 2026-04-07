@@ -22,7 +22,11 @@ model User {
   taxNumber      String?
   verified       Boolean   @default(false)
   badge          String?   // basic, plus, pro
-  status         String    @default("active") // active, suspended, banned
+  status         String    @default("active") // active, suspended, banned, deactivated
+  pushNotificationsEnabled Boolean @default(false)
+  emailNewOfferEnabled     Boolean @default(true)
+  emailStatusChangeEnabled Boolean @default(true)
+  emailExpiryEnabled       Boolean @default(true)
   score          Float     @default(0)
   completedDeals Int       @default(0)
   lastSeen       DateTime?
@@ -44,6 +48,9 @@ model User {
   receivedReviews Review[]      @relation("reviewee")
   favorites     Favorite[]
   passwordResetTokens PasswordResetToken[]
+  pushDevices   PushDevice[]
+  subscriptions UserSubscription[]
+  billingEvents BillingEvent[]
 }
 
 model Account {
@@ -262,14 +269,78 @@ model Plan {
   name            String
   priceMonthly    Float    @default(0)
   priceYearly     Float    @default(0)
+  iyzicoMonthlyPlanRef String?
+  iyzicoYearlyPlanRef  String?
   offersPerMonth  Int?     // null = unlimited
   boostPerMonth   Int?     // null = unlimited
   maxListings     Int?     // null = unlimited
   analytics       Boolean  @default(false)
+  analyticsTier   String   @default("none")
   prioritySupport Boolean  @default(false)
   verifiedBadge   Boolean  @default(false)
   customProfile   Boolean  @default(false)
   responseTime    String   @default("Standart")
   sortOrder       Int      @default(0)
   updatedAt       DateTime @updatedAt
+  subscriptions   UserSubscription[]
+  billingEvents   BillingEvent[]
+}
+
+model PushDevice {
+  id            String   @id @default(cuid())
+  userId        String
+  platform      String
+  expoPushToken String   @unique
+  appVersion    String?
+  lastSeenAt    DateTime @default(now())
+  disabledAt    DateTime?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+model UserSubscription {
+  id                    String   @id @default(cuid())
+  userId                String
+  planId                String
+  provider              String
+  billingCycle          String
+  status                String
+  providerCustomerRef   String?
+  providerSubscriptionRef String? @unique
+  providerCheckoutToken String?
+  startedAt             DateTime?
+  currentPeriodStart    DateTime?
+  currentPeriodEnd      DateTime?
+  cancelAtPeriodEnd     Boolean  @default(false)
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  plan Plan @relation(fields: [planId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([status])
+}
+
+model BillingEvent {
+  id             String   @id @default(cuid())
+  userId         String?
+  planId         String?
+  provider       String
+  eventType      String
+  payload        String
+  providerReference String?
+  processedAt    DateTime?
+  status         String   @default("pending")
+  createdAt      DateTime @default(now())
+
+  user User? @relation(fields: [userId], references: [id], onDelete: Cascade)
+  plan Plan? @relation(fields: [planId], references: [id], onDelete: SetNull)
+
+  @@index([provider, eventType])
+  @@index([userId])
 }

@@ -60,7 +60,7 @@ export default function MessagesScreen() {
       return res.data;
     },
     enabled: !!user,
-    refetchInterval: 6000,
+    refetchInterval: 60000,
     refetchIntervalInBackground: true,
   });
 

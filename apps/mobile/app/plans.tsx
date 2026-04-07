@@ -17,7 +17,7 @@ import { useAuth } from '../src/contexts/AuthContext';
 import { useThemeColors } from '../src/contexts/ThemeContext';
 import { Button, EmptyState } from '../src/components/ui';
 import { borderRadius, fontFamily, space } from '../src/theme';
-import type { Plan } from '../src/types';
+import type { BillingSnapshot, Plan } from '../src/types';
 import {
   enrichPlans,
   featureRows,
@@ -35,13 +35,24 @@ export default function PlansScreen() {
   const styles = useMemo(() => makeStyles(colors), [colors]);
   const [billingCycle, setBillingCycle] = useState<BillingCycle>('yearly');
 
-  const { data: rawPlans = [], isLoading, refetch, isRefetching } = useQuery<Plan[]>({
+  const {
+    data: rawPlans = [],
+    isLoading,
+    refetch,
+    isRefetching,
+  } = useQuery<Plan[]>({
     queryKey: ['plans'],
     queryFn: async () => (await api.get('/api/plans')).data,
   });
 
+  const { data: billingSnapshot } = useQuery<BillingSnapshot>({
+    queryKey: ['billing-subscription'],
+    queryFn: async () => (await api.get('/api/billing/subscription')).data,
+    enabled: !!user,
+  });
+
   const plans = useMemo(() => enrichPlans(rawPlans), [rawPlans]);
-  const currentSlug = user?.badge || 'free';
+  const currentSlug = billingSnapshot?.currentPlan?.slug || user?.badge || 'free';
   const comparison = useMemo(() => featureRows(plans), [plans]);
 
   if (isLoading) {
@@ -72,13 +83,20 @@ export default function PlansScreen() {
     <SafeAreaView style={styles.safe} edges={['bottom']}>
       <ScrollView
         contentContainerStyle={styles.content}
-        refreshControl={<RefreshControl refreshing={isRefetching} onRefresh={refetch} tintColor={colors.accent.DEFAULT} />}
+        refreshControl={
+          <RefreshControl
+            refreshing={isRefetching}
+            onRefresh={refetch}
+            tintColor={colors.accent.DEFAULT}
+          />
+        }
         showsVerticalScrollIndicator={false}
       >
         <View style={styles.hero}>
           <Text style={styles.heroTitle}>İşletmene uygun planı seç</Text>
           <Text style={styles.heroText}>
-            Web’deki plan anlatımını mobile taşıdık. Planları karşılaştırabilir, ardından mevcut abonelik ekranından kullanımını görebilirsin.
+            Planları karşılaştır, sonra iyzico ile güvenli ödeme akışından aboneliğini başlat
+            ya da mevcut planını yönet.
           </Text>
 
           <View style={styles.billingSwitch}>
@@ -94,8 +112,10 @@ export default function PlansScreen() {
                   onPress={() => setBillingCycle(value)}
                   activeOpacity={0.85}
                 >
-                  <Text style={[styles.billingBtnText, active && styles.billingBtnTextActive]}>{label}</Text>
-                  {value === 'yearly' && <Text style={styles.billingPromo}>2 ay bedava</Text>}
+                  <Text style={[styles.billingBtnText, active && styles.billingBtnTextActive]}>
+                    {label}
+                  </Text>
+                  {value === 'yearly' && <Text style={styles.billingPromo}>2 ay avantaj</Text>}
                 </TouchableOpacity>
               );
             })}
@@ -119,12 +139,19 @@ export default function PlansScreen() {
           {plans.map((plan) => {
             const active = plan.slug === currentSlug;
             const price = billingCycle === 'monthly' ? plan.priceMonthly : plan.priceYearly;
+            const planConfigured =
+              plan.slug === 'free' ||
+              Boolean(
+                billingCycle === 'monthly' ? plan.iyzicoMonthlyPlanRef : plan.iyzicoYearlyPlanRef,
+              );
+            const canCheckout = active || (billingSnapshot?.iyzicoConfigured && planConfigured);
+
             return (
               <View
                 key={plan.id}
                 style={[
                   styles.planCard,
-                  active && { borderColor: plan.meta.accent, backgroundColor: plan.meta.accentSoft + '55' },
+                  active && { borderColor: plan.meta.accent, backgroundColor: `${plan.meta.accentSoft}55` },
                 ]}
               >
                 {plan.meta.popular && (
@@ -150,7 +177,9 @@ export default function PlansScreen() {
                 </View>
 
                 {billingCycle === 'yearly' && price > 0 && (
-                  <Text style={styles.priceHint}>Aylık yaklaşık ₺{formatPlanPrice(Math.round(price / 12))}</Text>
+                  <Text style={styles.priceHint}>
+                    Aylık yaklaşık ₺{formatPlanPrice(Math.round(price / 12))}
+                  </Text>
                 )}
 
                 <View style={styles.featureList}>
@@ -161,16 +190,32 @@ export default function PlansScreen() {
                     plan.responseTime || 'Standart destek',
                   ].map((feature) => (
                     <View key={feature} style={styles.featureRow}>
-                      <Ionicons name="checkmark-circle" size={15} color={colors.success.DEFAULT} />
+                      <Ionicons
+                        name="checkmark-circle"
+                        size={15}
+                        color={colors.success.DEFAULT}
+                      />
                       <Text style={styles.featureText}>{feature}</Text>
                     </View>
                   ))}
                 </View>
 
                 <Button
-                  title={active ? 'Mevcut Planın' : 'Planı İncele'}
+                  title={
+                    active
+                      ? 'Mevcut Planın'
+                      : canCheckout
+                        ? 'Planı Seç'
+                        : 'Yapılandırma Bekleniyor'
+                  }
                   variant={active ? 'secondary' : 'primary'}
-                  onPress={() => router.push({ pathname: '/subscription', params: { plan: plan.slug } } as any)}
+                  disabled={!active && !canCheckout}
+                  onPress={() =>
+                    router.push({
+                      pathname: '/subscription',
+                      params: { plan: plan.slug, cycle: billingCycle },
+                    } as any)
+                  }
                   fullWidth
                 />
               </View>
@@ -228,6 +273,16 @@ export default function PlansScreen() {
             ))}
           </View>
         </View>
+
+        {!billingSnapshot?.iyzicoConfigured && (
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Ödeme kurulumu bekleniyor</Text>
+            <Text style={styles.heroText}>
+              Bu ortamda iyzico erişim bilgileri tanımlı değilse planları görebilir ama ödeme
+              başlatamazsın.
+            </Text>
+          </View>
+        )}
       </ScrollView>
     </SafeAreaView>
   );

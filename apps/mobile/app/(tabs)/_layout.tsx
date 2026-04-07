@@ -43,7 +43,7 @@ export default function TabsLayout() {
       return data;
     },
     enabled: !!user,
-    refetchInterval: 10000,
+    refetchInterval: 60000,
   });
 
   const unreadMessages = unread.messages ?? 0;
@@ -96,7 +96,7 @@ export default function TabsLayout() {
       <Tabs.Screen
         name="create"
         options={{
-          title: 'Ilan',
+          title: 'İlan',
           tabBarIcon: ({ color, focused }) => (
             <View style={[styles.iconWrap, focused && { backgroundColor: colors.accent.lighter }]}>
               <Ionicons name={focused ? 'add-circle' : 'add-circle-outline'} size={22} color={color} />

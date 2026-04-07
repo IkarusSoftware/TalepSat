@@ -1,4 +1,4 @@
-import { useEffect, useCallback } from 'react';
+﻿import { useEffect, useCallback } from 'react';
 import { Stack, useRouter, useSegments } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
@@ -15,6 +15,8 @@ import {
 } from '@expo-google-fonts/plus-jakarta-sans';
 import { AuthProvider, useAuth } from '../src/contexts/AuthContext';
 import { ThemeProvider, useTheme } from '../src/contexts/ThemeContext';
+import { PushProvider } from '../src/providers/PushProvider';
+import { RealtimeProvider } from '../src/providers/RealtimeProvider';
 import { fontFamily } from '../src/theme';
 
 SplashScreen.preventAutoHideAsync();
@@ -57,10 +59,26 @@ function RootNavigator() {
         <Stack.Screen name="(auth)" />
         <Stack.Screen name="(tabs)" />
         <Stack.Screen
+          name="dashboard"
+          options={{
+            headerShown: true,
+            headerTitle: 'İlanlarım',
+            headerBackTitle: 'Geri',
+          }}
+        />
+        <Stack.Screen
           name="listing/[id]"
           options={{
             headerShown: true,
             headerTitle: 'İlan Detayı',
+            headerBackTitle: 'Geri',
+          }}
+        />
+        <Stack.Screen
+          name="listing-edit/[id]"
+          options={{
+            headerShown: true,
+            headerTitle: 'İlanı Düzenle',
             headerBackTitle: 'Geri',
           }}
         />
@@ -210,7 +228,11 @@ function AppContent() {
 
   return (
     <AuthProvider>
-      <RootNavigator />
+      <PushProvider>
+        <RealtimeProvider>
+          <RootNavigator />
+        </RealtimeProvider>
+      </PushProvider>
     </AuthProvider>
   );
 }

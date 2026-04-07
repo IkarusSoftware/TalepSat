@@ -1,10 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
 import bcrypt from 'bcryptjs';
 import { prisma } from '@/lib/prisma';
+import { consumeRateLimit, createRateLimitResponse } from '@/lib/rate-limit';
+import { getClientIp, hashOpaqueToken } from '@/lib/security';
 
 export async function POST(req: NextRequest) {
   try {
     const { token, password } = await req.json();
+    const ip = getClientIp(req);
 
     if (!token || !password || typeof token !== 'string' || typeof password !== 'string') {
       return NextResponse.json(
@@ -13,10 +16,31 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    if (password.length < 8) {
+      return NextResponse.json(
+        { error: 'Yeni sifre en az 8 karakter olmali.' },
+        { status: 400 }
+      );
+    }
+
+    const ipLimit = consumeRateLimit({
+      key: `reset-password:ip:${ip}`,
+      limit: 10,
+      windowMs: 15 * 60 * 1000,
+    });
+    if (!ipLimit.success) {
+      return createRateLimitResponse(ipLimit, 'Cok fazla sifre guncelleme denemesi yapildi.');
+    }
+
+    const tokenHash = hashOpaqueToken(token);
+
     // Find a valid, unused, non-expired token
     const resetToken = await prisma.passwordResetToken.findFirst({
       where: {
-        token,
+        OR: [
+          { token: tokenHash },
+          { token },
+        ],
         used: false,
         expiresAt: { gt: new Date() },
       },
@@ -38,8 +62,8 @@ export async function POST(req: NextRequest) {
         where: { id: resetToken.userId },
         data: { hashedPassword },
       }),
-      prisma.passwordResetToken.update({
-        where: { id: resetToken.id },
+      prisma.passwordResetToken.updateMany({
+        where: { userId: resetToken.userId, used: false },
         data: { used: true },
       }),
     ]);

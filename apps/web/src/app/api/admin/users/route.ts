@@ -12,7 +12,8 @@ export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
   const search = searchParams.get('search') || '';
   const tab    = searchParams.get('status') || 'all';
-  const limit  = parseInt(searchParams.get('limit') || '100');
+  const requestedLimit = parseInt(searchParams.get('limit') || '100', 10);
+  const limit  = Number.isFinite(requestedLimit) ? Math.min(Math.max(requestedLimit, 1), 200) : 100;
   const sort   = searchParams.get('sort') || 'recent';
 
   const where: Record<string, unknown> = {};
@@ -28,6 +29,7 @@ export async function GET(req: NextRequest) {
   if (tab === 'unverified') where.verified = false;
   if (tab === 'banned')     where.status = 'banned';
   if (tab === 'suspended')  where.status = 'suspended';
+  if (tab === 'deactivated') where.status = 'deactivated';
 
   const users = await prisma.user.findMany({
     where,
@@ -96,6 +98,9 @@ export async function PATCH(req: NextRequest) {
       await prisma.user.update({ where: { id: userId }, data: { status: 'suspended' } });
       break;
     case 'unsuspend':
+      await prisma.user.update({ where: { id: userId }, data: { status: 'active' } });
+      break;
+    case 'reactivate':
       await prisma.user.update({ where: { id: userId }, data: { status: 'active' } });
       break;
     case 'setBadge': {

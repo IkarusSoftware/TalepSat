@@ -7,17 +7,19 @@ import {
   TouchableOpacity,
   ActivityIndicator,
   Linking,
+  Alert,
+  RefreshControl,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import Ionicons from '@expo/vector-icons/Ionicons';
-import { useQuery } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import api from '../src/lib/api';
 import { useAuth } from '../src/contexts/AuthContext';
 import { useThemeColors } from '../src/contexts/ThemeContext';
 import { Button, EmptyState } from '../src/components/ui';
 import { borderRadius, fontFamily, space } from '../src/theme';
-import type { Plan } from '../src/types';
+import type { BillingSnapshot, Plan } from '../src/types';
 import {
   enrichPlans,
   formatPlanPrice,
@@ -25,37 +27,133 @@ import {
   planLabel,
 } from '../src/features/plan-catalog';
 
-type UsageData = {
-  listingCount?: number;
-  totalOffers?: number;
-  acceptedOffers?: number;
-  reviewCount?: number;
-};
+type BillingCycle = 'monthly' | 'yearly';
+
+function formatDate(value?: string | null) {
+  if (!value) return 'Belirlenmedi';
+  return new Date(value).toLocaleDateString('tr-TR', {
+    day: 'numeric',
+    month: 'long',
+    year: 'numeric',
+  });
+}
+
+function statusLabel(status?: string | null) {
+  switch (status) {
+    case 'active':
+      return 'Aktif';
+    case 'pending':
+      return 'Beklemede';
+    case 'canceled':
+      return 'İptal edildi';
+    case 'past_due':
+      return 'Ödeme bekliyor';
+    case 'expired':
+      return 'Sona erdi';
+    default:
+      return 'Free';
+  }
+}
 
 export default function SubscriptionScreen() {
   const router = useRouter();
-  const { plan: selectedPlanSlug } = useLocalSearchParams<{ plan?: string }>();
+  const queryClient = useQueryClient();
+  const { plan: selectedPlanSlug, cycle } = useLocalSearchParams<{ plan?: string; cycle?: BillingCycle }>();
   const { user } = useAuth();
   const colors = useThemeColors();
   const styles = useMemo(() => makeStyles(colors), [colors]);
 
-  const { data: rawPlans = [], isLoading: plansLoading } = useQuery<Plan[]>({
+  const {
+    data: rawPlans = [],
+    isLoading: plansLoading,
+    refetch: refetchPlans,
+    isRefetching: plansRefetching,
+  } = useQuery<Plan[]>({
     queryKey: ['plans'],
     queryFn: async () => (await api.get('/api/plans')).data,
   });
 
-  const { data: usage, isLoading: usageLoading } = useQuery<UsageData>({
-    queryKey: ['subscription-usage', user?.id],
-    queryFn: async () => (await api.get(`/api/users/${user?.id}`)).data,
-    enabled: !!user?.id,
+  const {
+    data: billingSnapshot,
+    isLoading: billingLoading,
+    refetch: refetchBilling,
+    isRefetching: billingRefetching,
+  } = useQuery<BillingSnapshot>({
+    queryKey: ['billing-subscription'],
+    queryFn: async () => (await api.get('/api/billing/subscription')).data,
+    enabled: !!user,
   });
 
   const plans = useMemo(() => enrichPlans(rawPlans), [rawPlans]);
-  const currentPlanSlug = user?.badge || 'free';
+  const currentPlanSlug = billingSnapshot?.currentPlan?.slug || user?.badge || 'free';
   const currentPlan = plans.find((item) => item.slug === currentPlanSlug) || plans[0];
-  const selectedPlan = plans.find((item) => item.slug === selectedPlanSlug);
+  const selectedPlan = plans.find((item) => item.slug === selectedPlanSlug) || null;
+  const selectedCycle: BillingCycle = cycle === 'monthly' ? 'monthly' : 'yearly';
+  const focusPlan = selectedPlan || currentPlan;
+  const activeSubscription = billingSnapshot?.subscription;
 
-  if (plansLoading || usageLoading) {
+  const refreshAll = async () => {
+    await Promise.all([refetchPlans(), refetchBilling()]);
+  };
+
+  const checkoutMutation = useMutation({
+    mutationFn: async () =>
+      (
+        await api.post('/api/billing/checkout', {
+          planSlug: focusPlan?.slug,
+          billingCycle: selectedCycle,
+        })
+      ).data as { checkoutUrl?: string; message?: string; mode?: string },
+    onSuccess: async (data) => {
+      await refetchBilling();
+      queryClient.invalidateQueries({ queryKey: ['seller-analytics'] });
+      queryClient.invalidateQueries({ queryKey: ['plans'] });
+      if (data.mode === 'noop') {
+        Alert.alert('Plan zaten aktif', data.message || 'Mevcut planın zaten kullanılıyor.');
+        return;
+      }
+      if (!data.checkoutUrl) {
+        Alert.alert('Hazırlanamadı', 'Ödeme bağlantısı oluşturulamadı.');
+        return;
+      }
+      await Linking.openURL(data.checkoutUrl).catch(() => {
+        Alert.alert('Açılamadı', 'Ödeme bağlantısı açılamadı.');
+      });
+    },
+    onError: (error: any) => {
+      Alert.alert('Ödeme başlatılamadı', error?.response?.data?.error || 'Bir hata oluştu.');
+    },
+  });
+
+  const cancelMutation = useMutation({
+    mutationFn: async () => (await api.post('/api/billing/cancel')).data,
+    onSuccess: async () => {
+      await refetchBilling();
+      queryClient.invalidateQueries({ queryKey: ['auth-user'] });
+      queryClient.invalidateQueries({ queryKey: ['seller-analytics'] });
+      queryClient.invalidateQueries({ queryKey: ['plans'] });
+      Alert.alert('İptal planlandı', 'Aboneliğin dönem sonunda sona erecek.');
+    },
+    onError: (error: any) => {
+      Alert.alert('İşlem başarısız', error?.response?.data?.error || 'İptal isteği tamamlanamadı.');
+    },
+  });
+
+  const resumeMutation = useMutation({
+    mutationFn: async () => (await api.post('/api/billing/resume')).data,
+    onSuccess: async () => {
+      await refetchBilling();
+      queryClient.invalidateQueries({ queryKey: ['auth-user'] });
+      queryClient.invalidateQueries({ queryKey: ['seller-analytics'] });
+      queryClient.invalidateQueries({ queryKey: ['plans'] });
+      Alert.alert('Abonelik devam ediyor', 'Otomatik yenileme yeniden açıldı.');
+    },
+    onError: (error: any) => {
+      Alert.alert('İşlem başarısız', error?.response?.data?.error || 'Devam ettirme isteği tamamlanamadı.');
+    },
+  });
+
+  if (plansLoading || billingLoading) {
     return (
       <SafeAreaView style={styles.safe} edges={['bottom']}>
         <View style={styles.center}>
@@ -65,28 +163,46 @@ export default function SubscriptionScreen() {
     );
   }
 
-  if (!currentPlan) {
+  if (!currentPlan || !billingSnapshot) {
     return (
       <SafeAreaView style={styles.safe} edges={['bottom']}>
         <View style={styles.center}>
           <EmptyState
             icon="card-outline"
             title="Abonelik bilgisi bulunamadı"
-            subtitle="Plan verisi şu an yüklenemedi. Biraz sonra tekrar deneyebilirsin."
+            subtitle="Plan veya abonelik verisi şu an yüklenemedi. Biraz sonra tekrar deneyebilirsin."
           />
         </View>
       </SafeAreaView>
     );
   }
 
-  const offersUsed = usage?.totalOffers || 0;
+  const offersUsed = billingSnapshot.usage.totalOffers || 0;
   const offersLimit = currentPlan.offersPerMonth;
   const offersRatio = offersLimit ? Math.min(offersUsed / offersLimit, 1) : 0.14;
+  const price =
+    focusPlan && selectedCycle === 'yearly' ? focusPlan.priceYearly : focusPlan?.priceMonthly || 0;
+  const canCheckout =
+    focusPlan &&
+    focusPlan.slug !== 'free' &&
+    billingSnapshot.iyzicoConfigured &&
+    (selectedCycle === 'monthly' ? focusPlan.iyzicoMonthlyPlanRef : focusPlan.iyzicoYearlyPlanRef);
+  const missingProfileFields = billingSnapshot.requiredProfileFields;
 
   return (
     <SafeAreaView style={styles.safe} edges={['bottom']}>
-      <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
-        <View style={[styles.hero, { borderColor: currentPlan.meta.accent + '35' }]}>
+      <ScrollView
+        contentContainerStyle={styles.content}
+        refreshControl={
+          <RefreshControl
+            refreshing={plansRefetching || billingRefetching}
+            onRefresh={refreshAll}
+            tintColor={colors.accent.DEFAULT}
+          />
+        }
+        showsVerticalScrollIndicator={false}
+      >
+        <View style={[styles.hero, { borderColor: `${currentPlan.meta.accent}35` }]}>
           <View style={[styles.heroIcon, { backgroundColor: currentPlan.meta.accentSoft }]}>
             <Ionicons name={currentPlan.meta.icon} size={26} color={currentPlan.meta.accent} />
           </View>
@@ -94,7 +210,11 @@ export default function SubscriptionScreen() {
           <View style={styles.heroBody}>
             <Text style={styles.overline}>Aktif plan</Text>
             <Text style={styles.heroTitle}>{currentPlan.name} Plan</Text>
-            <Text style={styles.heroText}>{currentPlan.meta.description}</Text>
+            <Text style={styles.heroText}>
+              {activeSubscription
+                ? `${statusLabel(activeSubscription.status)} • ${activeSubscription.billingCycle === 'yearly' ? 'Yıllık' : 'Aylık'} faturalama`
+                : 'Şu anda ücretsiz plandasın. İstersen hemen ücretli plana geçebilirsin.'}
+            </Text>
           </View>
 
           <View style={styles.heroPriceWrap}>
@@ -105,13 +225,13 @@ export default function SubscriptionScreen() {
           </View>
         </View>
 
-        {selectedPlan && selectedPlan.slug !== currentPlan.slug && (
+        {focusPlan && focusPlan.slug !== currentPlan.slug && (
           <View style={styles.noticeCard}>
             <Ionicons name="sparkles-outline" size={18} color={colors.accent.DEFAULT} />
             <View style={{ flex: 1 }}>
-              <Text style={styles.noticeTitle}>{selectedPlan.name} planını inceliyorsun</Text>
+              <Text style={styles.noticeTitle}>{focusPlan.name} planına geçiş hazırlığı</Text>
               <Text style={styles.noticeText}>
-                Ödeme entegrasyonu henüz aktif değil. Yükseltme akışı hazır olduğunda bu ekrandan gerçek işlemi yönetebileceksin.
+                {price === 0 ? 'Ücretsiz plan için ödeme gerekmez.' : `${selectedCycle === 'yearly' ? 'Yıllık' : 'Aylık'} ücret: ₺${formatPlanPrice(price)}`}
               </Text>
             </View>
           </View>
@@ -138,15 +258,15 @@ export default function SubscriptionScreen() {
 
           <View style={styles.summaryGrid}>
             <View style={styles.summaryCard}>
-              <Text style={styles.summaryValue}>{usage?.listingCount || 0}</Text>
+              <Text style={styles.summaryValue}>{billingSnapshot.usage.listingCount || 0}</Text>
               <Text style={styles.summaryLabel}>İlan</Text>
             </View>
             <View style={styles.summaryCard}>
-              <Text style={styles.summaryValue}>{usage?.acceptedOffers || 0}</Text>
+              <Text style={styles.summaryValue}>{billingSnapshot.usage.acceptedOffers || 0}</Text>
               <Text style={styles.summaryLabel}>Kabul</Text>
             </View>
             <View style={styles.summaryCard}>
-              <Text style={styles.summaryValue}>{usage?.reviewCount || 0}</Text>
+              <Text style={styles.summaryValue}>{billingSnapshot.usage.reviewCount || 0}</Text>
               <Text style={styles.summaryLabel}>Değerlendirme</Text>
             </View>
           </View>
@@ -155,7 +275,7 @@ export default function SubscriptionScreen() {
         <View style={styles.card}>
           <Text style={styles.cardTitle}>Plan özellikleri</Text>
           <View style={styles.featureList}>
-            {includedFeatures(currentPlan).map((feature) => (
+            {includedFeatures(focusPlan || currentPlan).map((feature) => (
               <View key={feature} style={styles.featureRow}>
                 <Ionicons name="checkmark-circle" size={16} color={colors.success.DEFAULT} />
                 <Text style={styles.featureText}>{feature}</Text>
@@ -165,19 +285,107 @@ export default function SubscriptionScreen() {
         </View>
 
         <View style={styles.card}>
-          <Text style={styles.cardTitle}>Ödeme</Text>
-          <View style={styles.paymentCard}>
-            <Ionicons name="card-outline" size={24} color={colors.textTertiary} />
-            <Text style={styles.paymentTitle}>Ödeme entegrasyonu yakında aktif olacak</Text>
-            <Text style={styles.paymentText}>
-              Web tarafındaki mevcut durumu koruyoruz. Şimdilik plan yükseltme ve tahsilat akışı bilgilendirme seviyesinde.
-            </Text>
-            <Button
-              title="Destek ile iletişime geç"
-              variant="secondary"
-              onPress={() => Linking.openURL('mailto:destek@talepsat.com?subject=Plan%20Yukseltme').catch(() => {})}
-              fullWidth
+          <Text style={styles.cardTitle}>Abonelik durumu</Text>
+          <View style={styles.infoCard}>
+            <InfoRow label="Plan etiketi" value={planLabel(currentPlanSlug)} />
+            <InfoRow
+              label="Durum"
+              value={activeSubscription ? statusLabel(activeSubscription.status) : 'Ücretsiz'}
             />
+            <InfoRow
+              label="Dönem sonu"
+              value={activeSubscription?.currentPeriodEnd ? formatDate(activeSubscription.currentPeriodEnd) : '—'}
+            />
+            <InfoRow
+              label="Otomatik yenileme"
+              value={
+                activeSubscription
+                  ? activeSubscription.cancelAtPeriodEnd
+                    ? 'Kapalı'
+                    : 'Açık'
+                  : 'Yok'
+              }
+            />
+          </View>
+
+          {missingProfileFields.length > 0 && (
+            <View style={styles.warningCard}>
+              <Ionicons name="warning-outline" size={18} color={colors.warning.DEFAULT} />
+              <View style={{ flex: 1 }}>
+                <Text style={styles.warningTitle}>Ödeme öncesi profilini tamamla</Text>
+                <Text style={styles.warningText}>
+                  iyzico için şu alanlar gerekli: {missingProfileFields.join(', ')}.
+                </Text>
+              </View>
+            </View>
+          )}
+
+          {!billingSnapshot.iyzicoConfigured && (
+            <View style={styles.warningCard}>
+              <Ionicons name="construct-outline" size={18} color={colors.warning.DEFAULT} />
+              <View style={{ flex: 1 }}>
+                <Text style={styles.warningTitle}>Ödeme ortamı hazır değil</Text>
+                <Text style={styles.warningText}>
+                  Bu ortamda iyzico anahtarları tanımlı olmadığı için checkout başlatılamıyor.
+                </Text>
+              </View>
+            </View>
+          )}
+
+          <View style={styles.actionStack}>
+            {focusPlan && focusPlan.slug !== currentPlan.slug && focusPlan.slug !== 'free' && (
+              <Button
+                title="iyzico ile devam et"
+                onPress={() => {
+                  if (missingProfileFields.length > 0) {
+                    Alert.alert(
+                      'Profil eksik',
+                      `Önce şu alanları tamamla: ${missingProfileFields.join(', ')}`,
+                      [
+                        { text: 'Sonra', style: 'cancel' },
+                        { text: 'Ayarlara git', onPress: () => router.push('/settings' as any) },
+                      ],
+                    );
+                    return;
+                  }
+                  checkoutMutation.mutate();
+                }}
+                disabled={!canCheckout}
+                loading={checkoutMutation.isPending}
+                icon={<Ionicons name="card-outline" size={16} color={colors.white} />}
+                fullWidth
+              />
+            )}
+
+            {focusPlan?.slug === 'free' && focusPlan.slug !== currentPlan.slug && activeSubscription && !activeSubscription.cancelAtPeriodEnd && (
+              <Button
+                title="Dönem sonunda free plana dön"
+                variant="secondary"
+                onPress={() => cancelMutation.mutate()}
+                loading={cancelMutation.isPending}
+                fullWidth
+              />
+            )}
+
+            {activeSubscription && !activeSubscription.cancelAtPeriodEnd && (
+              <Button
+                title="Dönem sonunda iptal et"
+                variant="secondary"
+                onPress={() => cancelMutation.mutate()}
+                loading={cancelMutation.isPending}
+                fullWidth
+              />
+            )}
+
+            {activeSubscription?.cancelAtPeriodEnd && (
+              <Button
+                title="Otomatik yenilemeyi aç"
+                variant="secondary"
+                onPress={() => resumeMutation.mutate()}
+                loading={resumeMutation.isPending}
+                fullWidth
+              />
+            )}
           </View>
         </View>
 
@@ -206,13 +414,17 @@ export default function SubscriptionScreen() {
             )}
           </View>
         </View>
-
-        <View style={styles.footerNote}>
-          <Text style={styles.footerNoteLabel}>Plan etiketi</Text>
-          <Text style={styles.footerNoteValue}>{planLabel(currentPlanSlug)}</Text>
-        </View>
       </ScrollView>
     </SafeAreaView>
+  );
+}
+
+function InfoRow({ label, value }: { label: string; value: string }) {
+  return (
+    <View style={stylesStatic.infoRow}>
+      <Text style={stylesStatic.infoLabel}>{label}</Text>
+      <Text style={stylesStatic.infoValue}>{value}</Text>
+    </View>
   );
 }
 
@@ -242,6 +454,9 @@ const stylesStatic = StyleSheet.create({
   quickLink: { flexDirection: 'row', alignItems: 'center', gap: space.md, paddingVertical: space.sm + 2 },
   quickIcon: { width: 38, height: 38, borderRadius: borderRadius.md, alignItems: 'center', justifyContent: 'center' },
   quickLabel: { flex: 1, fontSize: 15, fontFamily: fontFamily.medium },
+  infoRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: space.md },
+  infoLabel: { fontSize: 13, fontFamily: fontFamily.medium, color: '#6b7280' },
+  infoValue: { fontSize: 13, fontFamily: fontFamily.bold, color: '#111827' },
 });
 
 const makeStyles = (colors: any) => StyleSheet.create({
@@ -313,22 +528,22 @@ const makeStyles = (colors: any) => StyleSheet.create({
   featureList: { gap: 10 },
   featureRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   featureText: { flex: 1, fontSize: 14, fontFamily: fontFamily.medium, color: colors.textPrimary },
-  paymentCard: {
-    alignItems: 'center',
+  infoCard: {
     gap: space.sm,
-    padding: space.lg,
+    padding: space.md,
     borderRadius: borderRadius.lg,
     backgroundColor: colors.surfaceRaised,
   },
-  paymentTitle: { fontSize: 16, fontFamily: fontFamily.semiBold, color: colors.textPrimary, textAlign: 'center' },
-  paymentText: { fontSize: 13, lineHeight: 20, fontFamily: fontFamily.regular, color: colors.textSecondary, textAlign: 'center' },
-  quickList: { gap: 4 },
-  footerNote: {
+  warningCard: {
     flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: space.sm,
+    alignItems: 'flex-start',
+    gap: space.sm,
+    padding: space.md,
+    borderRadius: borderRadius.lg,
+    backgroundColor: colors.warning.lighter,
   },
-  footerNoteLabel: { fontSize: 12, fontFamily: fontFamily.medium, color: colors.textTertiary, textTransform: 'uppercase' },
-  footerNoteValue: { fontSize: 13, fontFamily: fontFamily.bold, color: colors.textPrimary },
+  warningTitle: { fontSize: 14, fontFamily: fontFamily.semiBold, color: colors.textPrimary },
+  warningText: { fontSize: 12, lineHeight: 18, fontFamily: fontFamily.regular, color: colors.textSecondary, marginTop: 4 },
+  actionStack: { gap: space.sm },
+  quickList: { gap: 4 },
 });

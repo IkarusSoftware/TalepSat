@@ -35,7 +35,7 @@ function mapNotificationLink(link?: string | null) {
   if (link.startsWith('/listing/')) return link;
   if (link === '/orders') return '/orders';
   if (link.startsWith('/offers/')) return link.replace('/offers/', '/offer/');
-  if (link.startsWith('/dashboard')) return '/(tabs)';
+  if (link.startsWith('/dashboard')) return '/dashboard';
   return null;
 }
 
@@ -84,7 +84,7 @@ export default function NotificationsScreen() {
       return data;
     },
     enabled: !!user,
-    refetchInterval: 15000,
+    refetchInterval: 60000,
   });
 
   const markAllRead = useMutation({

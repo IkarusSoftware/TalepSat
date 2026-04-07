@@ -7,6 +7,7 @@ import {
   Bell, MessageSquare, CheckCircle, XCircle, ArrowRightLeft,
   Clock, Settings, Check, Loader2,
 } from 'lucide-react';
+import { realtimeWindowEventName } from '@/components/realtime-provider';
 
 function timeAgo(date: string) {
   const diff = Date.now() - new Date(date).getTime();
@@ -50,10 +51,28 @@ export default function NotificationsPage() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    fetch('/api/notifications')
-      .then((r) => r.json())
-      .then((data) => setNotifications(Array.isArray(data) ? data : []))
-      .finally(() => setLoading(false));
+    const fetchNotifications = () => {
+      fetch('/api/notifications')
+        .then((r) => r.json())
+        .then((data) => setNotifications(Array.isArray(data) ? data : []))
+        .finally(() => setLoading(false));
+    };
+
+    const handleRealtime = (event: Event) => {
+      const detail = (event as CustomEvent<{ type?: string }>).detail;
+      if (!detail?.type) return;
+
+      if (['notification.created', 'notification.read', 'offer.updated', 'order.updated'].includes(detail.type)) {
+        fetchNotifications();
+      }
+    };
+
+    fetchNotifications();
+    window.addEventListener(realtimeWindowEventName, handleRealtime);
+
+    return () => {
+      window.removeEventListener(realtimeWindowEventName, handleRealtime);
+    };
   }, []);
 
   const filtered = useMemo(() => {

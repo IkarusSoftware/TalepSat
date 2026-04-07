@@ -166,13 +166,48 @@ export interface Plan {
   name: string;
   priceMonthly: number;
   priceYearly: number;
+  iyzicoMonthlyPlanRef?: string | null;
+  iyzicoYearlyPlanRef?: string | null;
   offersPerMonth: number | null;
   boostPerMonth: number | null;
   maxListings: number | null;
   analytics: boolean;
+  analyticsTier: 'none' | 'basic' | 'plus' | 'pro';
   prioritySupport: boolean;
   verifiedBadge: boolean;
   customProfile?: boolean;
   responseTime?: string;
   sortOrder?: number;
+}
+
+export interface BillingSubscription {
+  id: string;
+  status: string;
+  billingCycle: 'monthly' | 'yearly' | string;
+  provider: string;
+  providerCustomerRef?: string | null;
+  providerSubscriptionRef?: string | null;
+  providerCheckoutToken?: string | null;
+  startedAt?: string | null;
+  currentPeriodStart?: string | null;
+  currentPeriodEnd?: string | null;
+  cancelAtPeriodEnd: boolean;
+  createdAt: string;
+  updatedAt: string;
+  plan: Plan;
+}
+
+export interface BillingSnapshot {
+  badge: string | null;
+  currentPlan: Plan | null;
+  subscription: BillingSubscription | null;
+  usage: {
+    listingCount: number;
+    totalOffers: number;
+    acceptedOffers: number;
+    reviewCount: number;
+  };
+  requiredProfileFields: string[];
+  iyzicoConfigured: boolean;
+  pushConfigured?: boolean;
 }

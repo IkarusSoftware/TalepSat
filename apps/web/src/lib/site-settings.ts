@@ -21,6 +21,14 @@ export type SiteSettings = {
   commission_rate: number;
   email_notifications_enabled: boolean;
   admin_notification_email: string;
+  smtp_host: string;
+  smtp_port: number;
+  smtp_secure: boolean;
+  smtp_user: string;
+  smtp_pass: string;
+  smtp_from_email: string;
+  smtp_from_name: string;
+  smtp_reply_to: string;
   seo_title: string;
   seo_description: string;
   seo_og_image: string;
@@ -65,6 +73,14 @@ export const DEFAULT_SITE_SETTINGS: SiteSettings = {
   commission_rate: 0,
   email_notifications_enabled: true,
   admin_notification_email: '',
+  smtp_host: '',
+  smtp_port: 587,
+  smtp_secure: false,
+  smtp_user: '',
+  smtp_pass: '',
+  smtp_from_email: '',
+  smtp_from_name: 'TalepSat',
+  smtp_reply_to: '',
   seo_title: '',
   seo_description: '',
   seo_og_image: '',

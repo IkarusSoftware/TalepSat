@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+﻿import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, KeyboardAvoidingView,
   Platform, ActivityIndicator, Modal, Pressable, Alert, Image, Linking,
@@ -6,18 +6,21 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import * as ImagePicker from 'expo-image-picker';
+import * as DocumentPicker from 'expo-document-picker';
 import { setAudioModeAsync, useAudioPlayer } from 'expo-audio';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import api from '../../src/lib/api';
 import { useAuth } from '../../src/contexts/AuthContext';
 import { useThemeColors } from '../../src/contexts/ThemeContext';
+import { normalizeAppAttachments, resolveAppMediaUrl } from '../../src/lib/media';
 import { Button } from '../../src/components/ui';
 import { Conversation, Message, MessageAttachment } from '../../src/types';
 import { borderRadius, fontFamily, space } from '../../src/theme';
 
 type ChatMessage = Message & { sender?: { id: string; name: string } };
 type ReportReason = 'spam' | 'harassment' | 'fraud' | 'inappropriate' | 'other';
+type UploadAsset = { uri: string; name: string; type: string; size: number };
 
 const AVATARS = ['#10b981', '#3b82f6', '#8b5cf6', '#ef4444', '#f59e0b', '#06b6d4'];
 
@@ -55,26 +58,39 @@ export default function ConversationScreen() {
   const lastIncomingMessageIdRef = useRef<string | null>(null);
   const [draft, setDraft] = useState('');
   const [menuOpen, setMenuOpen] = useState(false);
+  const [attachmentSheetOpen, setAttachmentSheetOpen] = useState(false);
   const [reportOpen, setReportOpen] = useState(false);
   const [reportReason, setReportReason] = useState<ReportReason | null>(null);
   const [reportDetail, setReportDetail] = useState('');
-  const [uploading, setUploading] = useState(false);
+  const [uploadingLabel, setUploadingLabel] = useState<string | null>(null);
   const messagePlayer = useAudioPlayer(require('../../assets/sounds/message-in.wav'));
 
   const { data: conversations = [] } = useQuery<Conversation[]>({
     queryKey: ['conversations'],
-    queryFn: async () => (await api.get('/api/conversations')).data,
+    queryFn: async () => {
+      const data = (await api.get('/api/conversations')).data as Conversation[];
+      return data.map((item) => ({
+        ...item,
+        participantImage: resolveAppMediaUrl(item.participantImage ?? null),
+      }));
+    },
     enabled: !!user,
-    refetchInterval: 5000,
+    refetchInterval: 60000,
   });
 
   const conversation = useMemo(() => conversations.find((item) => item.id === id) || null, [conversations, id]);
 
   const { data: messages = [], isLoading } = useQuery<ChatMessage[]>({
     queryKey: ['conversation-messages', id],
-    queryFn: async () => (await api.get(`/api/conversations/${id}/messages`)).data,
+    queryFn: async () => {
+      const data = (await api.get(`/api/conversations/${id}/messages`)).data as ChatMessage[];
+      return data.map((message) => ({
+        ...message,
+        attachments: normalizeAppAttachments(message.attachments),
+      }));
+    },
     enabled: !!id && !!user,
-    refetchInterval: 2000,
+    refetchInterval: 60000,
   });
 
   useEffect(() => {
@@ -165,7 +181,35 @@ export default function ConversationScreen() {
     await sendMessage.mutateAsync({ text });
   }
 
+  async function uploadSelectedAssets(assets: UploadAsset[], loadingLabel: string, fallbackError: string) {
+    if (!assets.length) return;
+
+    const formData = new FormData();
+    assets.forEach((asset) => {
+      formData.append('files', asset as any);
+    });
+
+    setUploadingLabel(loadingLabel);
+    try {
+      const { data } = await api.post('/api/upload', formData, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      });
+      const attachments = assets.map((item, index) => ({
+        name: item.name,
+        type: item.type,
+        size: item.size,
+        url: data.urls[index],
+      }));
+      await sendMessage.mutateAsync({ attachments });
+    } catch (error: any) {
+      Alert.alert('Hata', error?.response?.data?.error || fallbackError);
+    } finally {
+      setUploadingLabel(null);
+    }
+  }
+
   async function handlePickImages() {
+    setAttachmentSheetOpen(false);
     const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (!permission.granted) {
       Alert.alert('İzin gerekli', 'Görsel göndermek için galeri izni vermen gerekiyor.');
@@ -179,26 +223,45 @@ export default function ConversationScreen() {
     });
     if (result.canceled || !result.assets?.length) return;
 
-    const formData = new FormData();
-    const meta = result.assets.map((asset, index) => {
-      const name = asset.fileName || `image-${Date.now()}-${index}.jpg`;
-      const type = asset.mimeType || 'image/jpeg';
-      formData.append('files', { uri: asset.uri, name, type } as any);
-      return { name, type, size: asset.fileSize || 0 };
-    });
+    const assets: UploadAsset[] = result.assets.map((asset, index) => ({
+      uri: asset.uri,
+      name: asset.fileName || `image-${Date.now()}-${index}.jpg`,
+      type: asset.mimeType || 'image/jpeg',
+      size: asset.fileSize || 0,
+    }));
 
-    setUploading(true);
-    try {
-      const { data } = await api.post('/api/upload', formData, {
-        headers: { 'Content-Type': 'multipart/form-data' },
-      });
-      const attachments = meta.map((item, index) => ({ ...item, url: data.urls[index] }));
-      await sendMessage.mutateAsync({ attachments });
-    } catch (error: any) {
-      Alert.alert('Hata', error?.response?.data?.error || 'Görsel yüklenemedi.');
-    } finally {
-      setUploading(false);
-    }
+    await uploadSelectedAssets(assets, 'Görsel yükleniyor...', 'Görsel yüklenemedi.');
+  }
+
+  async function handlePickDocuments() {
+    setAttachmentSheetOpen(false);
+    const result = await DocumentPicker.getDocumentAsync({
+      multiple: true,
+      copyToCacheDirectory: true,
+      type: [
+        'image/*',
+        'application/pdf',
+        'application/msword',
+        'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+        'application/vnd.ms-excel',
+        'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        'text/plain',
+        'application/zip',
+        'application/x-rar-compressed',
+        'application/vnd.rar',
+        'application/octet-stream',
+      ],
+    });
+    if (result.canceled || !result.assets?.length) return;
+
+    const assets: UploadAsset[] = result.assets.map((asset, index) => ({
+      uri: asset.uri,
+      name: asset.name || `file-${Date.now()}-${index}`,
+      type: asset.mimeType || 'application/octet-stream',
+      size: asset.size || 0,
+    }));
+
+    await uploadSelectedAssets(assets, 'Dosya yukleniyor...', 'Dosya yuklenemedi.');
   }
 
   function handleDelete() {
@@ -251,7 +314,11 @@ export default function ConversationScreen() {
             onPress={() => conversation?.participantId && router.push(`/user/${conversation.participantId}` as any)}
           >
             <View style={[styles.avatar, { backgroundColor: avatar }]}>
-              <Text style={styles.avatarText}>{conversation?.participantInitials || 'K'}</Text>
+              {conversation?.participantImage ? (
+                <Image source={{ uri: conversation.participantImage }} style={styles.avatarImage} />
+              ) : (
+                <Text style={styles.avatarText}>{conversation?.participantInitials || 'K'}</Text>
+              )}
               {isOnline(conversation?.participantLastSeen || null) && <View style={styles.onlineDot} />}
             </View>
             <View style={{ flex: 1 }}>
@@ -341,14 +408,14 @@ export default function ConversationScreen() {
         </ScrollView>
 
         <View style={styles.composer}>
-          {uploading && (
+          {uploadingLabel && (
             <View style={styles.uploadRow}>
               <ActivityIndicator size="small" color={colors.accent.DEFAULT} />
-              <Text style={styles.uploadText}>Görsel yükleniyor...</Text>
+              <Text style={styles.uploadText}>{uploadingLabel}</Text>
             </View>
           )}
           <View style={styles.composerRow}>
-            <TouchableOpacity style={styles.attachBtn} onPress={handlePickImages} activeOpacity={0.8}>
+            <TouchableOpacity style={styles.attachBtn} onPress={() => setAttachmentSheetOpen(true)} activeOpacity={0.8}>
               <Ionicons name="attach" size={20} color={colors.textSecondary} />
             </TouchableOpacity>
             <TextInput
@@ -365,6 +432,27 @@ export default function ConversationScreen() {
             </TouchableOpacity>
           </View>
         </View>
+
+        <Modal visible={attachmentSheetOpen} transparent animationType="fade" onRequestClose={() => setAttachmentSheetOpen(false)}>
+          <Pressable style={styles.overlay} onPress={() => setAttachmentSheetOpen(false)}>
+            <View style={styles.sheet}>
+              <TouchableOpacity style={styles.sheetItem} onPress={handlePickImages} activeOpacity={0.8}>
+                <Ionicons name="image-outline" size={18} color={colors.textPrimary} />
+                <View style={styles.sheetCopy}>
+                  <Text style={styles.sheetText}>Galeriden Görsel</Text>
+                  <Text style={styles.sheetSubtext}>Bir veya daha fazla gorsel sec.</Text>
+                </View>
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.sheetItem} onPress={handlePickDocuments} activeOpacity={0.8}>
+                <Ionicons name="document-attach-outline" size={18} color={colors.textPrimary} />
+                <View style={styles.sheetCopy}>
+                  <Text style={styles.sheetText}>Belge Sec</Text>
+                  <Text style={styles.sheetSubtext}>PDF, Word, Excel, TXT, ZIP ve benzeri dosyalar.</Text>
+                </View>
+              </TouchableOpacity>
+            </View>
+          </Pressable>
+        </Modal>
 
         <Modal visible={menuOpen} transparent animationType="fade" onRequestClose={() => setMenuOpen(false)}>
           <Pressable style={styles.overlay} onPress={() => setMenuOpen(false)}>
@@ -438,6 +526,7 @@ const makeStyles = (colors: any) => StyleSheet.create({
   headerBtn: { width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.surfaceRaised },
   headerMain: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: space.sm },
   avatar: { width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center', position: 'relative' },
+  avatarImage: { width: '100%', height: '100%', borderRadius: 20 },
   avatarText: { fontSize: 14, fontFamily: fontFamily.bold, color: colors.white },
   onlineDot: { position: 'absolute', right: -1, bottom: -1, width: 12, height: 12, borderRadius: 6, backgroundColor: colors.success.DEFAULT, borderWidth: 2, borderColor: colors.surface },
   headerNameRow: { flexDirection: 'row', alignItems: 'center', gap: 4 },
@@ -485,7 +574,9 @@ const makeStyles = (colors: any) => StyleSheet.create({
   overlay: { flex: 1, backgroundColor: colors.overlay, justifyContent: 'flex-end', padding: space.md },
   sheet: { backgroundColor: colors.surface, borderRadius: borderRadius.xl, overflow: 'hidden', borderWidth: 1, borderColor: colors.border },
   sheetItem: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: space.lg, paddingVertical: space.md, borderBottomWidth: 1, borderBottomColor: colors.border },
+  sheetCopy: { flex: 1 },
   sheetText: { fontSize: 15, fontFamily: fontFamily.medium, color: colors.textPrimary },
+  sheetSubtext: { fontSize: 12, fontFamily: fontFamily.regular, color: colors.textSecondary, marginTop: 2 },
   reportCard: { backgroundColor: colors.surface, borderRadius: borderRadius.xl, padding: space.lg, borderWidth: 1, borderColor: colors.border },
   reportTitle: { fontSize: 18, fontFamily: fontFamily.bold, color: colors.textPrimary, marginBottom: space.md },
   reasons: { gap: 8, marginBottom: space.md },
@@ -496,3 +587,6 @@ const makeStyles = (colors: any) => StyleSheet.create({
   reportInput: { minHeight: 90, borderRadius: borderRadius.lg, backgroundColor: colors.surfaceRaised, paddingHorizontal: space.md, paddingVertical: space.sm + 2, fontSize: 14, fontFamily: fontFamily.regular, color: colors.textPrimary, textAlignVertical: 'top' },
   reportActions: { flexDirection: 'row', gap: space.sm, marginTop: space.md },
 });
+
+
+

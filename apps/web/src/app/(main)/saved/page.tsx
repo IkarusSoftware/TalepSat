@@ -1,13 +1,12 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useSession } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
 import { motion } from 'framer-motion';
 import Link from 'next/link';
-import {
-  Bookmark, Clock, MapPin, MessageSquare, Star, Loader2,
-} from 'lucide-react';
+import { Bookmark, Loader2 } from 'lucide-react';
+import { ListingMediaCard } from '@/components/listing/ListingMediaCard';
 
 interface ListingItem {
   id: string;
@@ -27,50 +26,36 @@ interface ListingItem {
   buyerName: string;
   buyerInitials: string;
   buyerScore: number;
-}
-
-function formatBudget(min: number, max: number) {
-  const fmt = (n: number) => {
-    if (n >= 1000000) return `${(n / 1000000).toFixed(1)}M`;
-    if (n >= 1000) return `${Math.floor(n / 1000)}K`;
-    return n.toString();
-  };
-  return `₺${fmt(min)} - ₺${fmt(max)}`;
-}
-
-function getTimeLeft(expiresAt: string) {
-  const diff = new Date(expiresAt).getTime() - Date.now();
-  const days = Math.max(0, Math.floor(diff / 86400000));
-  if (days === 0) return 'Bugün bitiyor';
-  return `${days} gün kaldı`;
+  buyerVerified?: boolean;
+  buyerImage?: string | null;
+  images: string[];
 }
 
 function SkeletonCard() {
   return (
-    <div className="rounded-xl border border-neutral-200/50 dark:border-dark-border/80 bg-white dark:bg-dark-surface p-6 animate-pulse">
-      <div className="flex items-center justify-between mb-3">
-        <div className="h-6 w-24 bg-neutral-200 dark:bg-dark-surfaceRaised rounded" />
-        <div className="h-4 w-20 bg-neutral-200 dark:bg-dark-surfaceRaised rounded" />
-      </div>
-      <div className="h-5 w-3/4 bg-neutral-200 dark:bg-dark-surfaceRaised rounded mb-2" />
-      <div className="h-5 w-1/3 bg-neutral-200 dark:bg-dark-surfaceRaised rounded mb-3" />
-      <div className="flex gap-3 mb-4">
-        <div className="h-4 w-20 bg-neutral-200 dark:bg-dark-surfaceRaised rounded" />
-        <div className="h-4 w-16 bg-neutral-200 dark:bg-dark-surfaceRaised rounded" />
-      </div>
-      <div className="flex items-center justify-between pt-4 border-t border-neutral-100 dark:border-dark-border">
-        <div className="flex items-center gap-2">
-          <div className="w-7 h-7 rounded-full bg-neutral-200 dark:bg-dark-surfaceRaised" />
-          <div className="h-4 w-12 bg-neutral-200 dark:bg-dark-surfaceRaised rounded" />
+    <div className="overflow-hidden rounded-2xl border border-neutral-200/60 bg-white dark:border-dark-border/80 dark:bg-dark-surface animate-pulse">
+      <div className="aspect-video bg-neutral-200 dark:bg-dark-surfaceRaised" />
+      <div className="p-4">
+        <div className="flex items-center justify-between mb-3">
+          <div className="h-6 w-24 rounded-full bg-neutral-200 dark:bg-dark-surfaceRaised" />
+          <div className="h-4 w-16 rounded bg-neutral-200 dark:bg-dark-surfaceRaised" />
         </div>
-        <div className="h-4 w-16 bg-neutral-200 dark:bg-dark-surfaceRaised rounded" />
+        <div className="h-5 w-4/5 rounded bg-neutral-200 dark:bg-dark-surfaceRaised mb-2" />
+        <div className="h-5 w-2/5 rounded bg-neutral-200 dark:bg-dark-surfaceRaised mb-4" />
+        <div className="flex items-center justify-between border-t border-neutral-100 pt-3 dark:border-dark-border">
+          <div className="flex items-center gap-2">
+            <div className="w-8 h-8 rounded-full bg-neutral-200 dark:bg-dark-surfaceRaised" />
+            <div className="h-4 w-14 rounded bg-neutral-200 dark:bg-dark-surfaceRaised" />
+          </div>
+          <div className="h-4 w-16 rounded bg-neutral-200 dark:bg-dark-surfaceRaised" />
+        </div>
       </div>
     </div>
   );
 }
 
 export default function SavedPage() {
-  const { data: session, status } = useSession();
+  const { status } = useSession();
   const router = useRouter();
   const [listings, setListings] = useState<ListingItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -83,13 +68,14 @@ export default function SavedPage() {
 
   useEffect(() => {
     if (status !== 'authenticated') return;
+
     fetch('/api/listings/favorites')
-      .then((r) => r.json())
+      .then((response) => response.json())
       .then((data) => setListings(Array.isArray(data) ? data : []))
       .finally(() => setLoading(false));
   }, [status]);
 
-  if (status === 'loading' || (status === 'unauthenticated')) {
+  if (status === 'loading' || status === 'unauthenticated') {
     return (
       <div className="flex items-center justify-center min-h-[60vh]">
         <Loader2 className="w-8 h-8 animate-spin text-accent" />
@@ -100,16 +86,12 @@ export default function SavedPage() {
   return (
     <div className="max-w-7xl mx-auto px-6 py-8">
       <div className="mb-8">
-        <h1 className="text-h1 font-bold text-neutral-900 dark:text-dark-textPrimary">
-          Kaydedilen İlanlar
-        </h1>
-        <p className="mt-2 text-body-lg text-neutral-500">
-          Favorilediğiniz ilanları buradan takip edebilirsiniz.
-        </p>
+        <h1 className="text-h1 font-bold text-neutral-900 dark:text-dark-textPrimary">Kaydedilen İlanlar</h1>
+        <p className="mt-2 text-body-lg text-neutral-500">Favorilediğiniz ilanları buradan takip edebilirsiniz.</p>
       </div>
 
       {loading ? (
-        <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-5">
+        <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
           <SkeletonCard />
           <SkeletonCard />
           <SkeletonCard />
@@ -133,7 +115,7 @@ export default function SavedPage() {
           </Link>
         </div>
       ) : (
-        <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-5">
+        <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
           {listings.map((listing, index) => (
             <motion.article
               key={listing.id}
@@ -141,48 +123,7 @@ export default function SavedPage() {
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.35, delay: index * 0.05, ease: [0, 0, 0.2, 1] }}
             >
-              <div className="group relative h-full rounded-xl border border-neutral-200/50 dark:border-dark-border/80 bg-white dark:bg-dark-surface hover:shadow-md hover:border-neutral-300 dark:hover:border-neutral-500 hover:scale-[1.01] transition-all duration-normal">
-                <Link href={`/listing/${listing.id}`} className="block p-6">
-                  <div className="flex items-center justify-between mb-3">
-                    <span className="px-2.5 py-1 bg-primary-lighter dark:bg-primary/20 text-primary dark:text-blue-300 text-body-sm font-medium rounded-sm">
-                      {listing.category}
-                    </span>
-                    <span className="text-body-sm text-neutral-400 flex items-center gap-1">
-                      <Clock size={13} />
-                      {getTimeLeft(listing.expiresAt)}
-                    </span>
-                  </div>
-                  <h3 className="text-h4 font-semibold text-neutral-900 dark:text-dark-textPrimary mb-2 line-clamp-2 group-hover:text-accent transition-colors">
-                    {listing.title}
-                  </h3>
-                  <p className="text-body-lg font-bold text-accent mb-3">
-                    {formatBudget(listing.budgetMin, listing.budgetMax)}
-                  </p>
-                  <div className="flex flex-wrap items-center gap-3 text-body-sm text-neutral-400 mb-4">
-                    <span className="flex items-center gap-1">
-                      <MapPin size={13} /> {listing.city}
-                    </span>
-                    <span className="flex items-center gap-1">
-                      <Clock size={13} /> {listing.deliveryUrgency}
-                    </span>
-                  </div>
-                  <div className="flex items-center justify-between pt-4 border-t border-neutral-100 dark:border-dark-border">
-                    <div className="flex items-center gap-2">
-                      <div className="w-7 h-7 rounded-full bg-neutral-200 dark:bg-dark-surfaceRaised flex items-center justify-center text-[11px] font-semibold text-neutral-600 dark:text-dark-textSecondary">
-                        {listing.buyerInitials}
-                      </div>
-                      <div className="flex items-center gap-1 text-body-sm text-neutral-500">
-                        <Star size={12} className="text-amber-400 fill-amber-400" />
-                        {listing.buyerScore}
-                      </div>
-                    </div>
-                    <span className="flex items-center gap-1 text-body-sm font-semibold text-accent">
-                      <MessageSquare size={14} />
-                      {listing.offerCount} teklif
-                    </span>
-                  </div>
-                </Link>
-              </div>
+              <ListingMediaCard listing={listing} />
             </motion.article>
           ))}
         </div>

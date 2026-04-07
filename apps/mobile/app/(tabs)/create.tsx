@@ -1,15 +1,17 @@
-import React, { useMemo, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity, KeyboardAvoidingView,
-  Platform, Alert, TextInput, LayoutAnimation, UIManager,
+  Platform, Alert, TextInput, LayoutAnimation, UIManager, ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useBottomTabBarHeight } from '@react-navigation/bottom-tabs';
 import Ionicons from '@expo/vector-icons/Ionicons';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import api from '../../src/lib/api';
 import { useThemeColors } from '../../src/contexts/ThemeContext';
 import { Button, Input } from '../../src/components/ui';
 import { borderRadius, fontFamily, space } from '../../src/theme';
+import { LISTING_CATEGORIES, LISTING_DELIVERY_OPTIONS } from '../../src/features/listing-form';
 
 if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
   UIManager.setLayoutAnimationEnabledExperimental(true);
@@ -21,27 +23,8 @@ type BudgetType = 'range' | 'fixed';
 const STEPS: Array<{ key: StepKey; label: string; icon: keyof typeof Ionicons.glyphMap }> = [
   { key: 'category', label: 'Kategori', icon: 'grid-outline' },
   { key: 'details', label: 'Detay', icon: 'document-text-outline' },
-  { key: 'budget', label: 'Butce', icon: 'wallet-outline' },
+  { key: 'budget', label: 'Bütçe', icon: 'wallet-outline' },
   { key: 'preview', label: 'Onizleme', icon: 'eye-outline' },
-];
-
-const CATEGORIES = [
-  { label: 'Mobilya', slug: 'mobilya', icon: 'bed-outline' as const },
-  { label: 'Elektronik', slug: 'elektronik', icon: 'desktop-outline' as const },
-  { label: 'Tekstil', slug: 'tekstil', icon: 'shirt-outline' as const },
-  { label: 'Gida', slug: 'gida', icon: 'restaurant-outline' as const },
-  { label: 'Insaat', slug: 'insaat', icon: 'business-outline' as const },
-  { label: 'Otomotiv', slug: 'otomotiv', icon: 'car-sport-outline' as const },
-  { label: 'Tarim', slug: 'tarim', icon: 'leaf-outline' as const },
-  { label: 'Saglik', slug: 'saglik', icon: 'medkit-outline' as const },
-  { label: 'Hizmet', slug: 'hizmet', icon: 'briefcase-outline' as const },
-  { label: 'Diger', slug: 'diger', icon: 'apps-outline' as const },
-];
-
-const URGENCY_OPTIONS = [
-  { value: 'urgent', label: 'Acil', hint: '1-3 gun', icon: 'flash-outline' as const },
-  { value: 'normal', label: 'Normal', hint: 'Standart surec', icon: 'time-outline' as const },
-  { value: 'flexible', label: 'Esnek', hint: 'Uygun teklif odakli', icon: 'calendar-outline' as const },
 ];
 
 const DURATION_OPTIONS = [7, 14, 30];
@@ -58,6 +41,8 @@ function formatPreviewPrice(value?: string) {
 }
 
 export default function CreateListingScreen() {
+  const router = useRouter();
+  const { cloneId } = useLocalSearchParams<{ cloneId?: string }>();
   const colors = useThemeColors();
   const styles = useMemo(() => makeStyles(colors), [colors]);
   const insets = useSafeAreaInsets();
@@ -72,17 +57,69 @@ export default function CreateListingScreen() {
   const [budgetMin, setBudgetMin] = useState('');
   const [budgetMax, setBudgetMax] = useState('');
   const [fixedBudget, setFixedBudget] = useState('');
-  const [urgency, setUrgency] = useState('normal');
+  const [urgency, setUrgency] = useState('two_weeks');
   const [durationDays, setDurationDays] = useState(14);
   const [loading, setLoading] = useState(false);
+  const [prefillLoading, setPrefillLoading] = useState(false);
+  const [hydratedCloneId, setHydratedCloneId] = useState<string | null>(null);
   const [errors, setErrors] = useState<Record<string, string>>({});
 
   const selectedCategory = useMemo(
-    () => CATEGORIES.find((item) => item.slug === categorySlug) || null,
+    () => LISTING_CATEGORIES.find((item) => item.slug === categorySlug) || null,
     [categorySlug]
   );
 
   const progress = ((currentStep + 1) / STEPS.length) * 100;
+
+  useEffect(() => {
+    if (!cloneId || hydratedCloneId === cloneId) return;
+
+    let cancelled = false;
+
+    const hydrateFromListing = async () => {
+      setPrefillLoading(true);
+      try {
+        const { data } = await api.get(`/api/listings/${cloneId}`);
+        if (cancelled) return;
+
+        const min = Number(data?.budgetMin || 0);
+        const max = Number(data?.budgetMax || 0);
+        const fixed = min > 0 && min === max;
+
+        setTitle(data?.title || '');
+        setDescription(data?.description || '');
+        setCategorySlug(data?.categorySlug || '');
+        setCity(data?.city || '');
+        setBudgetType(fixed ? 'fixed' : 'range');
+        setBudgetMin(fixed ? '' : String(min || ''));
+        setBudgetMax(fixed ? '' : String(max || ''));
+        setFixedBudget(fixed ? String(max || min || '') : '');
+        setUrgency(
+          LISTING_DELIVERY_OPTIONS.some((item) => item.value === data?.deliveryUrgency)
+            ? data.deliveryUrgency
+            : 'two_weeks',
+        );
+        setDurationDays(14);
+        setErrors({});
+        setCurrentStep(data?.categorySlug ? 1 : 0);
+        setHydratedCloneId(cloneId);
+      } catch (error: any) {
+        if (!cancelled) {
+          Alert.alert('Hata', error?.response?.data?.error || 'İlan bilgileri yüklenemedi.');
+        }
+      } finally {
+        if (!cancelled) {
+          setPrefillLoading(false);
+        }
+      }
+    };
+
+    hydrateFromListing();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [cloneId, hydratedCloneId]);
 
   function animateStepChange(nextStep: number) {
     LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
@@ -106,7 +143,7 @@ export default function CreateListingScreen() {
       if (!description.trim()) nextErrors.description = 'Aciklama gerekli.';
       else if (description.trim().length < 30) nextErrors.description = 'Aciklama en az 30 karakter olmali.';
 
-      if (!city.trim()) nextErrors.city = 'Sehir gerekli.';
+      if (!city.trim()) nextErrors.city = 'Şehir gerekli.';
     }
 
     if (stepIndex === 2) {
@@ -168,10 +205,10 @@ export default function CreateListingScreen() {
       });
 
       Alert.alert(
-        'Basarili',
+        'Başarılı',
         data?.requiresApproval
-          ? 'Ilanin onaya gonderildi. Onaylandiginda yayina alinacak.'
-          : 'Ilanin basariyla yayina alindi.',
+          ? 'İlanın onaya gönderildi. Onaylandığında yayına alınacak.'
+          : 'İlanın başarıyla yayına alındı.',
       );
 
       setCurrentStep(0);
@@ -183,11 +220,15 @@ export default function CreateListingScreen() {
       setBudgetMin('');
       setBudgetMax('');
       setFixedBudget('');
-      setUrgency('normal');
+      setUrgency('two_weeks');
       setDurationDays(14);
       setErrors({});
+      setHydratedCloneId(null);
+      if (cloneId) {
+        router.replace('/(tabs)/create' as any);
+      }
     } catch (error: any) {
-      Alert.alert('Hata', error?.response?.data?.error || 'Ilan olusturulamadi.');
+      Alert.alert('Hata', error?.response?.data?.error || 'İlan oluşturulamadı.');
     } finally {
       setLoading(false);
     }
@@ -200,7 +241,7 @@ export default function CreateListingScreen() {
         <Text style={styles.stepSubtitle}>Ihtiyacini en iyi anlatan kategoriyle basla.</Text>
 
         <View style={styles.categoryGrid}>
-          {CATEGORIES.map((item) => {
+          {LISTING_CATEGORIES.map((item) => {
             const active = item.slug === categorySlug;
             return (
               <TouchableOpacity
@@ -233,7 +274,7 @@ export default function CreateListingScreen() {
   function renderDetailsStep() {
     return (
       <View style={styles.stepContent}>
-        <Text style={styles.stepTitle}>Ilan detaylari</Text>
+        <Text style={styles.stepTitle}>İlan detayları</Text>
         <Text style={styles.stepSubtitle}>Web tarafindaki gibi once ihtiyaci netlestiriyoruz.</Text>
 
         <Input
@@ -269,7 +310,7 @@ export default function CreateListingScreen() {
         </View>
 
         <Input
-          label="Sehir"
+          label="Şehir"
           value={city}
           onChangeText={(value) => {
             setCity(value);
@@ -283,7 +324,7 @@ export default function CreateListingScreen() {
         <View style={styles.fieldBlock}>
           <Text style={styles.fieldLabel}>Teslimat aciliyeti</Text>
           <View style={styles.urgencyGrid}>
-            {URGENCY_OPTIONS.map((option) => {
+            {LISTING_DELIVERY_OPTIONS.map((option) => {
               const active = option.value === urgency;
               return (
                 <TouchableOpacity
@@ -311,7 +352,7 @@ export default function CreateListingScreen() {
   function renderBudgetStep() {
     return (
       <View style={styles.stepContent}>
-        <Text style={styles.stepTitle}>Butce ve sure</Text>
+        <Text style={styles.stepTitle}>Bütçe ve süre</Text>
         <Text style={styles.stepSubtitle}>Mobilde de daha net teklif almak icin butceyi adimli kuruyoruz.</Text>
 
         <View style={styles.toggleRow}>
@@ -384,7 +425,7 @@ export default function CreateListingScreen() {
         )}
 
         <View style={styles.fieldBlock}>
-          <Text style={styles.fieldLabel}>Ilan suresi</Text>
+          <Text style={styles.fieldLabel}>İlan süresi</Text>
           <View style={styles.durationRow}>
             {DURATION_OPTIONS.map((days) => {
               const active = durationDays === days;
@@ -417,12 +458,12 @@ export default function CreateListingScreen() {
       ? formatPreviewPrice(fixedBudget)
       : `${formatPreviewPrice(budgetMin)} - ${formatPreviewPrice(budgetMax)}`;
 
-    const urgencyLabel = URGENCY_OPTIONS.find((item) => item.value === urgency)?.label || 'Normal';
+    const urgencyLabel = LISTING_DELIVERY_OPTIONS.find((item) => item.value === urgency)?.label || 'Normal';
 
     return (
       <View style={styles.stepContent}>
         <Text style={styles.stepTitle}>Son kontrol</Text>
-        <Text style={styles.stepSubtitle}>Yayinlamadan once mobil onizlemeyi kontrol et.</Text>
+        <Text style={styles.stepSubtitle}>Yayınlamadan önce mobil önizlemeyi kontrol et.</Text>
 
         <View style={styles.previewCard}>
           <View style={styles.previewBadge}>
@@ -430,24 +471,24 @@ export default function CreateListingScreen() {
             <Text style={styles.previewBadgeText}>{selectedCategory?.label || 'Kategori secilmedi'}</Text>
           </View>
 
-          <Text style={styles.previewTitle}>{title || 'Ilan basligi burada gorunecek'}</Text>
-          <Text style={styles.previewDescription}>{description || 'Ilan aciklamasi burada gorunecek.'}</Text>
+          <Text style={styles.previewTitle}>{title || 'İlan başlığı burada görünecek'}</Text>
+          <Text style={styles.previewDescription}>{description || 'İlan açıklaması burada görünecek.'}</Text>
 
           <View style={styles.previewGrid}>
             <View style={styles.previewInfoBox}>
-              <Text style={styles.previewInfoLabel}>Butce</Text>
+              <Text style={styles.previewInfoLabel}>Bütçe</Text>
               <Text style={styles.previewInfoValue}>{priceSummary}</Text>
             </View>
             <View style={styles.previewInfoBox}>
-              <Text style={styles.previewInfoLabel}>Sehir</Text>
-              <Text style={styles.previewInfoValue}>{city || 'Sehir yok'}</Text>
+              <Text style={styles.previewInfoLabel}>Şehir</Text>
+              <Text style={styles.previewInfoValue}>{city || 'Şehir yok'}</Text>
             </View>
             <View style={styles.previewInfoBox}>
               <Text style={styles.previewInfoLabel}>Aciliyet</Text>
               <Text style={styles.previewInfoValue}>{urgencyLabel}</Text>
             </View>
             <View style={styles.previewInfoBox}>
-              <Text style={styles.previewInfoLabel}>Yayinda kalma</Text>
+              <Text style={styles.previewInfoLabel}>Yayında kalma</Text>
               <Text style={styles.previewInfoValue}>{durationDays} gun</Text>
             </View>
           </View>
@@ -471,9 +512,18 @@ export default function CreateListingScreen() {
           showsVerticalScrollIndicator={false}
         >
           <View style={styles.header}>
-            <Text style={styles.headerTitle}>Ilan olustur</Text>
-            <Text style={styles.headerSubtitle}>Web deneyimindeki gibi adim adim ilerleyelim.</Text>
+            <Text style={styles.headerTitle}>İlan oluştur</Text>
+            <Text style={styles.headerSubtitle}>
+              {cloneId ? 'Mevcut ilanı kopyalayıp hızlıca yeni bir talep oluşturuyorsun.' : 'Web deneyimindeki gibi adım adım ilerleyelim.'}
+            </Text>
           </View>
+
+          {prefillLoading && (
+            <View style={styles.prefillBanner}>
+              <ActivityIndicator size="small" color={colors.accent.DEFAULT} />
+              <Text style={styles.prefillText}>İlan bilgileri yeni taslak için yükleniyor...</Text>
+            </View>
+          )}
 
           <View style={styles.progressCard}>
             <View style={styles.progressHeader}>
@@ -536,14 +586,15 @@ export default function CreateListingScreen() {
               <Button
                 title="Ileri"
                 onPress={handleNext}
+                disabled={prefillLoading}
                 iconRight={<Ionicons name="arrow-forward" size={16} color={colors.white} />}
                 style={{ flex: 1 }}
               />
             ) : (
               <Button
-                title="Ilani Yayinla"
+                title="İlanı Yayınla"
                 onPress={handlePublish}
-                loading={loading}
+                loading={loading || prefillLoading}
                 icon={<Ionicons name="checkmark-circle-outline" size={16} color={colors.white} />}
                 style={{ flex: 1 }}
               />
@@ -563,6 +614,25 @@ const makeStyles = (colors: any) => StyleSheet.create({
   header: { marginBottom: space.lg },
   headerTitle: { fontSize: 28, fontFamily: fontFamily.extraBold, color: colors.textPrimary },
   headerSubtitle: { fontSize: 14, lineHeight: 20, fontFamily: fontFamily.regular, color: colors.textSecondary, marginTop: 4 },
+  prefillBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    backgroundColor: colors.accent.lighter,
+    borderRadius: borderRadius.lg,
+    borderWidth: 1,
+    borderColor: colors.accent.DEFAULT + '33',
+    paddingHorizontal: space.md,
+    paddingVertical: space.sm,
+    marginBottom: space.md,
+  },
+  prefillText: {
+    flex: 1,
+    fontSize: 13,
+    lineHeight: 18,
+    fontFamily: fontFamily.medium,
+    color: colors.accent.DEFAULT,
+  },
   progressCard: {
     backgroundColor: colors.surface,
     borderRadius: borderRadius.xl,

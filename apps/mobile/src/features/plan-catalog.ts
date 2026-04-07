@@ -1,4 +1,8 @@
 import type { Plan } from '../types';
+import {
+  analyticsTierFeatureTitle,
+  analyticsTierShortValue,
+} from '../../../../shared/plan-analytics';
 
 export type PlanMeta = {
   description: string;
@@ -16,20 +20,20 @@ const PLAN_META: Record<string, PlanMeta> = {
     icon: 'sparkles-outline',
   },
   basic: {
-    description: 'Düzenli teklif veren satıcılar için daha görünür ve daha hızlı başlangıç paketi.',
+    description: 'Temel satış takibi isteyen satıcılar için sade başlangıç paketi.',
     accent: '#2563eb',
     accentSoft: '#dbeafe',
     icon: 'flash-outline',
   },
   plus: {
-    description: 'Büyüyen satıcı ekipleri için daha yüksek limitler ve güçlü avantajlar sunar.',
+    description: 'Trendler ve kırılımlarla performansını büyütmek isteyen ekipler için.',
     accent: '#d97706',
     accentSoft: '#fef3c7',
     icon: 'diamond-outline',
     popular: true,
   },
   pro: {
-    description: 'Yoğun hacimli profesyonel satıcılar için en esnek ve en hızlı plan.',
+    description: 'Gelişmiş raporlama, karşılaştırma ve export isteyen profesyoneller için.',
     accent: '#0f766e',
     accentSoft: '#ccfbf1',
     icon: 'shield-checkmark-outline',
@@ -88,8 +92,8 @@ export function featureRows(plans: EnrichedPlan[]) {
       values: plans.map((plan) => plan.responseTime || 'Standart'),
     },
     {
-      label: 'Analitik',
-      values: plans.map((plan) => plan.analytics),
+      label: 'Analitik seviyesi',
+      values: plans.map((plan) => analyticsTierShortValue(plan.analyticsTier)),
     },
     {
       label: 'Öncelikli destek',
@@ -108,7 +112,7 @@ export function includedFeatures(plan: Plan) {
     `${plan.boostPerMonth === null ? 'Sınırsız' : plan.boostPerMonth} öne çıkarma`,
     `${plan.maxListings === null ? 'Sınırsız' : plan.maxListings} aktif ilan limiti`,
     `${plan.responseTime || 'Standart'} destek yanıt süresi`,
-    plan.analytics ? 'Analitik ve raporlama' : null,
+    plan.analyticsTier !== 'none' ? analyticsTierFeatureTitle(plan.analyticsTier) : null,
     plan.prioritySupport ? 'Öncelikli destek' : null,
     plan.verifiedBadge ? 'Doğrulanmış rozet' : null,
     plan.customProfile ? 'Özelleştirilmiş profil' : null,
@@ -118,11 +122,11 @@ export function includedFeatures(plan: Plan) {
 export const planFaqs = [
   {
     question: 'Planımı istediğim zaman değiştirebilir miyim?',
-    answer: 'Evet. Yükseltme ve düşürme akışları ürün tarafında hazırlanıyor; şimdilik ekranlar bilgi amaçlı çalışıyor.',
+    answer: 'Evet. Uygun planı seçip abonelik ekranından iyzico checkout ile geçiş yapabilir, mevcut aboneliğin için iptal veya devam ettirme işlemlerini yönetebilirsin.',
   },
   {
-    question: 'Deneme süresi var mı?',
-    answer: 'Web tarafındaki anlatımı koruyoruz: ücretli planlarda deneme kurgusu öngörülüyor, ancak ödeme entegrasyonu henüz aktif değil.',
+    question: 'Ödemeyi nasıl tamamlıyorum?',
+    answer: 'Plan seçimi sonrası güvenli iyzico sayfası açılır. Ödeme bittikten sonra abonelik ekranına dönüp güncel durumu görebilirsin.',
   },
   {
     question: 'Alıcılar için ücret var mı?',
@@ -130,6 +134,6 @@ export const planFaqs = [
   },
   {
     question: 'Ödemeyi mobilde yapabilir miyim?',
-    answer: 'Henüz hayır. Mobil ve web’de ödeme alanı bilgilendirme düzeyinde; gerçek entegrasyon daha sonra açılacak.',
+    answer: 'Evet. Mobil uygulama iyzico checkout bağlantısını güvenli web görünümünde açar ve ödeme tamamlanınca abonelik durumunu yeniden okuyabilir.',
   },
 ];

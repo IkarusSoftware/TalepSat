@@ -17,7 +17,7 @@ export type PublicSiteSettings = {
 
 const DEFAULT_PUBLIC_SETTINGS: PublicSiteSettings = {
   site_name: 'TalepSat',
-  site_tagline: 'Ihtiyacini Yaz, Saticilar Yarissin',
+  site_tagline: 'İhtiyacını Yaz, Satıcılar Yarışsın',
   site_url: 'http://localhost:3000',
   contact_email: '',
   support_phone: '',

@@ -140,7 +140,7 @@ export default function OrdersScreen() {
               const myConfirmed = order.isBuyer ? order.buyerConfirmed : order.sellerConfirmed;
               const otherConfirmed = order.isBuyer ? order.sellerConfirmed : order.buyerConfirmed;
               const needsConfirmation = order.status === 'accepted' && !myConfirmed;
-              const counterpartRole = order.isBuyer ? 'Satici' : 'Alici';
+              const counterpartRole = order.isBuyer ? 'Satıcı' : 'Alıcı';
               const counterpartName = order.isBuyer ? order.sellerName : order.buyerName;
               const reviewSummary = order.hasMyReview
                 ? `${order.myReviewRating || 0}/5 puan verdin`
@@ -205,7 +205,7 @@ export default function OrdersScreen() {
                         size={16}
                         color={order.sellerConfirmed ? colors.success.DEFAULT : colors.textTertiary}
                       />
-                      <Text style={styles.confirmText}>Satici {order.sellerConfirmed ? 'onayladi' : 'bekliyor'}</Text>
+                      <Text style={styles.confirmText}>Satıcı {order.sellerConfirmed ? 'onayladı' : 'bekliyor'}</Text>
                     </View>
                   </View>
 
@@ -229,7 +229,7 @@ export default function OrdersScreen() {
                     <View style={styles.alertBox}>
                       <Ionicons name="alert-circle-outline" size={16} color={colors.accent.DEFAULT} />
                       <Text style={styles.alertText}>
-                        {otherConfirmed ? 'Karsi taraf onayladi, simdi sira sende.' : 'Teslimat tamamlandiysa sen de onaylayabilirsin.'}
+                        {otherConfirmed ? 'Karşı taraf onayladı, şimdi sıra sende.' : 'Teslimat tamamlandıysa sen de onaylayabilirsin.'}
                       </Text>
                     </View>
                   )}

@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import { Plus_Jakarta_Sans } from 'next/font/google';
 import { ThemeProvider } from '@/components/theme-provider';
 import { SessionProvider } from '@/components/session-provider';
+import { RealtimeProvider } from '@/components/realtime-provider';
 import { getSiteSettings } from '@/lib/site-settings';
 import './globals.css';
 
@@ -71,7 +72,9 @@ export default function RootLayout({
       <body className="min-h-screen bg-neutral-50 dark:bg-dark-bg font-sans antialiased dark:text-dark-textPrimary">
         <SessionProvider>
           <ThemeProvider>
-            {children}
+            <RealtimeProvider>
+              {children}
+            </RealtimeProvider>
           </ThemeProvider>
         </SessionProvider>
       </body>

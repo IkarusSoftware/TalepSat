@@ -1,64 +1,67 @@
 /**
  * TalepSat Mobile Color Tokens
- * Matches the web design system (indigo-based dark theme)
+ * Matches the web design system exactly (navy primary + orange accent)
+ * Web refs: globals.css --color-primary, --color-accent, --color-dark-*
  */
 
 export const colors = {
-  // ── Dark Surfaces ──────────────────────────────────────────────────────
-  background:    '#0f0f1a',
-  surface:       '#1a1a2e',
-  surfaceRaised: '#252540',
-  border:        '#2d2d4e',
+  // ── Dark Surfaces (mirrors web dark-* tokens) ──────────────────────────
+  background:    '#121212',   // web: --color-dark-bg
+  surface:       '#1E1E1C',   // web: --color-dark-surface
+  surfaceRaised: '#2A2A28',   // web: --color-dark-surfaceRaised
+  border:        '#3A3A37',   // web: --color-dark-border
 
   // ── Text ──────────────────────────────────────────────────────────────
-  textPrimary:   '#f1f1f3',
-  textSecondary: '#9898b3',
-  textTertiary:  '#6666a0',
+  textPrimary:   '#F0EFEB',   // web: --color-dark-textPrimary
+  textSecondary: '#9A9790',   // web: --color-dark-textSecondary
+  textTertiary:  '#6B6860',
 
-  // ── Primary / Accent (Indigo — matches web) ───────────────────────────
+  // ── Primary (Navy — matches web) ─────────────────────────────────────
   primary: {
-    DEFAULT: '#6366f1',
-    light:   '#818cf8',
-    lighter: '#6366f122',
-    dark:    '#4f46e5',
+    DEFAULT: '#1B2B4B',       // web: --color-primary
+    light:   '#2D4A7A',       // web: --color-primary-light
+    lighter: '#1B2B4B26',     // semi-transparent overlay on dark bg
+    dark:    '#0F1A2E',
   },
+
+  // ── Accent (Orange — matches web) ─────────────────────────────────────
   accent: {
-    DEFAULT: '#6366f1',
-    light:   '#818cf8',
-    lighter: '#6366f122',
-    dark:    '#4f46e5',
+    DEFAULT: '#E8683A',       // web: --color-accent
+    light:   '#FCEEE8',       // web: --color-accent-light
+    lighter: '#E8683A26',     // semi-transparent overlay on dark bg
+    dark:    '#D4521F',       // web: --color-accent-600
   },
 
   // ── Semantic ──────────────────────────────────────────────────────────
   success: {
-    DEFAULT: '#22c55e',
-    light:   '#22c55e22',
-    dark:    '#16a34a',
+    DEFAULT: '#1A8754',       // web: --color-success
+    light:   '#1A875426',
+    dark:    '#126B42',       // web: --color-success-dark
   },
   warning: {
-    DEFAULT: '#f59e0b',
-    light:   '#f59e0b22',
-    dark:    '#d97706',
+    DEFAULT: '#D4940A',       // web: --color-warning
+    light:   '#D4940A26',
+    dark:    '#A87608',       // web: --color-warning-dark
   },
   error: {
-    DEFAULT: '#ef4444',
-    light:   '#ef444422',
-    dark:    '#dc2626',
+    DEFAULT: '#C93B3B',       // web: --color-error
+    light:   '#C93B3B26',
+    dark:    '#A12F2F',       // web: --color-error-dark
   },
 
-  // ── Neutral ───────────────────────────────────────────────────────────
+  // ── Neutral (warm grays — matches web neutral scale) ──────────────────
   neutral: {
-    0:   '#ffffff',
-    50:  '#fafafa',
-    100: '#f4f4f5',
-    200: '#e4e4e7',
-    300: '#d4d4d8',
-    400: '#a1a1aa',
-    500: '#71717a',
-    600: '#52525b',
-    700: '#3f3f46',
-    800: '#27272a',
-    900: '#18181b',
+    0:   '#FFFFFF',
+    50:  '#FAFAF8',
+    100: '#F3F2EF',
+    200: '#E5E3DE',
+    300: '#C8C5BD',
+    400: '#A8A59C',
+    500: '#7A7668',
+    600: '#5C584C',
+    700: '#3D3A33',
+    800: '#28261F',
+    900: '#1A1815',
   },
 
   // ── Utility ───────────────────────────────────────────────────────────
@@ -70,58 +73,58 @@ export const colors = {
 
 export type Colors = typeof colors;
 
-// ── Light Theme ────────────────────────────────────────────────────────────
+// ── Light Theme (mirrors web light palette) ────────────────────────────────
 export const lightColors = {
-  background:    '#f5f5fc',
-  surface:       '#ffffff',
-  surfaceRaised: '#ededf9',
-  border:        '#ddddf0',
+  background:    '#FAFAF8',   // web: --color-neutral-50
+  surface:       '#FFFFFF',
+  surfaceRaised: '#F3F2EF',   // web: --color-neutral-100
+  border:        '#E5E3DE',   // web: --color-neutral-200
 
-  textPrimary:   '#0f0f1a',
-  textSecondary: '#4a4a72',
-  textTertiary:  '#7878a8',
+  textPrimary:   '#1A1815',   // web: --color-neutral-900
+  textSecondary: '#7A7668',   // web: --color-neutral-500
+  textTertiary:  '#A8A59C',   // web: --color-neutral-400
 
   primary: {
-    DEFAULT: '#6366f1',
-    light:   '#4f46e5',
-    lighter: '#6366f118',
-    dark:    '#4338ca',
+    DEFAULT: '#1B2B4B',
+    light:   '#2D4A7A',
+    lighter: '#E8EDF4',       // web: --color-primary-lighter
+    dark:    '#0F1A2E',
   },
   accent: {
-    DEFAULT: '#6366f1',
-    light:   '#4f46e5',
-    lighter: '#6366f118',
-    dark:    '#4338ca',
+    DEFAULT: '#E8683A',
+    light:   '#FCEEE8',
+    lighter: '#FEF7F4',       // web: --color-accent-lighter
+    dark:    '#D4521F',
   },
 
   success: {
-    DEFAULT: '#16a34a',
-    light:   '#16a34a22',
-    dark:    '#166534',
+    DEFAULT: '#1A8754',
+    light:   '#E6F5ED',
+    dark:    '#126B42',
   },
   warning: {
-    DEFAULT: '#d97706',
-    light:   '#d9770622',
-    dark:    '#92400e',
+    DEFAULT: '#D4940A',
+    light:   '#FDF4E0',
+    dark:    '#A87608',
   },
   error: {
-    DEFAULT: '#dc2626',
-    light:   '#dc262622',
-    dark:    '#991b1b',
+    DEFAULT: '#C93B3B',
+    light:   '#FCEAEA',
+    dark:    '#A12F2F',
   },
 
   neutral: {
-    0:   '#ffffff',
-    50:  '#fafafa',
-    100: '#f4f4f5',
-    200: '#e4e4e7',
-    300: '#d4d4d8',
-    400: '#a1a1aa',
-    500: '#71717a',
-    600: '#52525b',
-    700: '#3f3f46',
-    800: '#27272a',
-    900: '#18181b',
+    0:   '#FFFFFF',
+    50:  '#FAFAF8',
+    100: '#F3F2EF',
+    200: '#E5E3DE',
+    300: '#C8C5BD',
+    400: '#A8A59C',
+    500: '#7A7668',
+    600: '#5C584C',
+    700: '#3D3A33',
+    800: '#28261F',
+    900: '#1A1815',
   },
 
   transparent: 'transparent',

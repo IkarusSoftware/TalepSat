@@ -1,179 +1,296 @@
 'use client';
 
-import { useState } from 'react';
-import { motion } from 'framer-motion';
+import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import Link from 'next/link';
-import {
-  Check, X, Zap, Crown, Star, ArrowRight, Shield,
-  BarChart3, Clock, MessageSquare, BadgeCheck,
-} from 'lucide-react';
+import { motion } from 'framer-motion';
 import { useSession } from 'next-auth/react';
-import { subscriptionPlans } from '@/lib/mock-data';
+import {
+  ArrowRight,
+  BadgeCheck,
+  BarChart3,
+  Check,
+  Clock,
+  Crown,
+  Loader2,
+  MessageSquare,
+  Shield,
+  Star,
+  X,
+  Zap,
+} from 'lucide-react';
+import { analyticsTierFeatureTitle, analyticsTierShortValue } from '../../../../../../shared/plan-analytics';
 
-const badgeConfig: Record<string, { icon: typeof Star; color: string; bg: string }> = {
-  free: { icon: Star, color: 'text-neutral-400', bg: 'bg-neutral-100 dark:bg-neutral-500/10' },
-  basic: { icon: Zap, color: 'text-blue-500', bg: 'bg-blue-50 dark:bg-blue-500/10' },
-  plus: { icon: Crown, color: 'text-amber-500', bg: 'bg-amber-50 dark:bg-amber-500/10' },
-  pro: { icon: Shield, color: 'text-accent', bg: 'bg-accent-lighter dark:bg-accent/10' },
+type BillingCycle = 'monthly' | 'yearly';
+
+type Plan = {
+  id: string;
+  slug: string;
+  name: string;
+  priceMonthly: number;
+  priceYearly: number;
+  iyzicoMonthlyPlanRef?: string | null;
+  iyzicoYearlyPlanRef?: string | null;
+  offersPerMonth: number | null;
+  boostPerMonth: number | null;
+  maxListings: number | null;
+  analytics: boolean;
+  analyticsTier: 'none' | 'basic' | 'plus' | 'pro';
+  prioritySupport: boolean;
+  verifiedBadge: boolean;
+  customProfile?: boolean;
+  responseTime?: string;
+  sortOrder?: number;
 };
 
-function formatPrice(price: number) {
-  return new Intl.NumberFormat('tr-TR').format(price);
+type BillingSnapshot = {
+  currentPlan: Plan | null;
+  iyzicoConfigured: boolean;
+};
+
+const planAppearance: Record<string, { icon: typeof Star; accent: string; surface: string; description: string; featured?: boolean }> = {
+  free: {
+    icon: Star,
+    accent: 'text-neutral-500',
+    surface: 'bg-neutral-100 dark:bg-neutral-500/10',
+    description: 'Platformu tanimak ve temel akislari kullanmak icin.',
+  },
+  basic: {
+    icon: Zap,
+    accent: 'text-blue-500',
+    surface: 'bg-blue-50 dark:bg-blue-500/10',
+    description: 'Temel satis takibi isteyen saticilar icin yaln bir paket.',
+  },
+  plus: {
+    icon: Crown,
+    accent: 'text-amber-500',
+    surface: 'bg-amber-50 dark:bg-amber-500/10',
+    description: 'Trendler, kirilimlar ve daha guclu karar desteği icin.',
+    featured: true,
+  },
+  pro: {
+    icon: Shield,
+    accent: 'text-accent',
+    surface: 'bg-accent-lighter dark:bg-accent/10',
+    description: 'Gelişmis raporlama, filtreleme ve yonetim akislari icin.',
+  },
+};
+
+function formatPrice(value: number) {
+  return new Intl.NumberFormat('tr-TR').format(value);
+}
+
+function featureRows(plan: Plan) {
+  return [
+    { label: `Aylik teklif hakki: ${plan.offersPerMonth === null ? 'Sinirsiz' : plan.offersPerMonth}`, enabled: true },
+    { label: plan.boostPerMonth === null ? 'Sinirsiz one cikarma' : plan.boostPerMonth > 0 ? `Ayda ${plan.boostPerMonth} one cikarma` : 'One cikarma', enabled: plan.boostPerMonth === null || plan.boostPerMonth > 0 },
+    { label: plan.responseTime || 'Standart destek suresi', enabled: true },
+    { label: analyticsTierFeatureTitle(plan.analyticsTier), enabled: plan.analyticsTier !== 'none' },
+    { label: 'Oncelikli destek', enabled: plan.prioritySupport },
+    { label: 'Dogrulanmis rozet', enabled: plan.verifiedBadge },
+    { label: 'Ozel profil sayfasi', enabled: Boolean(plan.customProfile) },
+  ];
+}
+
+function getPlanAvailability(plan: Plan, cycle: BillingCycle, snapshot: BillingSnapshot | null, isCurrentPlan: boolean) {
+  if (isCurrentPlan) {
+    return { href: `/subscription?plan=${plan.slug}&cycle=${cycle}`, label: 'Mevcut Plan', blockedReason: null };
+  }
+
+  if (plan.slug === 'free') {
+    return { href: `/subscription?plan=${plan.slug}&cycle=${cycle}`, label: 'Free Plana Bak', blockedReason: null };
+  }
+
+  if (!snapshot?.iyzicoConfigured) {
+    return { href: '/subscription', label: 'Inceleme Modu', blockedReason: 'Iyzico bu ortamda kapali.' };
+  }
+
+  const planRef = cycle === 'monthly' ? plan.iyzicoMonthlyPlanRef : plan.iyzicoYearlyPlanRef;
+  if (!planRef) {
+    return {
+      href: '/subscription',
+      label: 'Referans Eksik',
+      blockedReason: `Bu planin ${cycle === 'monthly' ? 'aylik' : 'yillik'} checkout referansi henuz tanimli degil.`,
+    };
+  }
+
+  return { href: `/subscription?plan=${plan.slug}&cycle=${cycle}`, label: 'Plani Sec', blockedReason: null };
 }
 
 export default function PricingPage() {
   const { data: session } = useSession();
-  const [billingCycle, setBillingCycle] = useState<'monthly' | 'yearly'>('yearly');
-  const currentBadge = (session?.user as Record<string, string> | undefined)?.badge || 'free';
+  const [billingCycle, setBillingCycle] = useState<BillingCycle>('yearly');
+  const [plans, setPlans] = useState<Plan[]>([]);
+  const [snapshot, setSnapshot] = useState<BillingSnapshot | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    let active = true;
+
+    Promise.all([
+      fetch('/api/plans', { cache: 'no-store' }).then((res) => res.json().catch(() => [])),
+      session?.user?.id
+        ? fetch('/api/billing/subscription', { cache: 'no-store' }).then((res) => res.json().catch(() => null))
+        : Promise.resolve(null),
+    ])
+      .then(([plansData, billingData]) => {
+        if (!active) return;
+        const nextPlans = Array.isArray(plansData)
+          ? plansData.sort((a, b) => (a.sortOrder || 0) - (b.sortOrder || 0))
+          : [];
+        setPlans(nextPlans);
+        setSnapshot(billingData);
+      })
+      .finally(() => {
+        if (active) {
+          setLoading(false);
+        }
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [session?.user?.id]);
+
+  const currentPlanSlug = snapshot?.currentPlan?.slug || (session?.user as Record<string, string> | undefined)?.badge || 'free';
+  const comparisonPlans = useMemo(() => plans, [plans]);
+
+  if (loading) {
+    return (
+      <div className="flex min-h-[60vh] items-center justify-center">
+        <Loader2 className="h-8 w-8 animate-spin text-accent" />
+      </div>
+    );
+  }
 
   return (
-    <div className="max-w-7xl mx-auto px-6 py-8">
-      {/* Hero */}
-      <div className="text-center mb-12">
+    <div className="mx-auto max-w-7xl px-6 py-8">
+      <div className="mb-12 text-center">
         <motion.h1
           initial={{ opacity: 0, y: 12 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.4 }}
-          className="text-h1 font-bold text-neutral-900 dark:text-dark-textPrimary mb-3"
+          className="mb-3 text-h1 font-bold text-neutral-900 dark:text-dark-textPrimary"
         >
-          İşletmenize Uygun Planı Seçin
+          Isletmene Uygun Plani Sec
         </motion.h1>
         <motion.p
           initial={{ opacity: 0, y: 12 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.4, delay: 0.1 }}
-          className="text-body-lg text-neutral-500 max-w-2xl mx-auto mb-8"
+          transition={{ duration: 0.4, delay: 0.08 }}
+          className="mx-auto mb-8 max-w-2xl text-body-lg text-neutral-500"
         >
-          TalepSat ile daha fazla talebe ulaşın, tekliflerinizi öne çıkarın ve işinizi büyütün.
-          Tüm planlar 14 gün ücretsiz deneme ile başlar.
+          Planlari gercek verilerle karsilastir. Odeme hazir degilse bile tum farklari gorup inceleme modunda karar verebilirsin.
         </motion.p>
 
-        {/* Billing toggle */}
-        <motion.div
-          initial={{ opacity: 0, y: 12 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.4, delay: 0.15 }}
-          className="inline-flex items-center gap-1 p-1 rounded-xl bg-neutral-100 dark:bg-dark-surfaceRaised"
-        >
+        <div className="inline-flex items-center gap-1 rounded-xl bg-neutral-100 p-1 dark:bg-dark-surfaceRaised">
           <button
             onClick={() => setBillingCycle('monthly')}
-            className={`px-5 py-2.5 rounded-lg text-body-md font-medium transition-all ${
+            className={`rounded-lg px-5 py-2.5 text-body-md font-medium transition-all ${
               billingCycle === 'monthly'
-                ? 'bg-white dark:bg-dark-surface text-neutral-900 dark:text-dark-textPrimary shadow-sm'
+                ? 'bg-white text-neutral-900 shadow-sm dark:bg-dark-surface dark:text-dark-textPrimary'
                 : 'text-neutral-500 hover:text-neutral-700'
             }`}
           >
-            Aylık
+            Aylik
           </button>
           <button
             onClick={() => setBillingCycle('yearly')}
-            className={`px-5 py-2.5 rounded-lg text-body-md font-medium transition-all flex items-center gap-2 ${
+            className={`flex items-center gap-2 rounded-lg px-5 py-2.5 text-body-md font-medium transition-all ${
               billingCycle === 'yearly'
-                ? 'bg-white dark:bg-dark-surface text-neutral-900 dark:text-dark-textPrimary shadow-sm'
+                ? 'bg-white text-neutral-900 shadow-sm dark:bg-dark-surface dark:text-dark-textPrimary'
                 : 'text-neutral-500 hover:text-neutral-700'
             }`}
           >
-            Yıllık
-            <span className="text-[11px] font-bold text-success bg-emerald-50 dark:bg-emerald-500/10 px-2 py-0.5 rounded-full">
-              2 ay bedava
+            Yillik
+            <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-[11px] font-bold text-success dark:bg-emerald-500/10">
+              2 ay avantaj
             </span>
           </button>
-        </motion.div>
+        </div>
       </div>
 
-      {/* Plans grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5 mb-16">
-        {subscriptionPlans.map((plan, index) => {
-          const config = badgeConfig[plan.slug];
-          const Icon = config.icon;
-          const price = billingCycle === 'monthly' ? plan.monthlyPrice : plan.yearlyPrice;
-          const isCurrentPlan = currentBadge === plan.slug;
+      {!snapshot?.iyzicoConfigured && (
+        <div className="mb-8 rounded-2xl border border-amber-200 bg-amber-50 px-5 py-4 text-body-md text-amber-900">
+          Bu ortamda iyzico anahtarlari tanimli degil. Kartlar inceleme modunda calisiyor; checkout acilmaz.
+        </div>
+      )}
+
+      <div className="mb-16 grid grid-cols-1 gap-5 md:grid-cols-2 lg:grid-cols-4">
+        {plans.map((plan, index) => {
+          const appearance = planAppearance[plan.slug] || planAppearance.free;
+          const Icon = appearance.icon;
+          const price = billingCycle === 'monthly' ? plan.priceMonthly : plan.priceYearly;
+          const isCurrentPlan = currentPlanSlug === plan.slug;
+          const availability = getPlanAvailability(plan, billingCycle, snapshot, isCurrentPlan);
 
           return (
             <motion.div
               key={plan.id}
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.4, delay: 0.1 + index * 0.08 }}
-              className={`relative flex flex-col rounded-2xl border p-6 transition-shadow hover:shadow-lg ${
-                plan.popular
-                  ? 'border-accent/40 bg-accent/[0.02] dark:bg-accent/[0.03] shadow-md ring-1 ring-accent/20'
-                  : 'border-neutral-200/50 dark:border-dark-border bg-white dark:bg-dark-surface'
+              transition={{ duration: 0.35, delay: 0.08 + index * 0.05 }}
+              className={`relative flex flex-col rounded-2xl border p-6 ${
+                appearance.featured
+                  ? 'border-accent/40 bg-accent/[0.02] ring-1 ring-accent/20 dark:bg-accent/[0.03]'
+                  : 'border-neutral-200/50 bg-white dark:border-dark-border dark:bg-dark-surface'
               }`}
             >
-              {/* Popular badge */}
-              {plan.popular && (
-                <div className="absolute -top-3 left-1/2 -translate-x-1/2 px-4 py-1 bg-accent text-white text-[11px] font-bold rounded-full uppercase tracking-wide">
-                  En Popüler
+              {appearance.featured && (
+                <div className="absolute -top-3 left-1/2 -translate-x-1/2 rounded-full bg-accent px-4 py-1 text-[11px] font-bold uppercase tracking-wide text-white">
+                  En Populer
                 </div>
               )}
 
-              {/* Plan icon & name */}
-              <div className={`w-11 h-11 rounded-xl ${config.bg} flex items-center justify-center mb-4`}>
-                <Icon size={22} className={config.color} />
+              <div className={`mb-4 flex h-11 w-11 items-center justify-center rounded-xl ${appearance.surface}`}>
+                <Icon size={22} className={appearance.accent} />
               </div>
-              <h3 className="text-h3 font-bold text-neutral-900 dark:text-dark-textPrimary mb-1">
-                {plan.name}
-              </h3>
-              <p className="text-body-sm text-neutral-500 mb-5">{plan.description}</p>
+              <h3 className="mb-1 text-h3 font-bold text-neutral-900 dark:text-dark-textPrimary">{plan.name}</h3>
+              <p className="mb-5 text-body-sm text-neutral-500">{appearance.description}</p>
 
-              {/* Price */}
               <div className="mb-6">
                 {price === 0 ? (
-                  <div className="flex items-baseline gap-1">
-                    <span className="text-3xl font-bold text-neutral-900 dark:text-dark-textPrimary">Ücretsiz</span>
-                  </div>
+                  <span className="text-3xl font-bold text-neutral-900 dark:text-dark-textPrimary">Ucretsiz</span>
                 ) : (
-                  <div className="flex items-baseline gap-1">
-                    <span className="text-3xl font-bold text-neutral-900 dark:text-dark-textPrimary">
-                      ₺{formatPrice(price)}
-                    </span>
-                    <span className="text-body-sm text-neutral-400">
-                      /{billingCycle === 'monthly' ? 'ay' : 'yıl'}
-                    </span>
-                  </div>
-                )}
-                {billingCycle === 'yearly' && price > 0 && (
-                  <p className="text-body-sm text-neutral-400 mt-1">
-                    Aylık ₺{formatPrice(Math.round(price / 12))}
-                  </p>
+                  <>
+                    <span className="text-3xl font-bold text-neutral-900 dark:text-dark-textPrimary">₺{formatPrice(price)}</span>
+                    <span className="ml-1 text-body-sm text-neutral-400">/{billingCycle === 'monthly' ? 'ay' : 'yil'}</span>
+                    {billingCycle === 'yearly' && (
+                      <p className="mt-1 text-body-sm text-neutral-400">Aylik yaklasik ₺{formatPrice(Math.round(price / 12))}</p>
+                    )}
+                  </>
                 )}
               </div>
 
-              {/* CTA */}
-              {isCurrentPlan ? (
-                <div className="h-11 rounded-xl border-2 border-accent/30 bg-accent/5 text-accent text-body-md font-semibold flex items-center justify-center mb-6">
-                  Mevcut Planınız
-                </div>
-              ) : (
-                <Link
-                  href="/subscription"
-                  className={`h-11 rounded-xl text-body-md font-semibold flex items-center justify-center gap-2 transition-all active:scale-[0.97] mb-6 ${
-                    plan.popular
-                      ? 'bg-accent text-white hover:bg-accent-600 shadow-sm hover:shadow-md'
-                      : 'bg-neutral-900 dark:bg-dark-surfaceRaised text-white dark:text-dark-textPrimary hover:bg-neutral-800 dark:hover:bg-dark-border'
-                  }`}
-                >
-                  {price === 0 ? 'Ücretsiz Başla' : 'Planı Seç'}
-                  <ArrowRight size={16} />
-                </Link>
+              <Link
+                href={availability.href}
+                className={`mb-3 flex h-11 items-center justify-center gap-2 rounded-xl text-body-md font-semibold transition-all ${
+                  availability.blockedReason
+                    ? 'bg-neutral-200 text-neutral-500 dark:bg-dark-border'
+                    : isCurrentPlan
+                      ? 'border-2 border-accent/30 bg-accent/5 text-accent'
+                      : appearance.featured
+                        ? 'bg-accent text-white hover:bg-accent-600'
+                        : 'bg-neutral-900 text-white hover:bg-neutral-800 dark:bg-dark-surfaceRaised dark:text-dark-textPrimary dark:hover:bg-dark-border'
+                }`}
+              >
+                {availability.label}
+                {!availability.blockedReason && !isCurrentPlan && <ArrowRight size={16} />}
+              </Link>
+
+              {availability.blockedReason && (
+                <p className="mb-4 text-body-sm text-neutral-500">{availability.blockedReason}</p>
               )}
 
-              {/* Features */}
               <div className="flex-1 space-y-3">
-                {plan.features.map((feature) => (
-                  <div key={feature.text} className="flex items-start gap-2.5">
-                    {feature.included ? (
-                      <Check size={16} className="text-success shrink-0 mt-0.5" />
+                {featureRows(plan).map((feature) => (
+                  <div key={feature.label} className="flex items-start gap-2.5">
+                    {feature.enabled ? (
+                      <Check size={16} className="mt-0.5 shrink-0 text-success" />
                     ) : (
-                      <X size={16} className="text-neutral-300 dark:text-neutral-600 shrink-0 mt-0.5" />
+                      <X size={16} className="mt-0.5 shrink-0 text-neutral-300 dark:text-neutral-600" />
                     )}
-                    <span className={`text-body-sm ${
-                      feature.included
-                        ? 'text-neutral-700 dark:text-dark-textSecondary'
-                        : 'text-neutral-400 dark:text-neutral-600'
-                    }`}>
-                      {feature.text}
+                    <span className={`text-body-sm ${feature.enabled ? 'text-neutral-700 dark:text-dark-textSecondary' : 'text-neutral-400 dark:text-neutral-600'}`}>
+                      {feature.label}
                     </span>
                   </div>
                 ))}
@@ -183,130 +300,67 @@ export default function PricingPage() {
         })}
       </div>
 
-      {/* Comparison table */}
       <div className="mb-16">
-        <h2 className="text-h2 font-bold text-neutral-900 dark:text-dark-textPrimary text-center mb-8">
-          Detaylı Plan Karşılaştırması
-        </h2>
-        <div className="bg-white dark:bg-dark-surface rounded-xl border border-neutral-200/50 dark:border-dark-border overflow-hidden">
+        <h2 className="mb-8 text-center text-h2 font-bold text-neutral-900 dark:text-dark-textPrimary">Detayli Karsilastirma</h2>
+        <div className="overflow-hidden rounded-xl border border-neutral-200/50 bg-white dark:border-dark-border dark:bg-dark-surface">
           <div className="overflow-x-auto">
             <table className="w-full">
               <thead>
                 <tr className="border-b border-neutral-100 dark:border-dark-border">
-                  <th className="text-left text-body-sm font-semibold text-neutral-500 px-6 py-4 w-[240px]">Özellik</th>
-                  {subscriptionPlans.map((plan) => (
-                    <th key={plan.id} className="text-center text-body-sm font-semibold text-neutral-900 dark:text-dark-textPrimary px-4 py-4">
+                  <th className="w-[240px] px-6 py-4 text-left text-body-sm font-semibold text-neutral-500">Ozellik</th>
+                  {comparisonPlans.map((plan) => (
+                    <th key={plan.id} className="px-4 py-4 text-center text-body-sm font-semibold text-neutral-900 dark:text-dark-textPrimary">
                       {plan.name}
                     </th>
                   ))}
                 </tr>
               </thead>
               <tbody>
-                <ComparisonRow
-                  label="Aylık teklif hakkı"
-                  icon={<MessageSquare size={14} />}
-                  values={subscriptionPlans.map((p) => p.limits.offersPerMonth === null ? 'Sınırsız' : String(p.limits.offersPerMonth))}
-                />
-                <ComparisonRow
-                  label="Teklif öne çıkarma"
-                  icon={<Zap size={14} />}
-                  values={subscriptionPlans.map((p) => p.limits.boostPerMonth === 0 ? '—' : p.limits.boostPerMonth >= 999 ? 'Sınırsız' : `${p.limits.boostPerMonth}/ay`)}
-                />
-                <ComparisonRow
-                  label="Destek yanıt süresi"
-                  icon={<Clock size={14} />}
-                  values={subscriptionPlans.map((p) => p.limits.responseTime)}
-                />
-                <ComparisonRow
-                  label="Analitik & raporlama"
-                  icon={<BarChart3 size={14} />}
-                  values={subscriptionPlans.map((p) => p.limits.analytics)}
-                />
-                <ComparisonRow
-                  label="Öncelikli destek"
-                  icon={<Shield size={14} />}
-                  values={subscriptionPlans.map((p) => p.limits.prioritySupport)}
-                />
-                <ComparisonRow
-                  label="Doğrulanmış rozet"
-                  icon={<BadgeCheck size={14} />}
-                  values={subscriptionPlans.map((p) => p.limits.verifiedBadge)}
-                />
+                <ComparisonRow label="Aylik teklif hakki" icon={<MessageSquare size={14} />} values={comparisonPlans.map((plan) => plan.offersPerMonth === null ? 'Sinirsiz' : String(plan.offersPerMonth))} />
+                <ComparisonRow label="One cikarma" icon={<Zap size={14} />} values={comparisonPlans.map((plan) => plan.boostPerMonth === null ? 'Sinirsiz' : plan.boostPerMonth === 0 ? '—' : `${plan.boostPerMonth}/ay`)} />
+                <ComparisonRow label="Destek suresi" icon={<Clock size={14} />} values={comparisonPlans.map((plan) => plan.responseTime || 'Standart')} />
+                <ComparisonRow label="Analitik seviyesi" icon={<BarChart3 size={14} />} values={comparisonPlans.map((plan) => analyticsTierShortValue(plan.analyticsTier))} />
+                <ComparisonRow label="Oncelikli destek" icon={<Shield size={14} />} values={comparisonPlans.map((plan) => plan.prioritySupport)} />
+                <ComparisonRow label="Dogrulanmis rozet" icon={<BadgeCheck size={14} />} values={comparisonPlans.map((plan) => plan.verifiedBadge)} />
               </tbody>
             </table>
           </div>
-        </div>
-      </div>
-
-      {/* FAQ */}
-      <div className="max-w-3xl mx-auto">
-        <h2 className="text-h2 font-bold text-neutral-900 dark:text-dark-textPrimary text-center mb-8">
-          Sıkça Sorulan Sorular
-        </h2>
-        <div className="space-y-4">
-          {faqs.map((faq, i) => (
-            <motion.div
-              key={i}
-              initial={{ opacity: 0, y: 8 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.3, delay: 0.05 * i }}
-              className="bg-white dark:bg-dark-surface rounded-xl border border-neutral-200/50 dark:border-dark-border p-5"
-            >
-              <h4 className="text-body-lg font-semibold text-neutral-900 dark:text-dark-textPrimary mb-2">{faq.q}</h4>
-              <p className="text-body-md text-neutral-500">{faq.a}</p>
-            </motion.div>
-          ))}
         </div>
       </div>
     </div>
   );
 }
 
-function ComparisonRow({ label, icon, values }: { label: string; icon: React.ReactNode; values: (string | boolean)[] }) {
+function ComparisonRow({
+  label,
+  icon,
+  values,
+}: {
+  label: string;
+  icon: ReactNode;
+  values: Array<string | boolean>;
+}) {
   return (
-    <tr className="border-b border-neutral-50 dark:border-dark-border/50 last:border-0">
+    <tr className="border-b border-neutral-50 last:border-0 dark:border-dark-border/50">
       <td className="px-6 py-3.5">
         <div className="flex items-center gap-2 text-body-sm text-neutral-700 dark:text-dark-textSecondary">
           <span className="text-neutral-400">{icon}</span>
           {label}
         </div>
       </td>
-      {values.map((val, i) => (
-        <td key={i} className="text-center px-4 py-3.5">
-          {typeof val === 'boolean' ? (
-            val ? (
-              <Check size={18} className="text-success mx-auto" />
+      {values.map((value, index) => (
+        <td key={index} className="px-4 py-3.5 text-center">
+          {typeof value === 'boolean' ? (
+            value ? (
+              <Check size={18} className="mx-auto text-success" />
             ) : (
-              <X size={18} className="text-neutral-300 dark:text-neutral-600 mx-auto" />
+              <X size={18} className="mx-auto text-neutral-300 dark:text-neutral-600" />
             )
           ) : (
-            <span className="text-body-sm font-medium text-neutral-700 dark:text-dark-textSecondary">{val}</span>
+            <span className="text-body-sm font-medium text-neutral-700 dark:text-dark-textSecondary">{value}</span>
           )}
         </td>
       ))}
     </tr>
   );
 }
-
-const faqs = [
-  {
-    q: 'Planımı istediğim zaman değiştirebilir miyim?',
-    a: 'Evet, planınızı istediğiniz zaman yükseltebilir veya düşürebilirsiniz. Yükseltmelerde fark anında tahsil edilir, düşürmelerde kalan süre krediye dönüştürülür.',
-  },
-  {
-    q: '14 günlük deneme süresi nasıl çalışıyor?',
-    a: 'Ücretli planlarda ilk 14 gün ücretsizdir. Bu süre içinde iptal ederseniz herhangi bir ücret alınmaz. Deneme süresi sonunda otomatik olarak seçtiğiniz plan aktifleşir.',
-  },
-  {
-    q: 'Alıcılar için ücret var mı?',
-    a: 'Hayır! TalepSat\'ta ilan oluşturmak ve teklif almak tamamen ücretsizdir. Abonelik planları yalnızca satıcılar (teklif verenler) içindir.',
-  },
-  {
-    q: 'Hangi ödeme yöntemlerini kabul ediyorsunuz?',
-    a: 'Visa, Mastercard, American Express kredi/banka kartları ile ödeme yapabilirsiniz. Yıllık planlarda havale/EFT seçeneği de mevcuttur.',
-  },
-  {
-    q: 'Faturamı nasıl alabilirim?',
-    a: 'Tüm faturalarınız abonelik yönetim panelinden otomatik olarak oluşturulur ve e-posta adresinize gönderilir. Geçmiş faturalara da buradan erişebilirsiniz.',
-  },
-];

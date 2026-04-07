@@ -2,11 +2,22 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { getApiSession } from '@/lib/api-session';
 import bcrypt from 'bcryptjs';
+import { consumeRateLimit, createRateLimitResponse } from '@/lib/rate-limit';
+import { getClientIp } from '@/lib/security';
 
 export async function POST(req: NextRequest) {
   const session = await getApiSession(req);
   if (!session?.userId) {
     return NextResponse.json({ error: 'Yetkisiz' }, { status: 401 });
+  }
+
+  const rateLimit = consumeRateLimit({
+    key: `change-password:${session.userId}:${getClientIp(req)}`,
+    limit: 8,
+    windowMs: 30 * 60 * 1000,
+  });
+  if (!rateLimit.success) {
+    return createRateLimitResponse(rateLimit, 'Cok fazla sifre degistirme denemesi yapildi.');
   }
 
   const { currentPassword, newPassword } = await req.json();

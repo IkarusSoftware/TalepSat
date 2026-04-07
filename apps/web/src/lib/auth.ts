@@ -5,6 +5,9 @@ import { PrismaAdapter } from '@auth/prisma-adapter';
 import bcrypt from 'bcryptjs';
 import { prisma } from './prisma';
 import { getSettingsDirect } from './site-settings';
+import { isActiveUserStatus, isInactiveUserStatus } from './user-status';
+import { consumeRateLimit } from './rate-limit';
+import { getClientIp, normalizeEmail, sleep } from './security';
 
 // Only use PrismaAdapter when Google OAuth is configured
 // Adapter + Credentials + JWT can conflict — adapter tries to create sessions
@@ -24,27 +27,48 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
         email: { label: 'E-posta', type: 'email' },
         password: { label: 'Şifre', type: 'password' },
       },
-      async authorize(credentials) {
+      async authorize(credentials, request) {
         if (!credentials?.email || !credentials?.password) {
+          await sleep(250);
+          return null;
+        }
+
+        const email = normalizeEmail(credentials.email as string);
+        const ip = getClientIp(request);
+        const ipLimit = consumeRateLimit({
+          key: `web-login:ip:${ip}`,
+          limit: 10,
+          windowMs: 10 * 60 * 1000,
+        });
+        const emailLimit = consumeRateLimit({
+          key: `web-login:email:${email}`,
+          limit: 6,
+          windowMs: 10 * 60 * 1000,
+        });
+        if (!ipLimit.success || !emailLimit.success) {
+          await sleep(500);
           return null;
         }
 
         const [settings, user] = await Promise.all([
           getSettingsDirect(),
-          prisma.user.findUnique({
-            where: { email: credentials.email as string },
+          prisma.user.findFirst({
+            where: { email },
           }),
         ]);
 
         if (!user || !user.hashedPassword) {
+          await sleep(250);
           return null;
         }
 
-        if (user.status === 'banned' || user.status === 'suspended') {
+        if (isInactiveUserStatus(user.status)) {
+          await sleep(250);
           return null;
         }
 
         if (settings.email_verification_required && user.role !== 'admin' && !user.verified) {
+          await sleep(250);
           return null;
         }
 
@@ -54,6 +78,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
         );
 
         if (!isValid) {
+          await sleep(250);
           return null;
         }
 
@@ -94,7 +119,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
           return false;
         }
 
-        if (existingUser?.status === 'banned' || existingUser?.status === 'suspended') {
+        if (existingUser?.status && !isActiveUserStatus(existingUser.status)) {
           return false;
         }
       }
@@ -113,6 +138,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
             companyName: true,
             phone: true,
             city: true,
+            status: true,
           },
         });
         token.id = user.id;
@@ -122,12 +148,13 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
         token.companyName = dbUser?.companyName ?? null;
         token.phone = dbUser?.phone ?? null;
         token.city = dbUser?.city ?? null;
+        token.status = dbUser?.status ?? 'active';
       }
       if (trigger === 'update') {
         // Profile update — refresh from DB
         const dbUser = await prisma.user.findUnique({
           where: { id: token.id as string },
-          select: { role: true, verified: true, badge: true, companyName: true, phone: true, city: true },
+          select: { role: true, verified: true, badge: true, companyName: true, phone: true, city: true, status: true },
         });
         if (dbUser) Object.assign(token, dbUser);
       }
@@ -142,6 +169,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
       user.companyName = token.companyName;
       user.phone = token.phone;
       user.city = token.city;
+      user.status = token.status;
       return session;
     },
   },

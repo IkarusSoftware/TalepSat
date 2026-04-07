@@ -1,0 +1,327 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "sqlite"
+}
+
+model User {
+  id                  String                    @id @default(cuid())
+  name                String
+  email               String                    @unique
+  emailVerified       DateTime?
+  hashedPassword      String?
+  phone               String?
+  role                String                    @default("buyer")
+  image               String?
+  bio                 String?
+  city                String?
+  companyName         String?
+  taxNumber           String?
+  verified            Boolean                   @default(false)
+  badge               String?
+  status              String                    @default("active")
+  pushNotificationsEnabled Boolean              @default(false)
+  emailNewOfferEnabled Boolean                  @default(true)
+  emailStatusChangeEnabled Boolean              @default(true)
+  emailExpiryEnabled Boolean                    @default(true)
+  score               Float                     @default(0)
+  completedDeals      Int                       @default(0)
+  lastSeen            DateTime?
+  createdAt           DateTime                  @default(now())
+  updatedAt           DateTime                  @updatedAt
+  accounts            Account[]
+  sessions            Session[]
+  listings            Listing[]
+  offers              Offer[]
+  notifications       Notification[]
+  sentMessages        Message[]                 @relation("sender")
+  conversations       ConversationParticipant[]
+  blockedUsers        UserBlock[]               @relation("blocker")
+  blockedBy           UserBlock[]               @relation("blocked")
+  reports             UserReport[]              @relation("reporter")
+  reportedBy          UserReport[]              @relation("reported")
+  givenReviews        Review[]                  @relation("reviewer")
+  receivedReviews     Review[]                  @relation("reviewee")
+  favorites           Favorite[]
+  passwordResetTokens PasswordResetToken[]
+  pushDevices         PushDevice[]
+  subscriptions       UserSubscription[]
+  billingEvents       BillingEvent[]
+}
+
+model Account {
+  id                String @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String?
+  access_token      String?
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String?
+  session_state     String?
+  user              User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model Listing {
+  id              String        @id @default(cuid())
+  title           String
+  description     String
+  category        String
+  categorySlug    String
+  budgetMin       Float
+  budgetMax       Float
+  city            String
+  deliveryUrgency String        @default("normal")
+  status          String        @default("active")
+  images          String?
+  viewCount       Int           @default(0)
+  expiresAt       DateTime
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+  buyerId         String
+  buyer           User          @relation(fields: [buyerId], references: [id], onDelete: Cascade)
+  offers          Offer[]
+  views           ListingView[]
+  favorites       Favorite[]
+}
+
+model ListingView {
+  id          String   @id @default(cuid())
+  listingId   String
+  visitorHash String
+  createdAt   DateTime @default(now())
+  listing     Listing  @relation(fields: [listingId], references: [id], onDelete: Cascade)
+
+  @@unique([listingId, visitorHash])
+}
+
+model Offer {
+  id              String    @id @default(cuid())
+  price           Float
+  deliveryDays    Int
+  note            String?
+  status          String    @default("pending")
+  buyerConfirmed  Boolean   @default(false)
+  sellerConfirmed Boolean   @default(false)
+  isBoosted       Boolean   @default(false)
+  rejectedReason  String?
+  revisionCount   Int       @default(0)
+  counterPrice    Float?
+  counterDays     Int?
+  counterNote     String?
+  counterAt       DateTime?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  completedAt     DateTime?
+  listingId       String
+  listing         Listing   @relation(fields: [listingId], references: [id], onDelete: Cascade)
+  sellerId        String
+  seller          User      @relation(fields: [sellerId], references: [id], onDelete: Cascade)
+  reviews         Review[]
+}
+
+model Review {
+  id         String   @id @default(cuid())
+  rating     Int
+  comment    String?
+  createdAt  DateTime @default(now())
+  offerId    String
+  offer      Offer    @relation(fields: [offerId], references: [id], onDelete: Cascade)
+  reviewerId String
+  reviewer   User     @relation("reviewer", fields: [reviewerId], references: [id], onDelete: Cascade)
+  revieweeId String
+  reviewee   User     @relation("reviewee", fields: [revieweeId], references: [id], onDelete: Cascade)
+
+  @@unique([offerId, reviewerId])
+}
+
+model Notification {
+  id          String   @id @default(cuid())
+  type        String
+  title       String
+  description String
+  link        String?
+  read        Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model Conversation {
+  id           String                    @id @default(cuid())
+  listingId    String?
+  listingTitle String?
+  createdAt    DateTime                  @default(now())
+  updatedAt    DateTime                  @updatedAt
+  participants ConversationParticipant[]
+  messages     Message[]
+}
+
+model ConversationParticipant {
+  id             String       @id @default(cuid())
+  conversationId String
+  userId         String
+  unreadCount    Int          @default(0)
+  muted          Boolean      @default(false)
+  conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  user           User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([conversationId, userId])
+}
+
+model Message {
+  id             String       @id @default(cuid())
+  text           String
+  attachments    String?
+  read           Boolean      @default(false)
+  createdAt      DateTime     @default(now())
+  conversationId String
+  conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  senderId       String
+  sender         User         @relation("sender", fields: [senderId], references: [id], onDelete: Cascade)
+}
+
+model UserBlock {
+  id        String   @id @default(cuid())
+  blockerId String
+  blockedId String
+  createdAt DateTime @default(now())
+  blocker   User     @relation("blocker", fields: [blockerId], references: [id], onDelete: Cascade)
+  blocked   User     @relation("blocked", fields: [blockedId], references: [id], onDelete: Cascade)
+
+  @@unique([blockerId, blockedId])
+}
+
+model UserReport {
+  id         String   @id @default(cuid())
+  reporterId String
+  reportedId String
+  reason     String
+  detail     String?
+  status     String   @default("pending")
+  createdAt  DateTime @default(now())
+  reporter   User     @relation("reporter", fields: [reporterId], references: [id], onDelete: Cascade)
+  reported   User     @relation("reported", fields: [reportedId], references: [id], onDelete: Cascade)
+}
+
+model Favorite {
+  id        String   @id @default(cuid())
+  userId    String
+  listingId String
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  listing   Listing  @relation(fields: [listingId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, listingId])
+}
+
+model PasswordResetToken {
+  id        String   @id @default(cuid())
+  token     String   @unique
+  userId    String
+  expiresAt DateTime
+  used      Boolean  @default(false)
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model SiteSetting {
+  key       String   @id
+  value     String
+  updatedAt DateTime @updatedAt
+}
+
+model Plan {
+  id              String   @id @default(cuid())
+  slug            String   @unique
+  name            String
+  priceMonthly    Float    @default(0)
+  priceYearly     Float    @default(0)
+  iyzicoMonthlyPlanRef String?
+  iyzicoYearlyPlanRef  String?
+  offersPerMonth  Int?
+  boostPerMonth   Int?
+  maxListings     Int?
+  analytics       Boolean  @default(false)
+  analyticsTier   String   @default("none")
+  prioritySupport Boolean  @default(false)
+  verifiedBadge   Boolean  @default(false)
+  customProfile   Boolean  @default(false)
+  responseTime    String   @default("Standart")
+  sortOrder       Int      @default(0)
+  updatedAt       DateTime @updatedAt
+  subscriptions   UserSubscription[]
+  billingEvents   BillingEvent[]
+}
+
+model PushDevice {
+  id            String   @id @default(cuid())
+  userId        String
+  platform      String
+  expoPushToken String   @unique
+  appVersion    String?
+  lastSeenAt    DateTime @default(now())
+  disabledAt    DateTime?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+model UserSubscription {
+  id                      String   @id @default(cuid())
+  userId                  String
+  planId                  String
+  provider                String
+  billingCycle            String
+  status                  String
+  providerCustomerRef     String?
+  providerSubscriptionRef String?  @unique
+  providerCheckoutToken   String?
+  startedAt               DateTime?
+  currentPeriodStart      DateTime?
+  currentPeriodEnd        DateTime?
+  cancelAtPeriodEnd       Boolean  @default(false)
+  createdAt               DateTime @default(now())
+  updatedAt               DateTime @updatedAt
+  user                    User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  plan                    Plan     @relation(fields: [planId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([status])
+}
+
+model BillingEvent {
+  id                String   @id @default(cuid())
+  userId            String?
+  planId            String?
+  provider          String
+  eventType         String
+  payload           String
+  providerReference String?
+  processedAt       DateTime?
+  status            String   @default("pending")
+  createdAt         DateTime @default(now())
+  user              User?    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  plan              Plan?    @relation(fields: [planId], references: [id], onDelete: SetNull)
+
+  @@index([provider, eventType])
+  @@index([userId])
+}

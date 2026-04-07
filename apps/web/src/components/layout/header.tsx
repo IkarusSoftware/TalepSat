@@ -23,6 +23,7 @@ import {
 import { useSession } from 'next-auth/react';
 import { UserDropdown } from './user-dropdown';
 import { useTheme } from '@/components/theme-provider';
+import { realtimeWindowEventName } from '@/components/realtime-provider';
 
 const navLinks = [
   { href: '/explore', label: 'İlanları Keşfet', icon: Search },
@@ -56,7 +57,12 @@ export function Header({ siteName = 'TalepSat', logoUrl = '' }: HeaderProps) {
   }, []);
 
   useEffect(() => {
-    if (!isLoggedIn) return;
+    if (!isLoggedIn) {
+      setUnreadMessages(0);
+      setUnreadNotifications(0);
+      return;
+    }
+
     const fetchUnread = async () => {
       try {
         const res = await fetch('/api/unread-count');
@@ -65,11 +71,28 @@ export function Header({ siteName = 'TalepSat', logoUrl = '' }: HeaderProps) {
           setUnreadMessages(data.messages ?? 0);
           setUnreadNotifications(data.notifications ?? 0);
         }
-      } catch { /* silent */ }
+      } catch {
+        // Keep header badge updates resilient.
+      }
     };
+
+    const handleRealtime = (event: Event) => {
+      const detail = (event as CustomEvent<{ type?: string }>).detail;
+      if (!detail?.type) return;
+
+      if (['message.created', 'conversation.updated', 'notification.created', 'notification.read', 'offer.updated', 'order.updated'].includes(detail.type)) {
+        fetchUnread();
+      }
+    };
+
     fetchUnread();
     const interval = setInterval(fetchUnread, 30000);
-    return () => clearInterval(interval);
+    window.addEventListener(realtimeWindowEventName, handleRealtime);
+
+    return () => {
+      clearInterval(interval);
+      window.removeEventListener(realtimeWindowEventName, handleRealtime);
+    };
   }, [isLoggedIn]);
 
   return (
