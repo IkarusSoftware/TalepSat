@@ -1,9 +1,17 @@
-const path = require('path');
+const { Client } = require('pg');
 
 async function main() {
-  const generatedPath = path.join(process.cwd(), 'src', 'generated', 'prisma');
-  const { PrismaClient } = require(generatedPath);
-  const prisma = new PrismaClient();
+  const connectionString = process.env.DATABASE_URL;
+
+  if (!connectionString) {
+    throw new Error('DATABASE_URL is required.');
+  }
+
+  if (connectionString.startsWith('file:') || connectionString === ':memory:') {
+    throw new Error('bootstrap:production only supports PostgreSQL.');
+  }
+
+  const client = new Client({ connectionString });
 
   const siteDefaults = {
     site_name: 'TalepSat',
@@ -43,6 +51,7 @@ async function main() {
 
   const planDefaults = [
     {
+      id: 'plan_free',
       slug: 'free',
       name: 'Free',
       priceMonthly: 0,
@@ -59,6 +68,7 @@ async function main() {
       sortOrder: 0,
     },
     {
+      id: 'plan_basic',
       slug: 'basic',
       name: 'Basic',
       priceMonthly: 299,
@@ -75,6 +85,7 @@ async function main() {
       sortOrder: 10,
     },
     {
+      id: 'plan_plus',
       slug: 'plus',
       name: 'Plus',
       priceMonthly: 799,
@@ -91,6 +102,7 @@ async function main() {
       sortOrder: 20,
     },
     {
+      id: 'plan_pro',
       slug: 'pro',
       name: 'Pro',
       priceMonthly: 1499,
@@ -108,72 +120,98 @@ async function main() {
     },
   ];
 
-  try {
-    const siteEntries = Object.entries(siteDefaults);
-    let createdSettings = 0;
-    let updatedSettings = 0;
+  await client.connect();
 
-    for (const [key, value] of siteEntries) {
-      const existing = await prisma.siteSetting.findUnique({ where: { key } });
-      if (existing) {
-        updatedSettings += 1;
-        await prisma.siteSetting.update({
-          where: { key },
-          data: { value: existing.value || value },
-        });
-      } else {
-        createdSettings += 1;
-        await prisma.siteSetting.create({
-          data: { key, value },
-        });
-      }
+  try {
+    await client.query('BEGIN');
+
+    let createdSettings = 0;
+    for (const [key, value] of Object.entries(siteDefaults)) {
+      const result = await client.query(
+        `
+          INSERT INTO "SiteSetting" ("key", "value", "updatedAt")
+          VALUES ($1, $2, NOW())
+          ON CONFLICT ("key") DO NOTHING
+        `,
+        [key, value],
+      );
+      createdSettings += result.rowCount || 0;
     }
 
     let createdPlans = 0;
-    let updatedPlans = 0;
-
     for (const plan of planDefaults) {
-      const existing = await prisma.plan.findUnique({ where: { slug: plan.slug } });
-      if (existing) {
-        updatedPlans += 1;
-        await prisma.plan.update({
-          where: { slug: plan.slug },
-          data: {
-            name: existing.name || plan.name,
-            priceMonthly: existing.priceMonthly,
-            priceYearly: existing.priceYearly,
-            offersPerMonth: existing.offersPerMonth,
-            boostPerMonth: existing.boostPerMonth,
-            maxListings: existing.maxListings,
-            analytics: existing.analytics,
-            analyticsTier: existing.analyticsTier,
-            prioritySupport: existing.prioritySupport,
-            verifiedBadge: existing.verifiedBadge,
-            customProfile: existing.customProfile,
-            responseTime: existing.responseTime,
-            sortOrder: existing.sortOrder,
-          },
-        });
-      } else {
-        createdPlans += 1;
-        await prisma.plan.create({ data: plan });
-      }
+      const result = await client.query(
+        `
+          INSERT INTO "Plan" (
+            "id",
+            "slug",
+            "name",
+            "priceMonthly",
+            "priceYearly",
+            "offersPerMonth",
+            "boostPerMonth",
+            "maxListings",
+            "analytics",
+            "analyticsTier",
+            "prioritySupport",
+            "verifiedBadge",
+            "customProfile",
+            "responseTime",
+            "sortOrder",
+            "updatedAt"
+          )
+          VALUES (
+            $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, NOW()
+          )
+          ON CONFLICT ("slug") DO NOTHING
+        `,
+        [
+          plan.id,
+          plan.slug,
+          plan.name,
+          plan.priceMonthly,
+          plan.priceYearly,
+          plan.offersPerMonth,
+          plan.boostPerMonth,
+          plan.maxListings,
+          plan.analytics,
+          plan.analyticsTier,
+          plan.prioritySupport,
+          plan.verifiedBadge,
+          plan.customProfile,
+          plan.responseTime,
+          plan.sortOrder,
+        ],
+      );
+      createdPlans += result.rowCount || 0;
     }
 
-    const summary = {
-      createdSettings,
-      updatedSettings,
-      createdPlans,
-      updatedPlans,
-      users: await prisma.user.count(),
-      plans: await prisma.plan.count(),
-      settings: await prisma.siteSetting.count(),
-    };
+    await client.query('COMMIT');
+
+    const counts = await client.query(`
+      SELECT
+        (SELECT COUNT(*)::int FROM "User") AS users,
+        (SELECT COUNT(*)::int FROM "Plan") AS plans,
+        (SELECT COUNT(*)::int FROM "SiteSetting") AS settings
+    `);
 
     console.log('[bootstrap-production] done');
-    console.log(JSON.stringify(summary, null, 2));
+    console.log(
+      JSON.stringify(
+        {
+          createdSettings,
+          createdPlans,
+          ...counts.rows[0],
+        },
+        null,
+        2,
+      ),
+    );
+  } catch (error) {
+    await client.query('ROLLBACK');
+    throw error;
   } finally {
-    await prisma.$disconnect();
+    await client.end();
   }
 }
 
