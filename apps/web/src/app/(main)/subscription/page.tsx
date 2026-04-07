@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
+import { Suspense, useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { motion } from 'framer-motion';
@@ -159,7 +159,7 @@ function getCheckoutBlockReason(snapshot: BillingSnapshot, focusPlan: Plan | nul
   return null;
 }
 
-export default function SubscriptionPage() {
+function SubscriptionPageContent() {
   const { data: session, status } = useSession();
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -629,6 +629,20 @@ export default function SubscriptionPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+export default function SubscriptionPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="flex min-h-[60vh] items-center justify-center">
+          <Loader2 className="h-8 w-8 animate-spin text-accent" />
+        </div>
+      }
+    >
+      <SubscriptionPageContent />
+    </Suspense>
   );
 }
 
