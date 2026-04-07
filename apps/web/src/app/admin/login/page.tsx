@@ -202,8 +202,7 @@ export default function AdminLoginPage() {
       setLoading(false);
       return;
     }
-    router.replace('/admin');
-    router.refresh();
+    window.location.assign('/admin');
     return;
     const sessionRes = await fetch('/api/auth/session', { cache: 'no-store' });
     const sessionData = await sessionRes.json().catch(() => null);
