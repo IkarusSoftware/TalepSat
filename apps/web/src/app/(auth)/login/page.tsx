@@ -1,18 +1,29 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { signIn } from 'next-auth/react';
+import { useSession } from 'next-auth/react';
 import { motion } from 'framer-motion';
 import { ArrowRight, Eye, EyeOff, Lock, Mail } from 'lucide-react';
 import { usePublicSettings } from '@/hooks/use-public-settings';
 
 export default function LoginPage() {
+  const router = useRouter();
+  const { status } = useSession();
   const { settings, loading: settingsLoading } = usePublicSettings();
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [form, setForm] = useState({ email: '', password: '' });
   const [errors, setErrors] = useState<Record<string, string>>({});
+
+  useEffect(() => {
+    if (status === 'authenticated') {
+      router.replace('/explore');
+      router.refresh();
+    }
+  }, [router, status]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -35,6 +46,7 @@ export default function LoginPage() {
         email: form.email.trim(),
         password: form.password,
         redirect: false,
+        callbackUrl: '/explore',
       });
 
       if (result?.error) {
@@ -46,7 +58,8 @@ export default function LoginPage() {
         return;
       }
 
-      window.location.href = '/dashboard';
+      router.replace(result?.url || '/explore');
+      router.refresh();
     } catch {
       setErrors({ form: 'Bir hata olustu. Lutfen tekrar deneyin.' });
     } finally {
@@ -175,7 +188,7 @@ export default function LoginPage() {
             </div>
 
             <button
-              onClick={() => signIn('google', { callbackUrl: '/dashboard' })}
+              onClick={() => signIn('google', { callbackUrl: '/explore' })}
               className="w-full h-11 border border-neutral-200 dark:border-dark-border rounded-lg text-body-md font-medium text-neutral-700 dark:text-dark-textPrimary hover:bg-neutral-50 dark:hover:bg-dark-surfaceRaised transition-colors flex items-center justify-center gap-3"
             >
               <svg width="18" height="18" viewBox="0 0 24 24">
