@@ -1,17 +1,17 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import { auth } from '@/lib/auth';
+import { getAdminSession } from '@/lib/admin-session';
 
 export async function GET(req: NextRequest) {
-  const session = await auth();
-  if ((session?.user as { role?: string })?.role !== 'admin') {
+  const session = await getAdminSession();
+  if (!session) {
     return NextResponse.json({ error: 'Yetkisiz' }, { status: 401 });
   }
 
   const { searchParams } = new URL(req.url);
   const search = searchParams.get('search') || '';
   const status = searchParams.get('status') || 'all';
-  const limit  = parseInt(searchParams.get('limit') || '100');
+  const limit = parseInt(searchParams.get('limit') || '100', 10);
 
   const where: Record<string, unknown> = {};
 
@@ -50,26 +50,26 @@ export async function GET(req: NextRequest) {
   });
 
   return NextResponse.json(
-    listings.map((l) => ({
-      id: l.id,
-      title: l.title,
-      category: l.category,
-      city: l.city,
-      budgetMin: l.budgetMin,
-      budgetMax: l.budgetMax,
-      status: l.status,
-      createdAt: l.createdAt,
-      buyerId: l.buyer.id,
-      buyerName: l.buyer.name,
-      buyerEmail: l.buyer.email,
-      offerCount: l._count.offers,
-    }))
+    listings.map((listing) => ({
+      id: listing.id,
+      title: listing.title,
+      category: listing.category,
+      city: listing.city,
+      budgetMin: listing.budgetMin,
+      budgetMax: listing.budgetMax,
+      status: listing.status,
+      createdAt: listing.createdAt,
+      buyerId: listing.buyer.id,
+      buyerName: listing.buyer.name,
+      buyerEmail: listing.buyer.email,
+      offerCount: listing._count.offers,
+    })),
   );
 }
 
 export async function PATCH(req: NextRequest) {
-  const session = await auth();
-  if ((session?.user as { role?: string })?.role !== 'admin') {
+  const session = await getAdminSession();
+  if (!session) {
     return NextResponse.json({ error: 'Yetkisiz' }, { status: 401 });
   }
 
@@ -87,8 +87,8 @@ export async function PATCH(req: NextRequest) {
         data: {
           userId: approved.buyerId,
           type: 'listing_approved',
-          title: 'İlanınız Onaylandı 🎉',
-          description: `"${approved.title}" ilanınız onaylandı ve yayına alındı. Satıcılar artık teklif gönderebilir.`,
+          title: 'Ilaniniz Onaylandi',
+          description: `"${approved.title}" ilani onaylandi ve yayina alindi. Saticilar artik teklif gonderebilir.`,
           link: `/listing/${approved.id}`,
         },
       });
@@ -100,9 +100,9 @@ export async function PATCH(req: NextRequest) {
         data: {
           userId: rejected.buyerId,
           type: 'listing_rejected',
-          title: 'İlanınız Reddedildi',
-          description: `"${rejected.title}" ilanınız inceleme sonucunda yayınlanamadı. Detaylar için destek ekibiyle iletişime geçin.`,
-          link: `/dashboard`,
+          title: 'Ilaniniz Reddedildi',
+          description: `"${rejected.title}" ilani inceleme sonucunda yayinlanamadi. Detaylar icin destek ekibiyle iletisime gecin.`,
+          link: '/dashboard',
         },
       });
       break;
@@ -111,7 +111,7 @@ export async function PATCH(req: NextRequest) {
       await prisma.listing.update({ where: { id: listingId }, data: { status: 'expired' } });
       break;
     default:
-      return NextResponse.json({ error: 'Geçersiz aksiyon' }, { status: 400 });
+      return NextResponse.json({ error: 'Gecersiz aksiyon' }, { status: 400 });
   }
 
   return NextResponse.json({ success: true });

@@ -2,6 +2,7 @@ const path = require('path');
 require('dotenv').config({ path: path.join(process.cwd(), '.env') });
 
 const { Client } = require('pg');
+const { syncLegacyAdminsPostgres } = require('./sync-admin-accounts.cjs');
 
 async function main() {
   const connectionString = process.env.DATABASE_URL;
@@ -189,11 +190,14 @@ async function main() {
       createdPlans += result.rowCount || 0;
     }
 
+    const adminSync = await syncLegacyAdminsPostgres(client);
+
     await client.query('COMMIT');
 
     const counts = await client.query(`
       SELECT
         (SELECT COUNT(*)::int FROM "User") AS users,
+        (SELECT COUNT(*)::int FROM "AdminAccount") AS admins,
         (SELECT COUNT(*)::int FROM "Plan") AS plans,
         (SELECT COUNT(*)::int FROM "SiteSetting") AS settings
     `);
@@ -204,6 +208,7 @@ async function main() {
         {
           createdSettings,
           createdPlans,
+          adminSync,
           ...counts.rows[0],
         },
         null,

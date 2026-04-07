@@ -1,8 +1,7 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import { auth } from '@/lib/auth';
+import { getAdminSession } from '@/lib/admin-session';
 
-// Helper: build an array of N days ago -> today
 function daysRange(n: number) {
   const days: { start: Date; end: Date; label: string }[] = [];
   for (let i = n - 1; i >= 0; i--) {
@@ -18,9 +17,8 @@ function daysRange(n: number) {
 }
 
 export async function GET() {
-  const session = await auth();
-  const role = (session?.user as { role?: string })?.role;
-  if (!session?.user?.id || role !== 'admin') {
+  const session = await getAdminSession();
+  if (!session) {
     return NextResponse.json({ error: 'Yetkisiz' }, { status: 401 });
   }
 
@@ -30,7 +28,6 @@ export async function GET() {
   const oneDayAgo = new Date(now);
   oneDayAgo.setDate(now.getDate() - 1);
 
-  // ── Core totals ──────────────────────────────────────────────────────────
   const [
     totalUsers,
     totalListings,
@@ -53,7 +50,6 @@ export async function GET() {
     prisma.user.count({ where: { lastSeen: { gte: oneDayAgo } } }),
   ]);
 
-  // ── Weekly activity (last 7 days — offer counts) ──────────────────────────
   const weeklyActivity: number[] = [];
   for (let i = 6; i >= 0; i--) {
     const dayStart = new Date();
@@ -67,41 +63,35 @@ export async function GET() {
     weeklyActivity.push(count);
   }
 
-  // ── 30-day daily charts ───────────────────────────────────────────────────
   const days30 = daysRange(30);
 
   const [userGrowth, listingGrowth, salesGrowth, boostRevenue] = await Promise.all([
-    // New users per day
     Promise.all(
       days30.map(async ({ start, end, label }) => ({
         date: label,
         value: await prisma.user.count({ where: { createdAt: { gte: start, lte: end } } }),
-      }))
+      })),
     ),
-    // New listings per day
     Promise.all(
       days30.map(async ({ start, end, label }) => ({
         date: label,
         value: await prisma.listing.count({ where: { createdAt: { gte: start, lte: end } } }),
-      }))
+      })),
     ),
-    // Completed offers per day
     Promise.all(
       days30.map(async ({ start, end, label }) => ({
         date: label,
         value: await prisma.offer.count({ where: { completedAt: { gte: start, lte: end } } }),
-      }))
+      })),
     ),
-    // Boost revenue (isBoosted offers × 99₺ each)
     Promise.all(
       days30.map(async ({ start, end, label }) => ({
         date: label,
         value: (await prisma.offer.count({ where: { isBoosted: true, createdAt: { gte: start, lte: end } } })) * 99,
-      }))
+      })),
     ),
   ]);
 
-  // ── Offer status distribution ─────────────────────────────────────────────
   const offerStatuses = ['pending', 'accepted', 'rejected', 'counter_offered', 'withdrawn', 'completed'];
   const offerStatusData = await Promise.all(
     offerStatuses.map(async (status) => ({
@@ -109,54 +99,49 @@ export async function GET() {
         pending: 'Bekleyen',
         accepted: 'Kabul',
         rejected: 'Red',
-        counter_offered: 'Karşı Teklif',
-        withdrawn: 'Geri Çekilen',
+        counter_offered: 'Karsi Teklif',
+        withdrawn: 'Geri Cekilen',
         completed: 'Tamamlanan',
       }[status] ?? status,
       value: await prisma.offer.count({ where: { status } }),
-    }))
+    })),
   );
 
-  // ── Top 8 categories ──────────────────────────────────────────────────────
   const allListings = await prisma.listing.findMany({ select: { category: true } });
   const categoryMap: Record<string, number> = {};
-  for (const l of allListings) {
-    categoryMap[l.category] = (categoryMap[l.category] ?? 0) + 1;
+  for (const listing of allListings) {
+    categoryMap[listing.category] = (categoryMap[listing.category] ?? 0) + 1;
   }
   const topCategories = Object.entries(categoryMap)
     .sort((a, b) => b[1] - a[1])
     .slice(0, 8)
     .map(([name, value]) => ({ name, value }));
 
-  // ── Top 6 cities ──────────────────────────────────────────────────────────
   const allCityListings = await prisma.listing.findMany({ select: { city: true } });
   const cityMap: Record<string, number> = {};
-  for (const l of allCityListings) {
-    cityMap[l.city] = (cityMap[l.city] ?? 0) + 1;
+  for (const listing of allCityListings) {
+    cityMap[listing.city] = (cityMap[listing.city] ?? 0) + 1;
   }
   const topCities = Object.entries(cityMap)
     .sort((a, b) => b[1] - a[1])
     .slice(0, 6)
     .map(([name, value]) => ({ name, value }));
 
-  // ── User role distribution ────────────────────────────────────────────────
   const [buyerCount, sellerCount, bothCount] = await Promise.all([
     prisma.user.count({ where: { role: 'buyer' } }),
     prisma.user.count({ where: { role: 'seller' } }),
     prisma.user.count({ where: { role: 'both' } }),
   ]);
   const userRoleData = [
-    { name: 'Alıcı', value: buyerCount },
-    { name: 'Satıcı', value: sellerCount },
-    { name: 'Her İkisi', value: bothCount },
+    { name: 'Alici', value: buyerCount },
+    { name: 'Satici', value: sellerCount },
+    { name: 'Her Ikisi', value: bothCount },
   ];
 
-  // ── Cumulative totals for summary ─────────────────────────────────────────
   const totalBoostRevenue = (await prisma.offer.count({ where: { isBoosted: true } })) * 99;
   const totalRevenue = completedDeals * 500 + totalBoostRevenue;
 
   return NextResponse.json({
-    // Core
     totalUsers,
     totalListings,
     totalOffers,
@@ -169,7 +154,6 @@ export async function GET() {
     completedDeals,
     weeklyActivity,
     totalBoostRevenue,
-    // Charts
     userGrowth,
     listingGrowth,
     salesGrowth,

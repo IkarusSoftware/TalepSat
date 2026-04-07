@@ -49,7 +49,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: getBlockedUserMessage(user.status) }, { status: 403 });
     }
 
-    if (settings.email_verification_required && user.role !== 'admin' && !user.verified) {
+    if (settings.email_verification_required && !user.verified) {
       return NextResponse.json(
         { error: 'Giris yapmadan once hesabinizi dogrulamaniz gerekiyor.' },
         { status: 403 },

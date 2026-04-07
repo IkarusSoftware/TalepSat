@@ -68,7 +68,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
           return null;
         }
 
-        if (settings.email_verification_required && user.role !== 'admin' && !user.verified) {
+        if (settings.email_verification_required && !user.verified) {
           await sleep(250);
           return null;
         }
@@ -150,6 +150,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
         token.phone = dbUser?.phone ?? null;
         token.city = dbUser?.city ?? null;
         token.status = dbUser?.status ?? 'active';
+        token.kind = 'user';
       }
       if (trigger === 'update') {
         // Profile update — refresh from DB
@@ -171,6 +172,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
       user.phone = token.phone;
       user.city = token.city;
       user.status = token.status;
+      user.kind = token.kind ?? 'user';
       return session;
     },
   },

@@ -10,7 +10,9 @@
     "lint": "next lint",
     "type-check": "tsc --noEmit",
     "media:normalize": "node scripts/normalize-media-urls.cjs",
-    "bootstrap:production": "node scripts/bootstrap-production.cjs"
+    "bootstrap:production": "node scripts/bootstrap-production.cjs",
+    "admin:create": "node scripts/create-admin-account.cjs",
+    "admin:sync-legacy": "node scripts/sync-admin-accounts.cjs"
   },
   "dependencies": {
     "@auth/prisma-adapter": "^2.11.1",

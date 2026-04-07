@@ -94,8 +94,6 @@ function roleLabel(role: string) {
       return 'Satici';
     case 'both':
       return 'Alici & Satici';
-    case 'admin':
-      return 'Admin';
     default:
       return role;
   }

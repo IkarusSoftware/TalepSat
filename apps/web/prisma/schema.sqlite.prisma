@@ -52,6 +52,21 @@ model User {
   billingEvents       BillingEvent[]
 }
 
+model AdminAccount {
+  id                String   @id @default(cuid())
+  name              String
+  email             String   @unique
+  hashedPassword    String
+  role              String   @default("staff")
+  status            String   @default("active")
+  lastLoginAt       DateTime?
+  twoFactorEnabled  Boolean  @default(false)
+  twoFactorSecret   String?
+  recoveryCodesHash String?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+}
+
 model Account {
   id                String @id @default(cuid())
   userId            String

@@ -1,11 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import { auth } from '@/lib/auth';
+import { getAdminSession } from '@/lib/admin-session';
 
 export async function GET(req: NextRequest) {
-  const session = await auth();
-  const role = (session?.user as { role?: string })?.role;
-  if (!session?.user?.id || role !== 'admin') {
+  const session = await getAdminSession();
+  if (!session) {
     return NextResponse.json({ error: 'Yetkisiz' }, { status: 401 });
   }
 
@@ -41,9 +40,8 @@ export async function GET(req: NextRequest) {
 }
 
 export async function PATCH(req: NextRequest) {
-  const session = await auth();
-  const role = (session?.user as { role?: string })?.role;
-  if (!session?.user?.id || role !== 'admin') {
+  const session = await getAdminSession();
+  if (!session) {
     return NextResponse.json({ error: 'Yetkisiz' }, { status: 401 });
   }
 
@@ -65,7 +63,7 @@ export async function PATCH(req: NextRequest) {
       newStatus = 'resolved';
       break;
     default:
-      return NextResponse.json({ error: 'Geçersiz aksiyon' }, { status: 400 });
+      return NextResponse.json({ error: 'Gecersiz aksiyon' }, { status: 400 });
   }
 
   const updated = await prisma.userReport.update({

@@ -1,6 +1,11 @@
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 import { getToken } from 'next-auth/jwt';
+import {
+  adminSessionCookieNames,
+  getAdminAuthSecret,
+  marketplaceSessionCookieNames,
+} from '@/lib/auth-cookies';
 
 // ── Maintenance mode cache ────────────────────────────────────────────────────
 let maintenanceCache: { active: boolean; ts: number } | null = null;
@@ -23,6 +28,28 @@ async function isMaintenanceActive(requestUrl: string): Promise<boolean> {
   }
 }
 
+async function readTokenFromCookies(
+  request: NextRequest,
+  secret: string | undefined,
+  cookieNames: string[],
+) {
+  for (const cookieName of cookieNames) {
+    const token = await getToken({
+      req: request,
+      secret,
+      cookieName,
+      salt: cookieName,
+      secureCookie: cookieName.startsWith('__Secure-'),
+    }).catch(() => null);
+
+    if (token) {
+      return token;
+    }
+  }
+
+  return null;
+}
+
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
@@ -41,10 +68,9 @@ export async function middleware(request: NextRequest) {
   }
 
   // ── Auth kontrolü ─────────────────────────────────────────────────────────
-  const isAdminRoute = isAdminPath && !pathname.startsWith('/admin/login');
-
-  const isProtectedRoute =
-    isAdminRoute ||
+  const isAdminLoginRoute = pathname === '/admin/login';
+  const isAdminRoute = isAdminPath && !isAdminLoginRoute;
+  const isMarketplaceProtectedRoute =
     pathname.startsWith('/dashboard') ||
     pathname.startsWith('/offers') ||
     pathname.startsWith('/messages') ||
@@ -54,26 +80,28 @@ export async function middleware(request: NextRequest) {
     pathname.startsWith('/notifications') ||
     pathname.startsWith('/seller-dashboard');
 
-  if (!isProtectedRoute) return NextResponse.next();
+  if (!isAdminPath && !isMarketplaceProtectedRoute) return NextResponse.next();
 
-  const token =
-    (await getToken({
-      req: request,
-      secret: process.env.AUTH_SECRET,
-      salt: '__Secure-authjs.session-token',
-      secureCookie: true,
-    }).catch(() => null)) ||
-    (await getToken({
-      req: request,
-      secret: process.env.AUTH_SECRET,
-      salt: 'authjs.session-token',
-      secureCookie: false,
-    }).catch(() => null));
+  if (isAdminPath) {
+    const adminToken = await readTokenFromCookies(request, getAdminAuthSecret(), adminSessionCookieNames);
+    const adminStatus = typeof adminToken?.adminStatus === 'string' ? adminToken.adminStatus : 'disabled';
 
-  if (!token) {
-    if (isAdminRoute) {
+    if (isAdminLoginRoute) {
+      if (adminToken && adminStatus === 'active') {
+        return NextResponse.redirect(new URL('/admin', request.url));
+      }
+      return NextResponse.next();
+    }
+
+    if (!adminToken || adminStatus !== 'active') {
       return NextResponse.redirect(new URL('/admin/login', request.url));
     }
+
+    return NextResponse.next();
+  }
+
+  const userToken = await readTokenFromCookies(request, process.env.AUTH_SECRET, marketplaceSessionCookieNames);
+  if (!userToken) {
     const loginUrl = new URL('/login', request.url);
     loginUrl.searchParams.set('callbackUrl', pathname);
     return NextResponse.redirect(loginUrl);
