@@ -4,6 +4,7 @@ import Google from 'next-auth/providers/google';
 import { PrismaAdapter } from '@auth/prisma-adapter';
 import bcrypt from 'bcryptjs';
 import { prisma } from './prisma';
+import { MARKETPLACE_AUTH_BASE_PATH } from './auth-cookies';
 import { getSettingsDirect } from './site-settings';
 import { isActiveUserStatus, isInactiveUserStatus } from './user-status';
 import { consumeRateLimit } from './rate-limit';
@@ -16,6 +17,7 @@ const useAdapter = googleProviderConfigured;
 
 export const { handlers, signIn, signOut, auth } = NextAuth({
   ...(useAdapter ? { adapter: PrismaAdapter(prisma) } : {}),
+  basePath: MARKETPLACE_AUTH_BASE_PATH,
   trustHost: true,
   session: { strategy: 'jwt' },
   pages: {

@@ -2,12 +2,13 @@ import NextAuth from 'next-auth';
 import Credentials from 'next-auth/providers/credentials';
 import bcrypt from 'bcryptjs';
 import { prisma } from './prisma';
-import { createAdminAuthCookies, getAdminAuthSecret } from './auth-cookies';
+import { ADMIN_AUTH_BASE_PATH, createAdminAuthCookies, getAdminAuthSecret } from './auth-cookies';
 import type { AdminRole } from './admin-session';
 import { consumeRateLimit } from './rate-limit';
 import { getClientIp, normalizeEmail, sleep } from './security';
 
 export const { handlers: adminHandlers, signIn: adminSignIn, signOut: adminSignOut, auth: adminAuth } = NextAuth({
+  basePath: ADMIN_AUTH_BASE_PATH,
   secret: getAdminAuthSecret(),
   trustHost: true,
   session: { strategy: 'jwt' },
